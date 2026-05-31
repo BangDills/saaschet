@@ -4,11 +4,11 @@ This guide assumes your cPanel has the **"Setup Node.js App"** feature (also cal
 
 ## Prerequisites
 
-- cPanel with Node.js Selector that supports **Node.js 20+** (your panel listed `20.20.2` — that works).
+- cPanel with Node.js Selector that supports **Node.js 20+** (your panel offers up to **Node.js 24** — even better, use the latest LTS).
 - A domain or subdomain pointed at the application root (e.g. `app.bangdillz.store`).
 - File Manager access (or FTP/SFTP, or Git Version Control if available).
 
-> ⚠️ **Important:** the default version cPanel selects is `10.24.1`. That is **way too old** for Next.js 16. Always change it to **20.20.2 or higher**.
+> ⚠️ **Important:** the default version cPanel selects is `10.24.1`. That is **way too old** for Next.js 16. Always change it to **Node 22 (LTS) or Node 24 (latest)**. Avoid odd-numbered versions like 19.x and 21.x — those are not LTS and may be removed by your host.
 
 ---
 
@@ -61,7 +61,7 @@ Suggested target directory: `/home/<youruser>/horizon-ai` (NOT inside `public_ht
 
 | Field                       | Value                                            |
 | --------------------------- | ------------------------------------------------ |
-| **Node.js version**         | `20.20.2` (or higher) — **do not leave 10.24.1** |
+| **Node.js version**         | `22.x` (LTS, recommended) or `24.x` — **do not leave 10.24.1** |
 | **Application mode**        | `Production`                                     |
 | **Application root**        | `horizon-ai` (relative to your home dir)         |
 | **Application URL**         | the domain/subdomain you want                    |
@@ -115,7 +115,7 @@ If you change `package.json`, click **"Run NPM Install"** again.
 
 **"503 / 502 / Application failed to start"**
 - Check the **stderr.log** in the application root.
-- Most common cause: Node version too low. Change to 20.20.2+.
+- Most common cause: Node version too low. Change to Node 22 LTS or Node 24.
 
 **"Cannot find module 'next'"**
 - You forgot to click **Run NPM Install** after upload.
