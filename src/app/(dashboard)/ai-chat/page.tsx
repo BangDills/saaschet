@@ -3,36 +3,48 @@
 import * as React from "react";
 import { ConversationList } from "@/components/chat/conversation-list";
 import { ChatPanel } from "@/components/chat/chat-panel";
-import {
-  deleteConversation,
-  deriveTitle,
-  listConversations,
-  newId,
-  saveConversation,
-} from "@/lib/chat/storage";
+import { newId } from "@/lib/chat/storage";
 import type { ChatMessage, Conversation, ModelInfo } from "@/lib/chat/types";
 import { defaultModelId, defaultModels } from "@/lib/chat/models";
 
-type PanelInstance = {
-  key: string;
+type ActivePanel = {
+  /** UUID used as both React key AND the conversationId sent to /api/chat. */
+  conversationId: string;
   initialMessages: ChatMessage[];
 };
 
-const FRESH_PANEL: PanelInstance = { key: "new", initialMessages: [] };
+function freshPanel(): ActivePanel {
+  return { conversationId: newId(), initialMessages: [] };
+}
 
 export default function AIChatPage() {
   const [models, setModels] = React.useState<ModelInfo[]>(defaultModels);
   const [modelId, setModelId] = React.useState<string>(defaultModelId);
   const [webSearch, setWebSearch] = React.useState<boolean>(false);
   const [repo, setRepo] = React.useState<string | null>(null);
-  const [conversations, setConversations] = React.useState<Conversation[]>([]);
-  const [activeId, setActiveId] = React.useState<string | null>(null);
-  const [panel, setPanel] = React.useState<PanelInstance>(FRESH_PANEL);
 
-  React.useEffect(() => {
-    setConversations(listConversations());
+  const [conversations, setConversations] = React.useState<Conversation[]>([]);
+  const [active, setActive] = React.useState<ActivePanel>(freshPanel);
+
+  // Hydrate the sidebar with the user's conversations from Supabase.
+  const reloadConversations = React.useCallback(async () => {
+    try {
+      const res = await fetch("/api/conversations", { cache: "no-store" });
+      if (!res.ok) return;
+      const json = (await res.json()) as { conversations?: Conversation[] };
+      if (Array.isArray(json.conversations)) {
+        setConversations(json.conversations);
+      }
+    } catch {
+      // network errors are non-fatal — just leave the previous list
+    }
   }, []);
 
+  React.useEffect(() => {
+    reloadConversations();
+  }, [reloadConversations]);
+
+  // Fetch the live model list.
   React.useEffect(() => {
     let cancelled = false;
     fetch("/api/models")
@@ -41,16 +53,12 @@ export default function AIChatPage() {
         if (cancelled) return;
         if (Array.isArray(json.models) && json.models.length > 0) {
           setModels(json.models);
-          // If our previously-selected model isn't in the live list, fall back
-          // to the first available one to avoid sending an unknown model id.
           if (!json.models.some((m) => m.id === modelId)) {
             setModelId(json.models[0].id);
           }
         }
       })
-      .catch(() => {
-        // keep defaults
-      });
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -58,66 +66,54 @@ export default function AIChatPage() {
   }, []);
 
   function startNewChat() {
-    setActiveId(null);
-    setPanel({ key: `new-${Date.now()}`, initialMessages: [] });
+    setActive(freshPanel());
   }
 
-  function openChat(id: string) {
-    const conv = conversations.find((c) => c.id === id);
-    if (!conv) return;
-    setActiveId(id);
-    if (conv.modelId) setModelId(conv.modelId);
-    setPanel({ key: `c-${id}`, initialMessages: conv.messages });
+  async function openChat(id: string) {
+    try {
+      const res = await fetch(`/api/conversations/${id}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const json = (await res.json()) as { conversation?: Conversation };
+      const conv = json.conversation;
+      if (!conv) return;
+      if (conv.modelId) setModelId(conv.modelId);
+      setRepo(conv.githubRepo ?? null);
+      setActive({
+        conversationId: conv.id,
+        initialMessages: conv.messages,
+      });
+    } catch {
+      // ignore network error
+    }
   }
 
-  function removeChat(id: string) {
-    deleteConversation(id);
+  async function removeChat(id: string) {
+    try {
+      await fetch(`/api/conversations/${id}`, { method: "DELETE" });
+    } catch {
+      // ignore
+    }
     setConversations((prev) => prev.filter((c) => c.id !== id));
-    if (activeId === id) {
-      setActiveId(null);
-      setPanel(FRESH_PANEL);
+    if (active.conversationId === id) {
+      setActive(freshPanel());
     }
   }
 
-  function handleMessagesChange(msgs: ChatMessage[]) {
-    if (msgs.length === 0) return;
-
-    let convId = activeId;
-    if (!convId) {
-      convId = newId();
-      setActiveId(convId);
-    }
-
-    const now = Date.now();
-    setConversations((prev) => {
-      const existing = prev.find((c) => c.id === convId);
-      const next: Conversation = {
-        id: convId!,
-        title:
-          existing?.title && existing.title !== "New chat"
-            ? existing.title
-            : deriveTitle(msgs),
-        modelId,
-        messages: msgs,
-        createdAt: existing?.createdAt ?? now,
-        updatedAt: now,
-      };
-      saveConversation(next);
-      const idx = prev.findIndex((c) => c.id === convId);
-      const list =
-        idx === -1
-          ? [next, ...prev]
-          : prev.map((c) => (c.id === convId ? next : c));
-      return list.sort((a, b) => b.updatedAt - a.updatedAt);
-    });
-  }
+  // Refresh the list each time an assistant response finishes streaming —
+  // that's when a new conversation row may have appeared or an existing
+  // one's updated_at moved.
+  const handleAssistantFinish = React.useCallback(() => {
+    reloadConversations();
+  }, [reloadConversations]);
 
   return (
     <div className="-mx-4 -my-6 flex h-[calc(100vh-5rem)] sm:-mx-6 lg:-mx-8">
       <aside className="hidden w-72 shrink-0 border-r border-border bg-card md:flex md:flex-col">
         <ConversationList
           items={conversations}
-          activeId={activeId ?? undefined}
+          activeId={active.conversationId}
           onSelect={openChat}
           onNew={startNewChat}
           onDelete={removeChat}
@@ -126,9 +122,9 @@ export default function AIChatPage() {
 
       <section className="flex min-w-0 flex-1 flex-col">
         <ChatPanel
-          key={panel.key}
-          conversationId={panel.key}
-          initialMessages={panel.initialMessages}
+          key={active.conversationId}
+          conversationId={active.conversationId}
+          initialMessages={active.initialMessages}
           modelId={modelId}
           models={models}
           onModelChange={setModelId}
@@ -136,7 +132,7 @@ export default function AIChatPage() {
           onWebSearchChange={setWebSearch}
           repo={repo}
           onRepoChange={setRepo}
-          onMessagesChange={handleMessagesChange}
+          onAssistantFinish={handleAssistantFinish}
         />
       </section>
     </div>
