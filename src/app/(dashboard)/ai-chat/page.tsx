@@ -12,7 +12,6 @@ import {
 } from "@/lib/chat/storage";
 import type { ChatMessage, Conversation, ModelInfo } from "@/lib/chat/types";
 import { defaultModelId, defaultModels } from "@/lib/chat/models";
-import { defaultContextId } from "@/lib/chat/contexts";
 
 type PanelInstance = {
   key: string;
@@ -24,8 +23,8 @@ const FRESH_PANEL: PanelInstance = { key: "new", initialMessages: [] };
 export default function AIChatPage() {
   const [models, setModels] = React.useState<ModelInfo[]>(defaultModels);
   const [modelId, setModelId] = React.useState<string>(defaultModelId);
-  const [contextId, setContextId] = React.useState<string>(defaultContextId);
   const [webSearch, setWebSearch] = React.useState<boolean>(false);
+  const [repo, setRepo] = React.useState<string | null>(null);
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [panel, setPanel] = React.useState<PanelInstance>(FRESH_PANEL);
@@ -42,6 +41,11 @@ export default function AIChatPage() {
         if (cancelled) return;
         if (Array.isArray(json.models) && json.models.length > 0) {
           setModels(json.models);
+          // If our previously-selected model isn't in the live list, fall back
+          // to the first available one to avoid sending an unknown model id.
+          if (!json.models.some((m) => m.id === modelId)) {
+            setModelId(json.models[0].id);
+          }
         }
       })
       .catch(() => {
@@ -50,6 +54,7 @@ export default function AIChatPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function startNewChat() {
@@ -127,10 +132,10 @@ export default function AIChatPage() {
           modelId={modelId}
           models={models}
           onModelChange={setModelId}
-          contextId={contextId}
-          onContextChange={setContextId}
           webSearch={webSearch}
           onWebSearchChange={setWebSearch}
+          repo={repo}
+          onRepoChange={setRepo}
           onMessagesChange={handleMessagesChange}
         />
       </section>

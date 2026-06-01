@@ -2,11 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Zap, Award, LogOut } from "lucide-react";
+import { Zap, Award } from "lucide-react";
 import { navItems } from "@/lib/nav";
 import { cn } from "@/lib/utils";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 
-export function Sidebar() {
+export type SidebarProps = {
+  displayName: string;
+  initials: string;
+  email: string;
+  avatarUrl: string | null;
+};
+
+export function Sidebar({
+  displayName,
+  initials,
+  email,
+  avatarUrl,
+}: SidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -21,7 +34,6 @@ export function Sidebar() {
 
       <div className="mb-2 border-t border-sidebar-border" />
 
-      {/* Navigation */}
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto py-2">
         {navItems.map((item) => {
           const active =
@@ -47,7 +59,6 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* PRO member card */}
       <div className="mt-2 flex items-center gap-3 rounded-xl border border-sidebar-border bg-card p-4">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400">
           <Award className="size-5" />
@@ -58,20 +69,29 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* User */}
+      {/* Real user info */}
       <div className="mt-3 flex items-center justify-between rounded-xl border border-sidebar-border bg-card p-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
-            AP
+        <div className="flex min-w-0 items-center gap-3">
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={avatarUrl}
+              alt=""
+              className="h-9 w-9 shrink-0 rounded-full object-cover"
+            />
+          ) : (
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
+              {initials || "U"}
+            </div>
+          )}
+          <div className="min-w-0 leading-tight">
+            <p className="truncate text-sm font-medium">{displayName}</p>
+            {email && (
+              <p className="truncate text-xs text-muted-foreground">{email}</p>
+            )}
           </div>
-          <span className="text-sm font-medium">Adela Parkson</span>
         </div>
-        <button
-          aria-label="Sign out"
-          className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-        >
-          <LogOut className="size-4" />
-        </button>
+        <SignOutButton />
       </div>
     </aside>
   );

@@ -1,39 +1,44 @@
 import type { ModelInfo } from "./types";
 
 /**
+ * Vendors we want to expose in the model selector.
+ *
+ * Both the curated catalog below AND the live `/api/models` proxy filter
+ * against this list, so anything DigitalOcean ships outside of these
+ * vendors is hidden from the dropdown.
+ */
+export const allowedVendors = [
+  "Anthropic",
+  "OpenAI",
+  "DeepSeek",
+  "MiniMax",
+  "Qwen",
+] as const;
+
+export type AllowedVendor = (typeof allowedVendors)[number];
+
+export function isAllowedVendor(v: string): v is AllowedVendor {
+  return (allowedVendors as readonly string[]).includes(v);
+}
+
+/**
  * Curated default model catalog for DigitalOcean Serverless Inference.
  *
- * The full live list can be fetched at runtime from /api/models, which proxies
- * GET https://inference.do-ai.run/v1/models. This static list is used as the
- * initial catalog and as a fallback if the live API is unreachable.
+ * The full live list is fetched at runtime from /api/models, which proxies
+ * GET https://inference.do-ai.run/v1/models and filters down to the
+ * vendors above. This static list is shown immediately while the live
+ * fetch is in flight (and serves as a fallback if the upstream is down).
  *
- * Model IDs follow DigitalOcean's published naming. Adjust freely as new
- * models become available.
+ * IDs follow DigitalOcean's published naming. Update freely as the
+ * platform's catalog evolves.
  */
 export const defaultModels: ModelInfo[] = [
-  {
-    id: "llama3.3-70b-instruct",
-    label: "Llama 3.3 70B",
-    vendor: "Meta",
-    tag: "Open · fast",
-  },
-  {
-    id: "deepseek-r1-distill-llama-70b",
-    label: "DeepSeek R1 Distill 70B",
-    vendor: "DeepSeek",
-    tag: "Reasoning",
-  },
-  {
-    id: "mistral-nemo-instruct-2407",
-    label: "Mistral Nemo",
-    vendor: "Mistral",
-    tag: "Open · balanced",
-  },
+  // Anthropic
   {
     id: "anthropic-claude-3.5-sonnet",
     label: "Claude 3.5 Sonnet",
     vendor: "Anthropic",
-    tag: "Premium",
+    tag: "Premium · multilingual",
   },
   {
     id: "anthropic-claude-3.5-haiku",
@@ -41,6 +46,8 @@ export const defaultModels: ModelInfo[] = [
     vendor: "Anthropic",
     tag: "Fast premium",
   },
+
+  // OpenAI
   {
     id: "openai-gpt-4o",
     label: "GPT-4o",
@@ -52,6 +59,30 @@ export const defaultModels: ModelInfo[] = [
     label: "GPT-4o mini",
     vendor: "OpenAI",
     tag: "Fast premium",
+  },
+
+  // DeepSeek
+  {
+    id: "deepseek-r1-distill-llama-70b",
+    label: "DeepSeek R1 Distill 70B",
+    vendor: "DeepSeek",
+    tag: "Reasoning",
+  },
+
+  // MiniMax (best-effort id; will be replaced by live list when available)
+  {
+    id: "minimax-text-01",
+    label: "MiniMax Text-01",
+    vendor: "MiniMax",
+    tag: "Long context",
+  },
+
+  // Qwen (best-effort id; live list overrides)
+  {
+    id: "qwen2.5-72b-instruct",
+    label: "Qwen 2.5 72B",
+    vendor: "Qwen",
+    tag: "Open · multilingual",
   },
 ];
 

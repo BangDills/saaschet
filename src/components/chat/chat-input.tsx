@@ -3,8 +3,7 @@
 import * as React from "react";
 import { ArrowUp, Globe, ImagePlus, Square } from "lucide-react";
 import { ModelSelector } from "./model-selector";
-import { ContextSelector } from "./context-selector";
-import { contextPresets } from "@/lib/chat/contexts";
+import { RepoSelector } from "./repo-selector";
 import type { ModelInfo } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -18,12 +17,12 @@ export type ChatInputProps = {
   models: ModelInfo[];
   modelId: string;
   onModelChange: (id: string) => void;
-  /** context preset state */
-  contextId: string;
-  onContextChange: (id: string) => void;
   /** web search toggle */
   webSearch: boolean;
   onWebSearchChange: (next: boolean) => void;
+  /** repo selector state (owner/name or null) */
+  repo: string | null;
+  onRepoChange: (next: string | null) => void;
   /** layout variant */
   variant?: "default" | "centered";
 };
@@ -32,11 +31,11 @@ export type ChatInputProps = {
  * Kiro-inspired chat input.
  *
  *  ┌─────────────────────────────────────────────┐
- *  │ Ask a question or describe a task...   [↑]  │  ← textarea + send
+ *  │ Ask a question or describe a task...   [↑]  │
  *  │                                              │
- *  │ ●                          [Llama 3.3 70B ⌄] │  ← status + model
+ *  │ ●                          [Llama 3.3 70B ⌄] │
  *  └─────────────────────────────────────────────┘
- *  [🌐 Web] [📷] [⎇ Default]   ← bottom toolbar (interactive)
+ *  [🌐 Web] [📷] [⎇ Select repo]   [pill]
  */
 export function ChatInput({
   onSubmit,
@@ -47,10 +46,10 @@ export function ChatInput({
   models,
   modelId,
   onModelChange,
-  contextId,
-  onContextChange,
   webSearch,
   onWebSearchChange,
+  repo,
+  onRepoChange,
 }: ChatInputProps) {
   const [value, setValue] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -90,15 +89,12 @@ export function ChatInput({
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    // For now, image upload is UI-ready but the inference path is text-only.
-    // Wiring multimodal request bodies is queued for the next iteration.
     alert(
       `Image picked: ${file.name}\n\nMultimodal vision support is queued — for now your prompt is sent as text only.`,
     );
   }
 
   const canSend = value.trim().length > 0 && !disabled;
-  const currentContext = contextPresets.find((c) => c.id === contextId);
 
   return (
     <div className="mx-auto w-full max-w-3xl">
@@ -153,7 +149,7 @@ export function ChatInput({
         </div>
       </div>
 
-      {/* Bottom toolbar (interactive) */}
+      {/* Bottom toolbar */}
       <div className="mt-2 flex items-center gap-1 px-1">
         <ToolbarToggle
           active={webSearch}
@@ -172,23 +168,22 @@ export function ChatInput({
           <ImagePlus className="size-4" />
         </ToolbarButton>
 
-        <ContextSelector value={contextId} onChange={onContextChange} />
+        <RepoSelector value={repo} onChange={onRepoChange} />
 
-        {/* Active context pill (mirrors Kiro's repo chip) */}
+        {/* Active context pill */}
         <div className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs text-muted-foreground">
           <span
             className={cn(
               "inline-block size-1.5 rounded-full",
-              webSearch ? "bg-sky-500 animate-pulse" : "bg-emerald-500",
+              webSearch ? "animate-pulse bg-sky-500" : "bg-emerald-500",
             )}
           />
           <span className="font-medium">
-            {currentContext?.label ?? "Default"}
+            {repo ?? "Horizon AI"}
             {webSearch ? " · Web" : ""}
           </span>
         </div>
 
-        {/* Hidden file input */}
         <input
           ref={fileInputRef}
           type="file"
