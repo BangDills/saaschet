@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createOpenAI } from "@ai-sdk/openai";
 import { streamText, convertToModelMessages, type UIMessage } from "ai";
 import { defaultModelId } from "@/lib/chat/models";
-import { getContextPreset, defaultContextId } from "@/lib/chat/contexts";
 import { searchWeb, formatSearchResults } from "@/lib/chat/web-search";
 
 export const runtime = "nodejs";
@@ -11,15 +10,17 @@ export const dynamic = "force-dynamic";
 const DO_BASE_URL =
   process.env.DO_INFERENCE_BASE_URL ?? "https://inference.do-ai.run/v1";
 
+const DEFAULT_SYSTEM = `You are Horizon AI, a helpful, concise assistant. \
+Use Markdown for formatting and triple-backtick code blocks with language \
+tags for code.`;
+
 type ChatRequestBody = {
   messages: UIMessage[];
   model?: string;
-  contextId?: string;
   /** When true, run web search on the latest user message and prepend
    *  results to the system prompt. */
   webSearch?: boolean;
-  /** Optional explicit system override. If provided, takes precedence
-   *  over contextId. */
+  /** Optional system prompt override. */
   system?: string;
 };
 
@@ -58,7 +59,6 @@ export async function POST(req: Request) {
 
   const messages = body.messages ?? [];
   const modelId = body.model || defaultModelId;
-  const contextId = body.contextId || defaultContextId;
   const wantsWebSearch = body.webSearch === true;
 
   if (!Array.isArray(messages) || messages.length === 0) {
@@ -68,8 +68,7 @@ export async function POST(req: Request) {
     );
   }
 
-  // Build the system prompt: explicit override > preset.
-  let system = body.system?.trim() || getContextPreset(contextId).systemPrompt;
+  let system = body.system?.trim() || DEFAULT_SYSTEM;
 
   // Optionally augment with live web search results.
   if (wantsWebSearch) {
@@ -85,7 +84,6 @@ export async function POST(req: Request) {
           system = `${system}\n\n${formatSearchResults(results)}`;
         }
       } catch (err) {
-        // Soft-fail: continue without search context.
         console.warn("[chat] web search failed:", err);
       }
     } else if (!tavilyKey) {

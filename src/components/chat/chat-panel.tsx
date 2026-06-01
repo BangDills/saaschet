@@ -16,7 +16,6 @@ function partsToText(parts: UIMessage["parts"] | undefined): string {
     .join("");
 }
 
-/** Convert stored ChatMessages to UIMessages so useChat can hydrate. */
 function toUIMessages(stored: ChatMessage[]): UIMessage[] {
   return stored.map((m) => ({
     id: m.id,
@@ -26,17 +25,15 @@ function toUIMessages(stored: ChatMessage[]): UIMessage[] {
 }
 
 export type ChatPanelProps = {
-  /** key/id of the conversation; changes ⇒ chat resets */
   conversationId: string;
   initialMessages: ChatMessage[];
   modelId: string;
   models: ModelInfo[];
   onModelChange: (id: string) => void;
-  contextId: string;
-  onContextChange: (id: string) => void;
   webSearch: boolean;
   onWebSearchChange: (next: boolean) => void;
-  /** called when messages change; receives plain ChatMessage[] */
+  repo: string | null;
+  onRepoChange: (next: string | null) => void;
   onMessagesChange: (messages: ChatMessage[]) => void;
 };
 
@@ -46,24 +43,18 @@ export function ChatPanel({
   modelId,
   models,
   onModelChange,
-  contextId,
-  onContextChange,
   webSearch,
   onWebSearchChange,
+  repo,
+  onRepoChange,
   onMessagesChange,
 }: ChatPanelProps) {
-  // Refs so the transport body callback always reads the latest values
-  // even though the transport is created once.
   const modelIdRef = React.useRef(modelId);
-  const contextIdRef = React.useRef(contextId);
   const webSearchRef = React.useRef(webSearch);
 
   React.useEffect(() => {
     modelIdRef.current = modelId;
   }, [modelId]);
-  React.useEffect(() => {
-    contextIdRef.current = contextId;
-  }, [contextId]);
   React.useEffect(() => {
     webSearchRef.current = webSearch;
   }, [webSearch]);
@@ -74,7 +65,6 @@ export function ChatPanel({
         api: "/api/chat",
         body: () => ({
           model: modelIdRef.current,
-          contextId: contextIdRef.current,
           webSearch: webSearchRef.current,
         }),
       }),
@@ -90,7 +80,6 @@ export function ChatPanel({
   const isStreaming = status === "submitted" || status === "streaming";
   const hasMessages = messages.length > 0;
 
-  // Persist messages whenever they change.
   React.useEffect(() => {
     const plain: ChatMessage[] = messages.map((m) => ({
       id: m.id,
@@ -102,7 +91,6 @@ export function ChatPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, status]);
 
-  // Auto-scroll to bottom on new tokens.
   const scrollRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     const el = scrollRef.current;
@@ -119,7 +107,6 @@ export function ChatPanel({
     <div className="flex h-full min-h-0 flex-1 flex-col">
       {hasMessages ? (
         <>
-          {/* Messages list */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto">
             <div className="mx-auto max-w-3xl py-4">
               {messages.map((m, i) => {
@@ -147,7 +134,6 @@ export function ChatPanel({
             </div>
           </div>
 
-          {/* Bottom input */}
           <div className="border-t border-border bg-background/80 px-4 py-3 backdrop-blur-md">
             <ChatInput
               onSubmit={handleSubmit}
@@ -157,15 +143,15 @@ export function ChatPanel({
               models={models}
               modelId={modelId}
               onModelChange={onModelChange}
-              contextId={contextId}
-              onContextChange={onContextChange}
               webSearch={webSearch}
               onWebSearchChange={onWebSearchChange}
+              repo={repo}
+              onRepoChange={onRepoChange}
             />
           </div>
         </>
       ) : (
-        /* Center hero — empty state, greeting only (no suggestions) */
+        /* Center hero — empty state, greeting only */
         <div className="flex h-full flex-col overflow-y-auto px-4 py-8">
           <div className="m-auto flex w-full max-w-3xl flex-col items-center gap-8">
             <div className="text-center">
@@ -186,10 +172,10 @@ export function ChatPanel({
               models={models}
               modelId={modelId}
               onModelChange={onModelChange}
-              contextId={contextId}
-              onContextChange={onContextChange}
               webSearch={webSearch}
               onWebSearchChange={onWebSearchChange}
+              repo={repo}
+              onRepoChange={onRepoChange}
             />
           </div>
         </div>

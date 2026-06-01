@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { defaultModels } from "@/lib/chat/models";
+import {
+  defaultModels,
+  allowedVendors,
+  isAllowedVendor,
+} from "@/lib/chat/models";
 import type { ModelInfo } from "@/lib/chat/types";
 
 export const runtime = "nodejs";
@@ -21,16 +25,19 @@ type DOModelListResponse = {
 };
 
 /**
- * Best-effort vendor label inference from the model id.
- * E.g. "anthropic-claude-3.5-sonnet" -> "Anthropic".
+ * Best-effort vendor label from the model id. Must align with the labels
+ * in `allowedVendors` so filtering works.
  */
 function vendorFromId(id: string): string {
   const lower = id.toLowerCase();
-  if (lower.includes("claude") || lower.startsWith("anthropic")) return "Anthropic";
+  if (lower.includes("claude") || lower.startsWith("anthropic"))
+    return "Anthropic";
   if (lower.includes("gpt") || lower.startsWith("openai")) return "OpenAI";
+  if (lower.includes("deepseek")) return "DeepSeek";
+  if (lower.includes("minimax") || lower.includes("abab")) return "MiniMax";
+  if (lower.includes("qwen")) return "Qwen";
   if (lower.includes("llama")) return "Meta";
   if (lower.includes("mistral") || lower.includes("nemo")) return "Mistral";
-  if (lower.includes("deepseek")) return "DeepSeek";
   if (lower.includes("gemini")) return "Google";
   return "Other";
 }
@@ -44,13 +51,21 @@ function prettyLabel(id: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/** Sort: keep the order of allowedVendors, then alphabetical within vendor. */
+function sortByVendor(a: ModelInfo, b: ModelInfo): number {
+  const ai = allowedVendors.indexOf(a.vendor as never);
+  const bi = allowedVendors.indexOf(b.vendor as never);
+  if (ai !== bi) return ai - bi;
+  return a.label.localeCompare(b.label);
+}
+
 export async function GET() {
   const apiKey = process.env.DO_INFERENCE_API_KEY;
 
-  // If no key configured, just return the curated catalog.
+  // No key configured → return curated list (already filtered).
   if (!apiKey) {
     return NextResponse.json({
-      models: defaultModels,
+      models: [...defaultModels].sort(sortByVendor),
       source: "fallback",
     });
   }
@@ -58,13 +73,12 @@ export async function GET() {
   try {
     const res = await fetch(`${DO_BASE_URL}/models`, {
       headers: { Authorization: `Bearer ${apiKey}` },
-      // Revalidate hourly.
       next: { revalidate: 3600 },
     });
 
     if (!res.ok) {
       return NextResponse.json({
-        models: defaultModels,
+        models: [...defaultModels].sort(sortByVendor),
         source: "fallback",
         warning: `Upstream returned ${res.status}`,
       });
@@ -73,20 +87,33 @@ export async function GET() {
     const json = (await res.json()) as DOModelListResponse;
     const items = json.data ?? [];
 
-    if (items.length === 0) {
-      return NextResponse.json({ models: defaultModels, source: "fallback" });
+    // Map to our shape and filter to allowed vendors only.
+    const live: ModelInfo[] = items
+      .map((m) => {
+        const vendor = vendorFromId(m.id);
+        return {
+          id: m.id,
+          label: prettyLabel(m.id),
+          vendor,
+        } satisfies ModelInfo;
+      })
+      .filter((m) => isAllowedVendor(m.vendor));
+
+    if (live.length === 0) {
+      return NextResponse.json({
+        models: [...defaultModels].sort(sortByVendor),
+        source: "fallback",
+        warning: "Live list contained no models from allowed vendors",
+      });
     }
 
-    const live: ModelInfo[] = items.map((m) => ({
-      id: m.id,
-      label: prettyLabel(m.id),
-      vendor: vendorFromId(m.id),
-    }));
-
-    return NextResponse.json({ models: live, source: "live" });
+    return NextResponse.json({
+      models: live.sort(sortByVendor),
+      source: "live",
+    });
   } catch {
     return NextResponse.json({
-      models: defaultModels,
+      models: [...defaultModels].sort(sortByVendor),
       source: "fallback",
       warning: "Failed to reach inference.do-ai.run",
     });
