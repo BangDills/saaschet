@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { ModelSelector } from "@/components/chat/model-selector";
 import { ConversationList } from "@/components/chat/conversation-list";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import {
@@ -68,8 +67,6 @@ export default function AIChatPage() {
     if (!conv) return;
     setActiveId(id);
     if (conv.modelId) setModelId(conv.modelId);
-    // Use updatedAt in key so re-opening after edits remounts cleanly,
-    // but normal sends within the same conv don't change the key.
     setPanel({ key: `c-${id}`, initialMessages: conv.messages });
   }
 
@@ -91,8 +88,6 @@ export default function AIChatPage() {
     if (!convId) {
       convId = newId();
       setActiveId(convId);
-      // Note: we do NOT change `panel.key` here — keeping the same key
-      // preserves the running useChat / streaming connection.
     }
 
     const now = Date.now();
@@ -132,26 +127,15 @@ export default function AIChatPage() {
         />
       </aside>
 
-      {/* Chat panel */}
+      {/* Chat panel — model selector now lives inside the chat input */}
       <section className="flex min-w-0 flex-1 flex-col">
-        {/* Toolbar */}
-        <div className="flex items-center gap-3 border-b border-border bg-background/80 px-4 py-3 backdrop-blur-md">
-          <ModelSelector
-            models={models}
-            value={modelId}
-            onChange={setModelId}
-          />
-          <div className="ml-auto text-xs text-muted-foreground">
-            Powered by DigitalOcean Inference
-          </div>
-        </div>
-
         <ChatPanel
           key={panel.key}
           conversationId={panel.key}
           initialMessages={panel.initialMessages}
           modelId={modelId}
           models={models}
+          onModelChange={setModelId}
           onMessagesChange={handleMessagesChange}
         />
       </section>

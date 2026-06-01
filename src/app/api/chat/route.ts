@@ -56,8 +56,13 @@ export async function POST(req: Request) {
   });
 
   try {
+    // IMPORTANT: use `.chat()` explicitly. The default `digitalocean(id)` call
+    // routes through OpenAI's Responses API, which DigitalOcean Serverless
+    // Inference does not support — it returns "this model is not a responses
+    // model". The Chat Completions endpoint is the universal one and is what
+    // DO Inference exposes for all foundation models.
     const result = streamText({
-      model: digitalocean(modelId),
+      model: digitalocean.chat(modelId),
       system,
       messages: await convertToModelMessages(messages),
     });
