@@ -64,19 +64,49 @@ export function createAgentTools(ctx: AgentContext) {
     return info.defaultBranch;
   }
 
-  /** Make sure ctx.workBranch exists before any write. */
+  /**
+   * Make sure the working state is ready for a write.
+   *
+   * Three cases:
+   *
+   *  1. **Repo is empty (no commits)** — `getBranchSha` returns null. We
+   *     skip branch creation; the first `putFile` call below will commit
+   *     to the default branch directly to bootstrap the repo. (Empty
+   *     repos can't have feature branches anyway.)
+   *
+   *  2. **Repo has commits but our work branch doesn't exist yet** — we
+   *     create the work branch off the default branch and write to it.
+   *
+   *  3. **Repo has commits and we already created the work branch
+   *     earlier this turn** — fast path, just return.
+   */
   async function ensureWorkBranch(): Promise<{
     branch: string;
     base: string;
+    isEmptyRepo: boolean;
   }> {
     const base = await getDefaultBranch();
+
     if (ctx.branchesCreated.has(ctx.workBranch)) {
-      return { branch: ctx.workBranch, base };
+      return { branch: ctx.workBranch, base, isEmptyRepo: false };
     }
+
     const baseSha = await getBranchSha(owner, name, base, ctx.githubToken);
+
+    if (baseSha === null) {
+      // Empty repo — write directly to the default branch on first
+      // commit. We mark the work branch as "already created" with a
+      // sentinel so subsequent writes go to the same branch.
+      ctx.branchesCreated.add(ctx.workBranch);
+      // Also redirect future writes to `base` (the default branch),
+      // since we can't create branches on an empty repo.
+      ctx.workBranch = base;
+      return { branch: base, base, isEmptyRepo: true };
+    }
+
     await createBranch(owner, name, ctx.workBranch, baseSha, ctx.githubToken);
     ctx.branchesCreated.add(ctx.workBranch);
-    return { branch: ctx.workBranch, base };
+    return { branch: ctx.workBranch, base, isEmptyRepo: false };
   }
 
   return {
@@ -101,22 +131,36 @@ export function createAgentTools(ctx: AgentContext) {
       }),
       execute: async ({ path }: { path: string }) => {
         const branch = await getDefaultBranch();
-        const entries = await fetchDirectoryListing(
-          owner,
-          name,
-          path,
-          branch,
-          ctx.githubToken,
-        );
-        return {
-          path: path || "/",
-          count: entries.length,
-          entries: entries.map((e) => ({
-            path: e.path,
-            type: e.type,
-            ...(e.size !== undefined ? { size: e.size } : {}),
-          })),
-        };
+        try {
+          const entries = await fetchDirectoryListing(
+            owner,
+            name,
+            path,
+            branch,
+            ctx.githubToken,
+          );
+          return {
+            path: path || "/",
+            count: entries.length,
+            entries: entries.map((e) => ({
+              path: e.path,
+              type: e.type,
+              ...(e.size !== undefined ? { size: e.size } : {}),
+            })),
+          };
+        } catch (err) {
+          // Empty repos return 404 here.
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes("404") || msg.includes("409")) {
+            return {
+              path: path || "/",
+              count: 0,
+              entries: [],
+              note: "Repository is empty (no commits yet). Use write_file to create the first file — it will be committed to the default branch as the bootstrap commit.",
+            };
+          }
+          throw err;
+        }
       },
     }),
 
@@ -244,7 +288,7 @@ export function createAgentTools(ctx: AgentContext) {
         content: string;
         commit_message: string;
       }) => {
-        const { branch } = await ensureWorkBranch();
+        const { branch, isEmptyRepo } = await ensureWorkBranch();
         const result = await putFile(
           owner,
           name,
@@ -259,6 +303,11 @@ export function createAgentTools(ctx: AgentContext) {
           branch,
           commit_sha: result.commitSha,
           bytes_written: content.length,
+          ...(isEmptyRepo
+            ? {
+                note: "Repo was empty — committed directly to the default branch as the bootstrap commit. No pull request is needed; the work is already on the main branch.",
+              }
+            : {}),
         };
       },
     }),
@@ -292,6 +341,13 @@ export function createAgentTools(ctx: AgentContext) {
           };
         }
         const base = await getDefaultBranch();
+        if (ctx.workBranch === base) {
+          return {
+            note: `Changes were committed directly to '${base}' (the repo was empty when this turn started). No pull request is needed — '${title}' is already live on the default branch.`,
+            base,
+            branch: base,
+          };
+        }
         const pr = await createPullRequest(
           owner,
           name,
