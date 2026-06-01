@@ -4,7 +4,7 @@ import * as React from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import type { ChatMessage, ModelInfo } from "@/lib/chat/types";
-import { MessageBubble } from "./message-bubble";
+import { MessageBubble, type AnyPart } from "./message-bubble";
 import { ChatInput } from "./chat-input";
 import { StreamingPill } from "./streaming-pill";
 
@@ -14,6 +14,19 @@ function partsToText(parts: UIMessage["parts"] | undefined): string {
     .map((p) => (p.type === "text" ? p.text : ""))
     .filter(Boolean)
     .join("");
+}
+
+/** Map an AI SDK UIMessage's parts to MessageBubble's `AnyPart` shape. */
+function toBubbleParts(parts: UIMessage["parts"] | undefined): AnyPart[] {
+  if (!parts) return [];
+  return parts
+    .filter(
+      (p) =>
+        p.type === "text" ||
+        p.type === "dynamic-tool" ||
+        (typeof p.type === "string" && p.type.startsWith("tool-")),
+    )
+    .map((p) => p as AnyPart);
 }
 
 function toUIMessages(stored: ChatMessage[]): UIMessage[] {
@@ -26,8 +39,7 @@ function toUIMessages(stored: ChatMessage[]): UIMessage[] {
 
 export type ChatPanelProps = {
   /** Stable UUID for this chat. New chats get a fresh UUID; existing chats
-   *  use their conversation row's id. Sent in the body of every /api/chat
-   *  request so the server can upsert the conversation row. */
+   *  use their conversation row's id. */
   conversationId: string;
   initialMessages: ChatMessage[];
   modelId: string;
@@ -37,8 +49,8 @@ export type ChatPanelProps = {
   onWebSearchChange: (next: boolean) => void;
   repo: string | null;
   onRepoChange: (next: string | null) => void;
-  /** Called once the assistant finishes streaming, so the page can refresh
-   *  the conversation list in the sidebar. */
+  agentMode: boolean;
+  onAgentModeChange: (next: boolean) => void;
   onAssistantFinish?: () => void;
 };
 
@@ -52,14 +64,16 @@ export function ChatPanel({
   onWebSearchChange,
   repo,
   onRepoChange,
+  agentMode,
+  onAgentModeChange,
   onAssistantFinish,
 }: ChatPanelProps) {
-  // Keep the latest values in refs so the transport body callback always
-  // picks them up even though the transport is created once.
+  // Refs for the transport body callback.
   const modelIdRef = React.useRef(modelId);
   const webSearchRef = React.useRef(webSearch);
   const conversationIdRef = React.useRef(conversationId);
   const repoRef = React.useRef(repo);
+  const agentModeRef = React.useRef(agentMode);
 
   React.useEffect(() => {
     modelIdRef.current = modelId;
@@ -73,6 +87,9 @@ export function ChatPanel({
   React.useEffect(() => {
     repoRef.current = repo;
   }, [repo]);
+  React.useEffect(() => {
+    agentModeRef.current = agentMode;
+  }, [agentMode]);
 
   const transport = React.useMemo(
     () =>
@@ -83,6 +100,7 @@ export function ChatPanel({
           model: modelIdRef.current,
           webSearch: webSearchRef.current,
           repo: repoRef.current,
+          agentMode: agentModeRef.current,
         }),
       }),
     [],
@@ -95,16 +113,14 @@ export function ChatPanel({
     onFinish: () => {
       onAssistantFinish?.();
     },
-    // We hide streaming output behind a compact pill, so we throttle the
-    // hook's internal updates aggressively. The pill re-renders on its
-    // own 1Hz timer; everything else can wait for the final flush.
-    experimental_throttle: 250,
+    // In agent mode the user wants to SEE tool calls happen in real time.
+    // In chat mode the streaming text is hidden behind a pill so we can
+    // throttle aggressively. Pick the rate at construction time.
+    experimental_throttle: agentModeRef.current ? 80 : 250,
   });
 
   const isStreaming = status === "submitted" || status === "streaming";
 
-  // Track when the current assistant turn started, so the pill can show
-  // elapsed time. Reset whenever streaming flips on.
   const [streamStartedAt, setStreamStartedAt] = React.useState<number | null>(
     null,
   );
@@ -118,20 +134,23 @@ export function ChatPanel({
 
   const hasMessages = messages.length > 0;
 
-  // Hide the in-progress assistant message so the raw streaming text
-  // never paints. Only the StreamingPill is shown until the message
-  // finalizes, at which point it falls into the regular rendered list.
+  /**
+   * In **chat mode**, hide the in-progress assistant message and show the
+   * StreamingPill instead — its raw streaming text would lag the browser.
+   *
+   * In **agent mode**, the assistant message is shown live so the user
+   * can watch tool calls execute (read_file, write_file, etc.). Tool
+   * panels are individually memoized so this is cheap.
+   */
   const visibleMessages = React.useMemo(() => {
-    if (!isStreaming) return messages;
+    if (!isStreaming || agentMode) return messages;
     const last = messages[messages.length - 1];
     if (last?.role === "assistant") {
       return messages.slice(0, -1);
     }
     return messages;
-  }, [messages, isStreaming]);
+  }, [messages, isStreaming, agentMode]);
 
-  // Char count for the pill — derived from the in-progress assistant
-  // message so the user sees the work growing.
   const pendingCharCount = React.useMemo(() => {
     if (!isStreaming) return 0;
     const last = messages[messages.length - 1];
@@ -139,7 +158,6 @@ export function ChatPanel({
     return partsToText(last.parts).length;
   }, [messages, isStreaming]);
 
-  // Auto-scroll: only when content grows AND user hasn't scrolled up.
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const userScrolledUpRef = React.useRef(false);
 
@@ -175,6 +193,24 @@ export function ChatPanel({
     sendMessage({ text });
   }
 
+  // The input pill at the bottom (or center for hero) is the same in both
+  // modes — the page-level state controls the toggles.
+  const inputProps = {
+    onSubmit: handleSubmit,
+    onStop: stop,
+    isStreaming,
+    disabled: isStreaming,
+    models,
+    modelId,
+    onModelChange,
+    webSearch,
+    onWebSearchChange,
+    repo,
+    onRepoChange,
+    agentMode,
+    onAgentModeChange,
+  } as const;
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       {hasMessages ? (
@@ -182,23 +218,40 @@ export function ChatPanel({
           <div ref={scrollRef} className="flex-1 overflow-y-auto">
             <div className="mx-auto max-w-3xl py-4">
               {visibleMessages.map((m) => {
-                const text = partsToText(m.parts);
+                const isLast =
+                  m.id === messages[messages.length - 1]?.id;
+                const isStreamingThis =
+                  isStreaming && isLast && m.role === "assistant";
+                if (m.role === "assistant") {
+                  return (
+                    <MessageBubble
+                      key={m.id}
+                      role="assistant"
+                      parts={toBubbleParts(m.parts)}
+                      streaming={isStreamingThis}
+                    />
+                  );
+                }
                 return (
                   <MessageBubble
                     key={m.id}
                     role={m.role as ChatMessage["role"]}
-                    content={text}
+                    content={partsToText(m.parts)}
                   />
                 );
               })}
 
-              {isStreaming && streamStartedAt !== null && (
-                <StreamingPill
-                  charCount={pendingCharCount}
-                  startedAt={streamStartedAt}
-                  onStop={stop}
-                />
-              )}
+              {/* Chat-mode streaming pill: only when NOT in agent mode and the
+                  assistant turn is in flight. */}
+              {isStreaming &&
+                !agentMode &&
+                streamStartedAt !== null && (
+                  <StreamingPill
+                    charCount={pendingCharCount}
+                    startedAt={streamStartedAt}
+                    onStop={stop}
+                  />
+                )}
 
               {error && (
                 <div className="mx-4 my-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
@@ -210,23 +263,10 @@ export function ChatPanel({
           </div>
 
           <div className="border-t border-border bg-background/80 px-4 py-3 backdrop-blur-md">
-            <ChatInput
-              onSubmit={handleSubmit}
-              onStop={stop}
-              isStreaming={isStreaming}
-              disabled={isStreaming}
-              models={models}
-              modelId={modelId}
-              onModelChange={onModelChange}
-              webSearch={webSearch}
-              onWebSearchChange={onWebSearchChange}
-              repo={repo}
-              onRepoChange={onRepoChange}
-            />
+            <ChatInput {...inputProps} />
           </div>
         </>
       ) : (
-        /* Center hero — empty state, greeting only */
         <div className="flex h-full flex-col overflow-y-auto px-4 py-8">
           <div className="m-auto flex w-full max-w-3xl flex-col items-center gap-8">
             <div className="text-center">
@@ -238,20 +278,7 @@ export function ChatPanel({
               </p>
             </div>
 
-            <ChatInput
-              variant="centered"
-              onSubmit={handleSubmit}
-              onStop={stop}
-              isStreaming={isStreaming}
-              disabled={isStreaming}
-              models={models}
-              modelId={modelId}
-              onModelChange={onModelChange}
-              webSearch={webSearch}
-              onWebSearchChange={onWebSearchChange}
-              repo={repo}
-              onRepoChange={onRepoChange}
-            />
+            <ChatInput variant="centered" {...inputProps} />
           </div>
         </div>
       )}
