@@ -9,9 +9,19 @@ export type ModelSelectorProps = {
   models: ModelInfo[];
   value: string;
   onChange: (id: string) => void;
+  /**
+   * "compact" → text + chevron only, used inside the chat input (Kiro style)
+   * "default" → bordered card-like button, used elsewhere
+   */
+  variant?: "compact" | "default";
 };
 
-export function ModelSelector({ models, value, onChange }: ModelSelectorProps) {
+export function ModelSelector({
+  models,
+  value,
+  onChange,
+  variant = "compact",
+}: ModelSelectorProps) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
 
@@ -42,17 +52,33 @@ export function ModelSelector({ models, value, onChange }: ModelSelectorProps) {
       <button
         type="button"
         onClick={() => setOpen((s) => !s)}
-        className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-accent"
+        className={cn(
+          variant === "compact"
+            ? "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            : "inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-accent",
+        )}
       >
-        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-          {current?.vendor ?? "Model"}
+        {variant === "default" && (
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+            {current?.vendor ?? "Model"}
+          </span>
+        )}
+        <span className="truncate">
+          {current?.label ?? "Select model"}
         </span>
-        <span className="truncate">{current?.label ?? "Select model"}</span>
-        <ChevronDown className="size-4 opacity-60" />
+        <ChevronDown className="size-3.5 opacity-70" />
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-2 max-h-96 w-80 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg">
+        <div
+          className={cn(
+            "absolute z-30 max-h-80 w-72 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg",
+            // Show dropdown ABOVE the trigger when compact (it sits at bottom of input)
+            variant === "compact"
+              ? "bottom-full right-0 mb-2"
+              : "top-full left-0 mt-2",
+          )}
+        >
           {groups.map(([vendor, items]) => (
             <div key={vendor} className="py-1">
               <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
