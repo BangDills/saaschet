@@ -59,7 +59,9 @@ function MessageBubbleImpl({ role, content, streaming }: MessageBubbleProps) {
                 );
               }
               return seg.content ? (
-                <Markdown key={i}>{seg.content}</Markdown>
+                <Markdown key={i} streaming={streaming}>
+                  {seg.content}
+                </Markdown>
               ) : null;
             })}
             {streaming && (
