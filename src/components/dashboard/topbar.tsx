@@ -3,11 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Info, LogOut, Menu, X, Zap } from "lucide-react";
+import { Info, Menu, X, Zap } from "lucide-react";
 import { navItems } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "./theme-toggle";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 
 function useCurrentTitle() {
   const pathname = usePathname();
@@ -18,7 +19,11 @@ function useCurrentTitle() {
   return match.label;
 }
 
-export function Topbar() {
+export type TopbarProps = {
+  initials: string;
+};
+
+export function Topbar({ initials }: TopbarProps) {
   const title = useCurrentTitle();
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
@@ -58,16 +63,11 @@ export function Topbar() {
           >
             <Info />
           </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className="hidden rounded-full sm:inline-flex"
-            aria-label="Sign out"
-          >
-            <LogOut />
-          </Button>
+          <div className="hidden sm:inline-flex">
+            <SignOutButton />
+          </div>
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-            AP
+            {initials || "U"}
           </div>
         </div>
       </div>
