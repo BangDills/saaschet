@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { createOpenAI } from "@ai-sdk/openai";
 import { streamText, convertToModelMessages, type UIMessage } from "ai";
 import { defaultModelId } from "@/lib/chat/models";
+import { getContextPreset, defaultContextId } from "@/lib/chat/contexts";
+import { searchWeb, formatSearchResults } from "@/lib/chat/web-search";
 
 export const runtime = "nodejs";
-// Disable static optimization for this route — must always run server-side.
 export const dynamic = "force-dynamic";
 
 const DO_BASE_URL =
@@ -13,8 +14,28 @@ const DO_BASE_URL =
 type ChatRequestBody = {
   messages: UIMessage[];
   model?: string;
+  contextId?: string;
+  /** When true, run web search on the latest user message and prepend
+   *  results to the system prompt. */
+  webSearch?: boolean;
+  /** Optional explicit system override. If provided, takes precedence
+   *  over contextId. */
   system?: string;
 };
+
+/** Pull the most recent user message text out of UIMessages. */
+function lastUserText(messages: UIMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "user") continue;
+    const text = (m.parts ?? [])
+      .map((p) => (p.type === "text" ? p.text : ""))
+      .filter(Boolean)
+      .join("");
+    if (text.trim()) return text;
+  }
+  return "";
+}
 
 export async function POST(req: Request) {
   const apiKey = process.env.DO_INFERENCE_API_KEY;
@@ -37,9 +58,8 @@ export async function POST(req: Request) {
 
   const messages = body.messages ?? [];
   const modelId = body.model || defaultModelId;
-  const system =
-    body.system ||
-    "You are Horizon AI, a helpful, concise assistant. Use Markdown for formatting and triple-backtick code blocks with language tags for code.";
+  const contextId = body.contextId || defaultContextId;
+  const wantsWebSearch = body.webSearch === true;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return NextResponse.json(
@@ -48,28 +68,48 @@ export async function POST(req: Request) {
     );
   }
 
-  // Wire up the DigitalOcean Serverless Inference endpoint as an
-  // OpenAI-compatible provider.
+  // Build the system prompt: explicit override > preset.
+  let system = body.system?.trim() || getContextPreset(contextId).systemPrompt;
+
+  // Optionally augment with live web search results.
+  if (wantsWebSearch) {
+    const tavilyKey = process.env.TAVILY_API_KEY;
+    const query = lastUserText(messages);
+    if (tavilyKey && query) {
+      try {
+        const results = await searchWeb(query, tavilyKey, {
+          maxResults: 5,
+          includeAnswer: true,
+        });
+        if (results.results.length > 0) {
+          system = `${system}\n\n${formatSearchResults(results)}`;
+        }
+      } catch (err) {
+        // Soft-fail: continue without search context.
+        console.warn("[chat] web search failed:", err);
+      }
+    } else if (!tavilyKey) {
+      console.warn(
+        "[chat] webSearch requested but TAVILY_API_KEY is not set; skipping",
+      );
+    }
+  }
+
+  // OpenAI-compatible client pointed at DigitalOcean Inference.
   const digitalocean = createOpenAI({
     baseURL: DO_BASE_URL,
     apiKey,
   });
 
   try {
-    // IMPORTANT: use `.chat()` explicitly. The default `digitalocean(id)` call
-    // routes through OpenAI's Responses API, which DigitalOcean Serverless
-    // Inference does not support — it returns "this model is not a responses
-    // model". The Chat Completions endpoint is the universal one and is what
-    // DO Inference exposes for all foundation models.
+    // .chat() forces Chat Completions endpoint; DO doesn't support
+    // OpenAI's Responses API.
     const result = streamText({
       model: digitalocean.chat(modelId),
       system,
       messages: await convertToModelMessages(messages),
     });
 
-    // Returns an SSE stream that the @ai-sdk/react useChat hook understands.
-    // Headers include `X-Accel-Buffering: no` to keep streaming alive behind
-    // reverse proxies like cPanel's Phusion Passenger.
     return result.toUIMessageStreamResponse({
       headers: {
         "X-Accel-Buffering": "no",

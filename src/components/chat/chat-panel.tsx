@@ -3,7 +3,6 @@
 import * as React from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { Sparkles } from "lucide-react";
 import type { ChatMessage, ModelInfo } from "@/lib/chat/types";
 import { MessageBubble } from "./message-bubble";
 import { ChatInput } from "./chat-input";
@@ -33,30 +32,13 @@ export type ChatPanelProps = {
   modelId: string;
   models: ModelInfo[];
   onModelChange: (id: string) => void;
+  contextId: string;
+  onContextChange: (id: string) => void;
+  webSearch: boolean;
+  onWebSearchChange: (next: boolean) => void;
   /** called when messages change; receives plain ChatMessage[] */
   onMessagesChange: (messages: ChatMessage[]) => void;
 };
-
-const SUGGESTIONS: { title: string; prompt: string }[] = [
-  {
-    title: "Brainstorm SaaS ideas",
-    prompt: "Brainstorm 5 SaaS startup ideas in healthtech for 2026",
-  },
-  {
-    title: "Write a Python function",
-    prompt:
-      "Write a Python function that sorts a list of dictionaries by a given key",
-  },
-  {
-    title: "Explain a concept",
-    prompt: "Explain quantum computing in simple terms with an analogy",
-  },
-  {
-    title: "Translate text",
-    prompt:
-      "Translate this to formal Indonesian: 'Hello, how are you doing today?'",
-  },
-];
 
 export function ChatPanel({
   conversationId,
@@ -64,20 +46,37 @@ export function ChatPanel({
   modelId,
   models,
   onModelChange,
+  contextId,
+  onContextChange,
+  webSearch,
+  onWebSearchChange,
   onMessagesChange,
 }: ChatPanelProps) {
-  // Keep modelId in a ref so the body callback always uses the latest value
+  // Refs so the transport body callback always reads the latest values
   // even though the transport is created once.
   const modelIdRef = React.useRef(modelId);
+  const contextIdRef = React.useRef(contextId);
+  const webSearchRef = React.useRef(webSearch);
+
   React.useEffect(() => {
     modelIdRef.current = modelId;
   }, [modelId]);
+  React.useEffect(() => {
+    contextIdRef.current = contextId;
+  }, [contextId]);
+  React.useEffect(() => {
+    webSearchRef.current = webSearch;
+  }, [webSearch]);
 
   const transport = React.useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
-        body: () => ({ model: modelIdRef.current }),
+        body: () => ({
+          model: modelIdRef.current,
+          contextId: contextIdRef.current,
+          webSearch: webSearchRef.current,
+        }),
       }),
     [],
   );
@@ -158,14 +157,17 @@ export function ChatPanel({
               models={models}
               modelId={modelId}
               onModelChange={onModelChange}
+              contextId={contextId}
+              onContextChange={onContextChange}
+              webSearch={webSearch}
+              onWebSearchChange={onWebSearchChange}
             />
           </div>
         </>
       ) : (
-        /* Center hero — empty state */
+        /* Center hero — empty state, greeting only (no suggestions) */
         <div className="flex h-full flex-col overflow-y-auto px-4 py-8">
           <div className="m-auto flex w-full max-w-3xl flex-col items-center gap-8">
-            {/* Greeting */}
             <div className="text-center">
               <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
                 Halo! 👋
@@ -175,7 +177,6 @@ export function ChatPanel({
               </p>
             </div>
 
-            {/* The input itself, centered */}
             <ChatInput
               variant="centered"
               onSubmit={handleSubmit}
@@ -185,27 +186,11 @@ export function ChatPanel({
               models={models}
               modelId={modelId}
               onModelChange={onModelChange}
+              contextId={contextId}
+              onContextChange={onContextChange}
+              webSearch={webSearch}
+              onWebSearchChange={onWebSearchChange}
             />
-
-            {/* Suggestions */}
-            <div className="grid w-full max-w-3xl grid-cols-1 gap-2 sm:grid-cols-2">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s.title}
-                  onClick={() => handleSubmit(s.prompt)}
-                  disabled={isStreaming}
-                  className="group flex items-start gap-3 rounded-xl border border-border bg-card p-3 text-left text-sm shadow-sm transition-colors hover:bg-accent disabled:opacity-60"
-                >
-                  <Sparkles className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
-                  <div>
-                    <p className="font-medium">{s.title}</p>
-                    <p className="line-clamp-1 text-xs text-muted-foreground">
-                      {s.prompt}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       )}
