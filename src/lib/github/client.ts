@@ -199,3 +199,56 @@ export async function fetchRepoBundle(
   ]);
   return { info, readme, manifest, files };
 }
+
+
+
+export type UserRepo = {
+  fullName: string; // "owner/repo"
+  description: string | null;
+  primaryLanguage: string | null;
+  stars: number;
+  isPrivate: boolean;
+  isFork: boolean;
+  /** ms since epoch */
+  updatedAt: number;
+};
+
+/**
+ * List the authenticated user's accessible repositories.
+ *
+ * Includes owned + collaborator repos, sorted by most recently updated.
+ * Caps at 100 (one page) — fine for the autocomplete UX. We don't paginate
+ * because anyone with >100 active repos can still paste any slug manually.
+ */
+export async function fetchUserRepos(token: string): Promise<UserRepo[]> {
+  const res = await fetch(
+    `${GH_API}/user/repos?sort=updated&per_page=100&type=all`,
+    {
+      headers: authHeaders(token),
+      next: { revalidate: 300 }, // 5-minute edge cache
+    },
+  );
+  if (!res.ok) {
+    throw new Error(
+      `GitHub ${res.status}: ${await res.text().then((t) => t.slice(0, 200))}`,
+    );
+  }
+  const json = (await res.json()) as Array<{
+    full_name: string;
+    description: string | null;
+    language: string | null;
+    stargazers_count: number;
+    private: boolean;
+    fork: boolean;
+    updated_at: string;
+  }>;
+  return json.map((r) => ({
+    fullName: r.full_name,
+    description: r.description,
+    primaryLanguage: r.language,
+    stars: r.stargazers_count,
+    isPrivate: r.private,
+    isFork: r.fork,
+    updatedAt: new Date(r.updated_at).getTime(),
+  }));
+}
