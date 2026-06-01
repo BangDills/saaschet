@@ -20,7 +20,17 @@ export const COST_AGENT_PER_TOOL = 1;
 export const COST_AGENT_TOOL_CAP = 10;
 export const DEFAULT_DAILY_LIMIT = 50;
 
+/** Free / Pro tier definition. Stays in code, mirrored by the SQL function
+ *  `set_user_tier`. Kept in sync manually for now. */
+export type Tier = "free" | "pro";
+
+export const TIER_LIMITS: Record<Tier, number> = {
+  free: 50,
+  pro: 1000,
+};
+
 export type CreditSnapshot = {
+  tier: Tier;
   dailyLimit: number;
   usedToday: number;
   remaining: number;
@@ -51,19 +61,21 @@ export async function getCreditSnapshot(
 
   const { data: row } = await admin
     .from("user_credits")
-    .select("daily_limit, used_today, day_started_on, total_used")
+    .select("tier, daily_limit, used_today, day_started_on, total_used")
     .eq("user_id", userId)
     .maybeSingle();
 
+  let tier: Tier = "free";
   let dailyLimit = DEFAULT_DAILY_LIMIT;
   let usedToday = 0;
   let totalUsed = 0;
 
   if (!row) {
-    // Backfill missing row.
+    // Backfill missing row (older users predating migration 2).
     await admin.from("user_credits").insert({ user_id: userId });
   } else {
-    dailyLimit = row.daily_limit ?? DEFAULT_DAILY_LIMIT;
+    tier = (row.tier as Tier) ?? "free";
+    dailyLimit = row.daily_limit ?? TIER_LIMITS[tier];
     totalUsed = Number(row.total_used ?? 0);
     if (row.day_started_on === todayUtcDate()) {
       usedToday = row.used_today ?? 0;
@@ -81,6 +93,7 @@ export async function getCreditSnapshot(
   }
 
   return {
+    tier,
     dailyLimit,
     usedToday,
     remaining: Math.max(0, dailyLimit - usedToday),

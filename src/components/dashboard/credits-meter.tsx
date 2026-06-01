@@ -5,6 +5,7 @@ import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type CreditSnapshot = {
+  tier?: "free" | "pro";
   dailyLimit: number;
   usedToday: number;
   remaining: number;
@@ -94,6 +95,11 @@ export function CreditsMeter() {
             )}
           />
           <span>Credits</span>
+          {snap.tier === "pro" && (
+            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+              Pro
+            </span>
+          )}
         </div>
         <span className="tabular-nums text-muted-foreground">
           {snap.remaining}/{snap.dailyLimit}
