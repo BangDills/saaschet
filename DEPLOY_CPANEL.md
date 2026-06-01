@@ -79,17 +79,24 @@ This might take 1–3 minutes. Wait until it reports success.
 
 ---
 
-## Step 5 — (Optional) Add environment variables
+## Step 5 — Add environment variables
 
-If/when you add Supabase, Stripe, or any AI API keys later, use the **"Environment variables"** section of the Node.js App page rather than uploading a `.env` file. Click **Add Variable** for each one.
+The AI chat feature needs your **DigitalOcean Inference API key**. Use the
+**"Environment variables"** section of the Node.js App page (do **not** upload
+a `.env` file). Click **+ ADD VARIABLE** and add:
 
-Examples for the future:
+| Name                     | Value                                  |
+| ------------------------ | -------------------------------------- |
+| `DO_INFERENCE_API_KEY`   | your model access key from DigitalOcean |
+| `NODE_ENV`               | `production` (auto-set by cPanel mode)  |
 
-```
-NEXT_PUBLIC_SUPABASE_URL = ...
-SUPABASE_SERVICE_ROLE_KEY = ...
-OPENAI_API_KEY = ...
-```
+Where to get the key: DigitalOcean Cloud → **Inference** → **Model Access Keys**
+→ create one with chat-completion scope.
+
+After adding, click **"Restart"** so the app picks up the new env var.
+
+Other env vars you may add later: `DO_INFERENCE_BASE_URL` (only if DO changes
+its endpoint), `NEXT_PUBLIC_SUPABASE_URL`, `STRIPE_SECRET_KEY`, etc.
 
 ---
 
