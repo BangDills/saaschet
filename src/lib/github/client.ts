@@ -370,17 +370,27 @@ export async function searchCode(
  * WRITE helpers used by Agent Mode tools (create branch, commit, PR)
  * ────────────────────────────────────────────────────────────────────── */
 
-/** Get the SHA the named branch points to. */
+/**
+ * Get the SHA the named branch points to.
+ *
+ * Returns `null` instead of throwing when the repo is empty (no commits
+ * yet — GitHub returns 409 'Git Repository is empty.'). Callers can use
+ * this to decide whether to bootstrap the first commit.
+ */
 export async function getBranchSha(
   owner: string,
   name: string,
   branch: string,
   token: string,
-): Promise<string> {
+): Promise<string | null> {
   const res = await fetch(
     `${GH_API}/repos/${owner}/${name}/git/refs/heads/${encodeURIComponent(branch)}`,
     { headers: authHeaders(token), cache: "no-store" },
   );
+  if (res.status === 409 || res.status === 404) {
+    // 409 = repo empty, 404 = branch doesn't exist yet
+    return null;
+  }
   if (!res.ok) {
     throw new Error(
       `Get branch ${branch} failed: ${res.status} ${await res
