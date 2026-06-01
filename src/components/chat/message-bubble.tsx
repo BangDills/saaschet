@@ -3,6 +3,8 @@
 import * as React from "react";
 import { Bot, User } from "lucide-react";
 import { Markdown } from "./markdown";
+import { ReasoningBlock } from "./reasoning-block";
+import { parseReasoningSegments } from "@/lib/chat/parse-reasoning";
 import { cn } from "@/lib/utils";
 
 export type MessageBubbleProps = {
@@ -12,10 +14,16 @@ export type MessageBubbleProps = {
   streaming?: boolean;
 };
 
-export function MessageBubble({ role, content, streaming }: MessageBubbleProps) {
+function MessageBubbleImpl({ role, content, streaming }: MessageBubbleProps) {
   if (role === "system") return null;
-
   const isUser = role === "user";
+
+  // Parse reasoning out of assistant messages so long <think> blocks live
+  // inside a collapsible component. For user messages we just render text.
+  const segments = React.useMemo(
+    () => (isUser ? null : parseReasoningSegments(content || "")),
+    [isUser, content],
+  );
 
   return (
     <div className={cn("flex w-full gap-3 px-4 py-4", isUser && "justify-end")}>
@@ -39,7 +47,21 @@ export function MessageBubble({ role, content, streaming }: MessageBubbleProps) 
           </p>
         ) : (
           <>
-            <Markdown>{content || ""}</Markdown>
+            {segments?.map((seg, i) => {
+              if (seg.type === "reasoning") {
+                return (
+                  <ReasoningBlock
+                    key={i}
+                    content={seg.content}
+                    streaming={streaming}
+                    inProgress={!seg.closed}
+                  />
+                );
+              }
+              return seg.content ? (
+                <Markdown key={i}>{seg.content}</Markdown>
+              ) : null;
+            })}
             {streaming && (
               <span
                 aria-hidden
@@ -58,3 +80,16 @@ export function MessageBubble({ role, content, streaming }: MessageBubbleProps) 
     </div>
   );
 }
+
+/**
+ * Memoized bubble — re-renders only when its props actually change. This
+ * stops the entire message list from re-rendering on every streamed
+ * token; only the *last* bubble (whose `content` is changing) updates.
+ */
+export const MessageBubble = React.memo(MessageBubbleImpl, (prev, next) => {
+  return (
+    prev.role === next.role &&
+    prev.content === next.content &&
+    prev.streaming === next.streaming
+  );
+});

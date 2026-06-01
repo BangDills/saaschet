@@ -94,17 +94,49 @@ export function ChatPanel({
     onFinish: () => {
       onAssistantFinish?.();
     },
+    // Throttle re-renders during streaming. Without this, every token
+    // re-renders the whole message list (heavy on Markdown + Prism).
+    // 60ms = ~16fps which is smooth-feeling without burning the CPU.
+    experimental_throttle: 60,
   });
 
   const isStreaming = status === "submitted" || status === "streaming";
   const hasMessages = messages.length > 0;
 
-  // Auto-scroll to bottom on new tokens.
+  // Auto-scroll to bottom on new tokens — but throttled, and only while
+  // the user hasn't scrolled up themselves.
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const userScrolledUpRef = React.useRef(false);
+
   React.useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+
+    function onScroll() {
+      if (!el) return;
+      const distanceFromBottom =
+        el.scrollHeight - el.scrollTop - el.clientHeight;
+      // 60px tolerance — small jitters during auto-scroll don't count
+      userScrolledUpRef.current = distanceFromBottom > 60;
+    }
+
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Auto-scroll only fires when content grows AND user hasn't scrolled up.
+  // We use rAF so multiple token updates within one frame coalesce to
+  // a single scroll.
+  const lastScrollAtRef = React.useRef(0);
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || userScrolledUpRef.current) return;
+    const now = Date.now();
+    if (now - lastScrollAtRef.current < 80) return;
+    lastScrollAtRef.current = now;
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
   }, [messages]);
 
   function handleSubmit(text: string) {
