@@ -6,6 +6,7 @@ import { DefaultChatTransport, type UIMessage } from "ai";
 import type { ChatMessage, ModelInfo } from "@/lib/chat/types";
 import { MessageBubble } from "./message-bubble";
 import { ChatInput } from "./chat-input";
+import { StreamingPill } from "./streaming-pill";
 
 function partsToText(parts: UIMessage["parts"] | undefined): string {
   if (!parts) return "";
@@ -94,17 +95,51 @@ export function ChatPanel({
     onFinish: () => {
       onAssistantFinish?.();
     },
-    // Throttle re-renders during streaming. Without this, every token
-    // re-renders the whole message list (heavy on Markdown + Prism).
-    // 60ms = ~16fps which is smooth-feeling without burning the CPU.
-    experimental_throttle: 60,
+    // We hide streaming output behind a compact pill, so we throttle the
+    // hook's internal updates aggressively. The pill re-renders on its
+    // own 1Hz timer; everything else can wait for the final flush.
+    experimental_throttle: 250,
   });
 
   const isStreaming = status === "submitted" || status === "streaming";
+
+  // Track when the current assistant turn started, so the pill can show
+  // elapsed time. Reset whenever streaming flips on.
+  const [streamStartedAt, setStreamStartedAt] = React.useState<number | null>(
+    null,
+  );
+  React.useEffect(() => {
+    if (isStreaming && streamStartedAt === null) {
+      setStreamStartedAt(Date.now());
+    } else if (!isStreaming && streamStartedAt !== null) {
+      setStreamStartedAt(null);
+    }
+  }, [isStreaming, streamStartedAt]);
+
   const hasMessages = messages.length > 0;
 
-  // Auto-scroll to bottom on new tokens — but throttled, and only while
-  // the user hasn't scrolled up themselves.
+  // Hide the in-progress assistant message so the raw streaming text
+  // never paints. Only the StreamingPill is shown until the message
+  // finalizes, at which point it falls into the regular rendered list.
+  const visibleMessages = React.useMemo(() => {
+    if (!isStreaming) return messages;
+    const last = messages[messages.length - 1];
+    if (last?.role === "assistant") {
+      return messages.slice(0, -1);
+    }
+    return messages;
+  }, [messages, isStreaming]);
+
+  // Char count for the pill — derived from the in-progress assistant
+  // message so the user sees the work growing.
+  const pendingCharCount = React.useMemo(() => {
+    if (!isStreaming) return 0;
+    const last = messages[messages.length - 1];
+    if (last?.role !== "assistant") return 0;
+    return partsToText(last.parts).length;
+  }, [messages, isStreaming]);
+
+  // Auto-scroll: only when content grows AND user hasn't scrolled up.
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const userScrolledUpRef = React.useRef(false);
 
@@ -116,7 +151,6 @@ export function ChatPanel({
       if (!el) return;
       const distanceFromBottom =
         el.scrollHeight - el.scrollTop - el.clientHeight;
-      // 60px tolerance — small jitters during auto-scroll don't count
       userScrolledUpRef.current = distanceFromBottom > 60;
     }
 
@@ -124,9 +158,6 @@ export function ChatPanel({
     return () => el.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Auto-scroll only fires when content grows AND user hasn't scrolled up.
-  // We use rAF so multiple token updates within one frame coalesce to
-  // a single scroll.
   const lastScrollAtRef = React.useRef(0);
   React.useEffect(() => {
     const el = scrollRef.current;
@@ -137,7 +168,7 @@ export function ChatPanel({
     requestAnimationFrame(() => {
       el.scrollTop = el.scrollHeight;
     });
-  }, [messages]);
+  }, [visibleMessages.length, isStreaming]);
 
   function handleSubmit(text: string) {
     if (!text.trim() || isStreaming) return;
@@ -150,22 +181,25 @@ export function ChatPanel({
         <>
           <div ref={scrollRef} className="flex-1 overflow-y-auto">
             <div className="mx-auto max-w-3xl py-4">
-              {messages.map((m, i) => {
+              {visibleMessages.map((m) => {
                 const text = partsToText(m.parts);
-                const isLast = i === messages.length - 1;
-                const isStreamingThis =
-                  isLast && m.role === "assistant" && isStreaming;
                 return (
                   <MessageBubble
                     key={m.id}
                     role={m.role as ChatMessage["role"]}
-                    content={
-                      isStreamingThis && !text ? "Thinking…" : text
-                    }
-                    streaming={isStreamingThis && !!text}
+                    content={text}
                   />
                 );
               })}
+
+              {isStreaming && streamStartedAt !== null && (
+                <StreamingPill
+                  charCount={pendingCharCount}
+                  startedAt={streamStartedAt}
+                  onStop={stop}
+                />
+              )}
+
               {error && (
                 <div className="mx-4 my-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
                   <strong className="font-semibold">Error:</strong>{" "}
