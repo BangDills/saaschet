@@ -7,7 +7,6 @@ import type { ChatMessage, ModelInfo } from "@/lib/chat/types";
 import { MessageBubble } from "./message-bubble";
 import { ChatInput } from "./chat-input";
 
-/** Convert the AI SDK's UIMessage parts to plain text for storage. */
 function partsToText(parts: UIMessage["parts"] | undefined): string {
   if (!parts) return "";
   return parts
@@ -25,6 +24,9 @@ function toUIMessages(stored: ChatMessage[]): UIMessage[] {
 }
 
 export type ChatPanelProps = {
+  /** Stable UUID for this chat. New chats get a fresh UUID; existing chats
+   *  use their conversation row's id. Sent in the body of every /api/chat
+   *  request so the server can upsert the conversation row. */
   conversationId: string;
   initialMessages: ChatMessage[];
   modelId: string;
@@ -34,7 +36,9 @@ export type ChatPanelProps = {
   onWebSearchChange: (next: boolean) => void;
   repo: string | null;
   onRepoChange: (next: string | null) => void;
-  onMessagesChange: (messages: ChatMessage[]) => void;
+  /** Called once the assistant finishes streaming, so the page can refresh
+   *  the conversation list in the sidebar. */
+  onAssistantFinish?: () => void;
 };
 
 export function ChatPanel({
@@ -47,10 +51,13 @@ export function ChatPanel({
   onWebSearchChange,
   repo,
   onRepoChange,
-  onMessagesChange,
+  onAssistantFinish,
 }: ChatPanelProps) {
+  // Keep the latest values in refs so the transport body callback always
+  // picks them up even though the transport is created once.
   const modelIdRef = React.useRef(modelId);
   const webSearchRef = React.useRef(webSearch);
+  const conversationIdRef = React.useRef(conversationId);
 
   React.useEffect(() => {
     modelIdRef.current = modelId;
@@ -58,12 +65,16 @@ export function ChatPanel({
   React.useEffect(() => {
     webSearchRef.current = webSearch;
   }, [webSearch]);
+  React.useEffect(() => {
+    conversationIdRef.current = conversationId;
+  }, [conversationId]);
 
   const transport = React.useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
         body: () => ({
+          conversationId: conversationIdRef.current,
           model: modelIdRef.current,
           webSearch: webSearchRef.current,
         }),
@@ -75,22 +86,15 @@ export function ChatPanel({
     id: conversationId,
     messages: toUIMessages(initialMessages),
     transport,
+    onFinish: () => {
+      onAssistantFinish?.();
+    },
   });
 
   const isStreaming = status === "submitted" || status === "streaming";
   const hasMessages = messages.length > 0;
 
-  React.useEffect(() => {
-    const plain: ChatMessage[] = messages.map((m) => ({
-      id: m.id,
-      role: m.role as ChatMessage["role"],
-      content: partsToText(m.parts),
-      createdAt: Date.now(),
-    }));
-    onMessagesChange(plain);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, status]);
-
+  // Auto-scroll to bottom on new tokens.
   const scrollRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     const el = scrollRef.current;
