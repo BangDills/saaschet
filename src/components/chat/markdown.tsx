@@ -72,6 +72,18 @@ export function Markdown({
         className,
       )}
     >
+      <ReactMarkdownMemo content={children} />
+    </div>
+  );
+}
+
+/**
+ * Memoized Markdown renderer. When the same `content` arrives twice
+ * (e.g. during throttled streaming flush) we skip the parse + render.
+ */
+const ReactMarkdownMemo = React.memo(
+  function ReactMarkdownInner({ content }: { content: string }) {
+    return (
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -141,8 +153,30 @@ export function Markdown({
           pre: ({ children }) => <>{children}</>,
         }}
       >
-        {children}
+        {content}
       </ReactMarkdown>
-    </div>
-  );
-}
+    );
+  },
+  (prev, next) => prev.content === next.content,
+);
+
+/**
+ * Memoized code block — same Prism instance is otherwise re-mounted on
+ * every parent re-render, which is what triggers the worst lag spikes.
+ */
+const MemoCodeBlock = React.memo(
+  function MemoCodeBlockInner({
+    language,
+    code,
+  }: {
+    language: string;
+    code: string;
+  }) {
+    return <CodeBlock language={language} code={code} />;
+  },
+  (prev, next) => prev.code === next.code && prev.language === next.language,
+);
+// (We keep MemoCodeBlock declared for future use; the components map above
+// passes through CodeBlock directly, but inside ReactMarkdownMemo's render
+// the entire tree is already memoized at the parent level.)
+void MemoCodeBlock;
