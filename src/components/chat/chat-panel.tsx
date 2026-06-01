@@ -7,6 +7,7 @@ import type { ChatMessage, ModelInfo } from "@/lib/chat/types";
 import { MessageBubble, type AnyPart } from "./message-bubble";
 import { ChatInput } from "./chat-input";
 import { StreamingPill } from "./streaming-pill";
+import { fireCreditsRefresh } from "@/components/dashboard/credits-meter";
 
 function partsToText(parts: UIMessage["parts"] | undefined): string {
   if (!parts) return "";
@@ -111,6 +112,7 @@ export function ChatPanel({
     messages: toUIMessages(initialMessages),
     transport,
     onFinish: () => {
+      fireCreditsRefresh();
       onAssistantFinish?.();
     },
     // In agent mode the user wants to SEE tool calls happen in real time.
