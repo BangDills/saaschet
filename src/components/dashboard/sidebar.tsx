@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Zap, Award } from "lucide-react";
+import { Zap } from "lucide-react";
 import { navItems } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { CreditsMeter } from "./credits-meter";
 
 export type SidebarProps = {
   displayName: string;
@@ -59,14 +60,8 @@ export function Sidebar({
         })}
       </nav>
 
-      <div className="mt-2 flex items-center gap-3 rounded-xl border border-sidebar-border bg-card p-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400">
-          <Award className="size-5" />
-        </div>
-        <div className="leading-tight">
-          <p className="text-sm font-semibold">PRO Member</p>
-          <p className="text-xs text-muted-foreground">Unlimited plan active</p>
-        </div>
+      <div className="mt-2">
+        <CreditsMeter />
       </div>
 
       {/* Real user info */}

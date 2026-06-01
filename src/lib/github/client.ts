@@ -512,3 +512,106 @@ export async function createPullRequest(
   const json = (await res.json()) as { html_url: string; number: number };
   return { url: json.html_url, number: json.number };
 }
+
+
+
+/**
+ * Fetch the full git tree for a ref. With `recursive=1` GitHub returns up
+ * to 100k entries in a single call. We cap and project to {path, type}.
+ *
+ * Skips paths that match the patterns most users don't want the agent
+ * crawling into (heavy build artefacts, lockfiles, vendored deps).
+ */
+const SKIP_PREFIXES = [
+  "node_modules/",
+  ".next/",
+  ".vercel/",
+  "dist/",
+  "build/",
+  "out/",
+  ".turbo/",
+  "coverage/",
+  ".cache/",
+  "__pycache__/",
+  "venv/",
+  ".venv/",
+  "target/",
+];
+
+const SKIP_PATHS = new Set([
+  "package-lock.json",
+  "pnpm-lock.yaml",
+  "yarn.lock",
+  "bun.lockb",
+  "Cargo.lock",
+  "poetry.lock",
+  "Gemfile.lock",
+  "composer.lock",
+]);
+
+function shouldSkip(path: string): boolean {
+  if (SKIP_PATHS.has(path)) return true;
+  for (const prefix of SKIP_PREFIXES) {
+    if (path === prefix.slice(0, -1) || path.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
+export async function fetchRecursiveTree(
+  owner: string,
+  name: string,
+  ref: string,
+  token: string,
+  options: { maxDepth?: number; maxEntries?: number; subPath?: string } = {},
+): Promise<{ entries: GitHubFile[]; truncated: boolean }> {
+  const { maxDepth = 3, maxEntries = 300, subPath = "" } = options;
+
+  // Resolve ref → commit sha → tree sha.
+  const refRes = await fetch(
+    `${GH_API}/repos/${owner}/${name}/commits/${encodeURIComponent(ref)}`,
+    { headers: authHeaders(token), cache: "no-store" },
+  );
+  if (!refRes.ok) {
+    if (refRes.status === 404 || refRes.status === 409) {
+      return { entries: [], truncated: false };
+    }
+    throw new Error(`Resolve ref ${ref} failed: ${refRes.status}`);
+  }
+  const refJson = (await refRes.json()) as { commit: { tree: { sha: string } } };
+  const treeSha = refJson.commit.tree.sha;
+
+  // Pull the recursive tree.
+  const treeRes = await fetch(
+    `${GH_API}/repos/${owner}/${name}/git/trees/${treeSha}?recursive=1`,
+    { headers: authHeaders(token), next: { revalidate: 120 } },
+  );
+  if (!treeRes.ok) {
+    throw new Error(`Tree fetch failed: ${treeRes.status}`);
+  }
+  const treeJson = (await treeRes.json()) as {
+    tree: Array<{ path: string; type: string; size?: number }>;
+    truncated?: boolean;
+  };
+
+  const prefix = subPath ? subPath.replace(/\/+$/, "") + "/" : "";
+
+  const filtered: GitHubFile[] = [];
+  for (const node of treeJson.tree) {
+    if (filtered.length >= maxEntries) break;
+    if (prefix && !node.path.startsWith(prefix)) continue;
+    const relPath = prefix ? node.path.slice(prefix.length) : node.path;
+    const depth = relPath.split("/").length;
+    if (depth > maxDepth) continue;
+    if (shouldSkip(node.path)) continue;
+    filtered.push({
+      path: node.path,
+      type: node.type === "tree" ? "dir" : "file",
+      ...(typeof node.size === "number" ? { size: node.size } : {}),
+    });
+  }
+
+  return {
+    entries: filtered,
+    truncated: !!treeJson.truncated || filtered.length >= maxEntries,
+  };
+}

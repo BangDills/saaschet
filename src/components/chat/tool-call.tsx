@@ -40,7 +40,8 @@ const TOOL_META: Record<
   read_file: { label: "Read file", Icon: FileText },
   search_code: { label: "Searched code", Icon: Search },
   web_search: { label: "Searched web", Icon: Globe },
-  write_file: { label: "Edited file", Icon: PencilLine },
+  write_file: { label: "Wrote file", Icon: PencilLine },
+  edit_file: { label: "Edited file", Icon: PencilLine },
   create_pull_request: { label: "Opened pull request", Icon: GitPullRequest },
 };
 
@@ -61,6 +62,7 @@ function summarizeInput(toolName: string, input: unknown): string {
         : "";
     case "read_file":
     case "write_file":
+    case "edit_file":
       return typeof obj.path === "string" ? obj.path : "";
     case "search_code":
     case "web_search":
@@ -91,6 +93,15 @@ function summarizeOutput(toolName: string, output: unknown): string {
     case "write_file":
       if (typeof obj.commit_sha === "string") {
         return `committed to ${obj.branch}`;
+      }
+      return "";
+    case "edit_file":
+      if (typeof obj.commit_sha === "string") {
+        const delta =
+          typeof obj.bytes_changed === "number"
+            ? ` · ${obj.bytes_changed} bytes`
+            : "";
+        return `committed to ${obj.branch}${delta}`;
       }
       return "";
     case "create_pull_request":

@@ -16,6 +16,11 @@ import {
   createAgentTools,
   generateWorkBranchName,
 } from "@/lib/agent/tools";
+import {
+  assertCanSpend,
+  recordSpend,
+  OutOfCreditsError,
+} from "@/lib/credits/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,26 +39,33 @@ GitHub-based tools that let you read, search, and edit files in the user's \
 connected repository, and to search the public web. \
 
 Operating principles:
-- ALWAYS read a file with read_file before overwriting it with write_file. \
-  Never invent paths or content.
-- Use list_files / search_code to discover what's in the repo before reading. \
-  If list_files returns 'Repository is empty (no commits yet)', skip read_file \
-  and go straight to write_file — the first write will bootstrap the repo.
-- write_file commits to a NEW feature branch automatically — never to the \
-  default branch directly. EXCEPTION: when the repo is empty and has no \
-  commits yet, write_file will commit to the default branch as the bootstrap \
-  commit (you'll see a 'note' field in the result confirming this). In that \
-  case, do NOT call create_pull_request afterward — there is no diff to PR.
+- Use list_files (with depth: 2 or 3 for unfamiliar repos) and \
+  search_code to discover what's in the repo before reading. \
+  If list_files returns 'Repository is empty (no commits yet)', skip \
+  read_file and go straight to write_file — the first write will \
+  bootstrap the repo.
+- ALWAYS read a file with read_file before modifying it. Never invent \
+  paths or content.
+- For SURGICAL edits (renaming a variable, fixing one function, adding \
+  an import, changing a single line), STRONGLY PREFER edit_file over \
+  write_file. edit_file is much cheaper in tokens and won't accidentally \
+  drop unrelated content. Only use write_file when creating a brand new \
+  file or rewriting most of an existing one.
+- write_file/edit_file commit to a NEW feature branch automatically — \
+  never to the default branch directly. EXCEPTION: when the repo is empty \
+  and has no commits yet, write_file will commit to the default branch \
+  as the bootstrap commit (you'll see a 'note' field in the result \
+  confirming this). In that case, do NOT call create_pull_request.
 - Group related changes under one logical commit message each.
 - After all writes are done in a NORMAL repo (not empty bootstrap), call \
-  create_pull_request with a clear title and Markdown body summarizing the \
-  changes. Do NOT skip this step when the user asked for a change to be \
-  applied to an existing repo.
-- If the request is read-only ("explain", "find", "what does X do"), don't \
-  write or open a PR. Just answer.
-- When you finish, give the user a short summary of what you did, including \
-  the PR URL when one was created (or noting that the change went straight \
-  to main when the repo was empty).
+  create_pull_request with a clear title and Markdown body summarizing \
+  the changes. Do NOT skip this step when the user asked for a change \
+  to be applied to an existing repo.
+- If the request is read-only ("explain", "find", "what does X do"), \
+  don't write or open a PR. Just answer.
+- When you finish, give the user a short summary of what you did, \
+  including the PR URL when one was created (or noting that the change \
+  went straight to main when the repo was empty).
 - Use Markdown formatting in your final answer with triple-backtick code \
   blocks and language tags.`;
 
@@ -176,6 +188,24 @@ export async function POST(req: Request) {
     );
   }
 
+  // ── Pre-flight: daily credit check ───────────────────────────────────
+  const turnKind: "chat" | "agent" = wantsAgent ? "agent" : "chat";
+  try {
+    await assertCanSpend(user.id, turnKind);
+  } catch (err) {
+    if (err instanceof OutOfCreditsError) {
+      return NextResponse.json(
+        {
+          error: err.message,
+          code: "out_of_credits",
+          credits: err.snapshot,
+        },
+        { status: 402 },
+      );
+    }
+    throw err;
+  }
+
   // ── Upsert conversation ──────────────────────────────────────────────
   const { data: existingConv } = await supabase
     .from("conversations")
@@ -292,7 +322,8 @@ export async function POST(req: Request) {
             stopWhen: stepCountIs(10),
           }
         : {}),
-      onFinish: async ({ text }) => {
+      onFinish: async (event) => {
+        const { text, steps } = event;
         const { error: assistantErr } = await supabase.from("messages").insert({
           conversation_id: conversationId,
           role: "assistant",
@@ -308,6 +339,23 @@ export async function POST(req: Request) {
           .from("conversations")
           .update({ updated_at: new Date().toISOString() })
           .eq("id", conversationId);
+
+        // Tally tool calls across all steps and record the credit spend.
+        const toolCount = (steps ?? []).reduce(
+          (sum, step) => sum + (step.toolCalls?.length ?? 0),
+          0,
+        );
+        try {
+          await recordSpend({
+            userId: user.id,
+            conversationId,
+            kind: turnKind,
+            toolCount,
+            modelId,
+          });
+        } catch (err) {
+          console.error("[credits] recordSpend failed:", err);
+        }
       },
     });
 
