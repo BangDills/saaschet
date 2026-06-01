@@ -12,6 +12,20 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/** Inline GitHub mark — `lucide-react` v1 doesn't ship the icon. */
+function GitHubMark({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden
+      fill="currentColor"
+      className={className}
+    >
+      <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-1.96c-3.2.7-3.87-1.54-3.87-1.54-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.74 2.68 1.24 3.34.95.1-.74.4-1.24.72-1.53-2.55-.29-5.23-1.28-5.23-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.18.91-.25 1.89-.38 2.86-.39.97.01 1.95.14 2.86.39 2.18-1.49 3.14-1.18 3.14-1.18.62 1.59.23 2.76.11 3.05.74.81 1.18 1.84 1.18 3.1 0 4.42-2.69 5.39-5.25 5.68.41.36.78 1.06.78 2.15v3.18c0 .31.21.66.8.55C20.22 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z" />
+    </svg>
+  );
+}
+
 export type RepoSelectorProps = {
   /** Currently connected repo as "owner/name", or null when none. */
   value: string | null;
@@ -42,7 +56,7 @@ type UserRepo = {
 };
 
 type ReposResponse =
-  | { githubConnected: false; repos: []; message?: string }
+  | { githubConnected: false; repos: []; message?: string; error?: string }
   | {
       githubConnected: true;
       username?: string | null;
@@ -89,13 +103,18 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
     if (reposState.kind !== "idle") return;
     setReposState({ kind: "loading", githubConnected: false, repos: [] });
     fetch("/api/github/repos", { cache: "no-store" })
-      .then((r) => r.json() as Promise<ReposResponse>)
-      .then((json) => {
+      .then(async (r) => {
+        // 502 still has a JSON body for githubConnected:true + error
+        const json = (await r.json()) as ReposResponse;
+        return { ok: r.ok, json };
+      })
+      .then(({ json }) => {
         if (!json.githubConnected) {
           setReposState({
             kind: "loaded",
             githubConnected: false,
             repos: [],
+            error: "error" in json ? json.error : undefined,
           });
           return;
         }
@@ -216,6 +235,20 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
                 </span>
               </div>
 
+              {reposState.error && (
+                <div className="mb-2 space-y-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 dark:border-amber-900/50 dark:bg-amber-950/40">
+                  <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                    {reposState.error}
+                  </p>
+                  <a
+                    href="/auth/login/github?next=/ai-chat"
+                    className="inline-flex items-center gap-1 rounded text-[11px] font-medium text-amber-700 underline underline-offset-2 hover:opacity-80 dark:text-amber-300"
+                  >
+                    Reconnect GitHub
+                  </a>
+                </div>
+              )}
+
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
                 <input
@@ -229,11 +262,22 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
 
               <div className="mt-2 max-h-56 overflow-y-auto">
                 {filteredRepos.length === 0 ? (
-                  <p className="px-2 py-3 text-center text-xs text-muted-foreground">
-                    {reposState.repos.length === 0
-                      ? "No repositories accessible to your account."
-                      : "No matches."}
-                  </p>
+                  <div className="px-2 py-3 text-center text-xs text-muted-foreground">
+                    {reposState.repos.length === 0 ? (
+                      <>
+                        <p>No repositories accessible to your account.</p>
+                        <p className="mt-1 text-[11px]">
+                          Make sure your GitHub account has{" "}
+                          <code className="rounded bg-muted px-1 py-0.5">
+                            public_repo
+                          </code>{" "}
+                          scope granted.
+                        </p>
+                      </>
+                    ) : (
+                      "No matches."
+                    )}
+                  </div>
                 ) : (
                   filteredRepos.map((r) => {
                     const isActive = value === r.fullName;
@@ -305,12 +349,27 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
             </div>
           ) : (
             <div className="border-b border-border p-3">
-              <p className="text-xs font-medium">Sign in with GitHub</p>
+              <p className="text-xs font-medium">Connect your GitHub account</p>
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Sign in with GitHub from the login page to browse your own
-                repositories here. You can still paste any public repo
-                below.
+                Link GitHub to browse your own repositories from this picker.
+                You can still paste any public repo below.
               </p>
+              {reposState.error && (
+                <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
+                  {reposState.error}
+                </p>
+              )}
+              <a
+                href="/auth/login/github?next=/ai-chat"
+                className={cn(
+                  "mt-2 inline-flex w-full items-center justify-center gap-2 rounded-md",
+                  "border border-border bg-background px-2.5 py-1.5 text-xs font-medium",
+                  "transition-colors hover:bg-accent",
+                )}
+              >
+                <GitHubMark className="size-3.5" />
+                Connect GitHub
+              </a>
             </div>
           )}
 
