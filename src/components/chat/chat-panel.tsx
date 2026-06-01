@@ -58,6 +58,7 @@ export function ChatPanel({
   const modelIdRef = React.useRef(modelId);
   const webSearchRef = React.useRef(webSearch);
   const conversationIdRef = React.useRef(conversationId);
+  const repoRef = React.useRef(repo);
 
   React.useEffect(() => {
     modelIdRef.current = modelId;
@@ -68,6 +69,9 @@ export function ChatPanel({
   React.useEffect(() => {
     conversationIdRef.current = conversationId;
   }, [conversationId]);
+  React.useEffect(() => {
+    repoRef.current = repo;
+  }, [repo]);
 
   const transport = React.useMemo(
     () =>
@@ -77,6 +81,7 @@ export function ChatPanel({
           conversationId: conversationIdRef.current,
           model: modelIdRef.current,
           webSearch: webSearchRef.current,
+          repo: repoRef.current,
         }),
       }),
     [],

@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { GitHubButton } from "./github-button";
 import { type AuthState } from "@/app/(auth)/login/actions";
 
 type AuthFormProps = {
@@ -39,6 +40,16 @@ export function AuthForm({ mode, action }: AuthFormProps) {
             ? "Sign in to continue your conversations."
             : "Start chatting with multiple AI models in one place."}
         </p>
+      </div>
+
+      <GitHubButton />
+
+      <div className="flex items-center gap-3">
+        <div className="h-px flex-1 bg-border" />
+        <span className="text-xs uppercase tracking-wider text-muted-foreground">
+          or
+        </span>
+        <div className="h-px flex-1 bg-border" />
       </div>
 
       <form action={formAction} className="space-y-4">
