@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { ArrowUp, Globe, ImagePlus, GitBranch, Square } from "lucide-react";
+import { ArrowUp, Globe, ImagePlus, Square } from "lucide-react";
 import { ModelSelector } from "./model-selector";
+import { ContextSelector } from "./context-selector";
+import { contextPresets } from "@/lib/chat/contexts";
 import type { ModelInfo } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -16,7 +18,13 @@ export type ChatInputProps = {
   models: ModelInfo[];
   modelId: string;
   onModelChange: (id: string) => void;
-  /** Layout variant: "centered" makes the box wider and used in hero state. */
+  /** context preset state */
+  contextId: string;
+  onContextChange: (id: string) => void;
+  /** web search toggle */
+  webSearch: boolean;
+  onWebSearchChange: (next: boolean) => void;
+  /** layout variant */
   variant?: "default" | "centered";
 };
 
@@ -28,7 +36,7 @@ export type ChatInputProps = {
  *  │                                              │
  *  │ ●                          [Llama 3.3 70B ⌄] │  ← status + model
  *  └─────────────────────────────────────────────┘
- *  [🌐] [📷]  [⎇ Select context]  ← bottom toolbar
+ *  [🌐 Web] [📷] [⎇ Default]   ← bottom toolbar (interactive)
  */
 export function ChatInput({
   onSubmit,
@@ -39,12 +47,15 @@ export function ChatInput({
   models,
   modelId,
   onModelChange,
-  variant = "default",
+  contextId,
+  onContextChange,
+  webSearch,
+  onWebSearchChange,
 }: ChatInputProps) {
   const [value, setValue] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  // Auto-grow textarea up to ~10 rows.
   const adjust = React.useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -71,15 +82,28 @@ export function ChatInput({
     }
   }
 
+  function handleImagePick() {
+    fileInputRef.current?.click();
+  }
+
+  function handleImageChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    // For now, image upload is UI-ready but the inference path is text-only.
+    // Wiring multimodal request bodies is queued for the next iteration.
+    alert(
+      `Image picked: ${file.name}\n\nMultimodal vision support is queued — for now your prompt is sent as text only.`,
+    );
+  }
+
   const canSend = value.trim().length > 0 && !disabled;
-  const widthClass =
-    variant === "centered" ? "max-w-3xl" : "max-w-3xl";
+  const currentContext = contextPresets.find((c) => c.id === contextId);
 
   return (
-    <div className={cn("mx-auto w-full", widthClass)}>
+    <div className="mx-auto w-full max-w-3xl">
       {/* Main input box */}
       <div className="relative rounded-2xl border border-border bg-card shadow-sm transition-shadow focus-within:shadow-md">
-        {/* Textarea */}
         <textarea
           ref={textareaRef}
           value={value}
@@ -92,7 +116,6 @@ export function ChatInput({
           style={{ minHeight: "112px" }}
         />
 
-        {/* Send / stop button — absolute top-right */}
         {isStreaming ? (
           <button
             type="button"
@@ -119,39 +142,60 @@ export function ChatInput({
           </button>
         )}
 
-        {/* Bottom row inside the input: status + model selector */}
+        {/* Bottom row: status + model selector */}
         <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2 px-2">
-          <div className="flex items-center gap-2">
-            <StatusDot streaming={!!isStreaming} />
-          </div>
-          <div className="flex items-center gap-2">
-            <ModelSelector
-              models={models}
-              value={modelId}
-              onChange={onModelChange}
-            />
-          </div>
+          <StatusDot streaming={!!isStreaming} />
+          <ModelSelector
+            models={models}
+            value={modelId}
+            onChange={onModelChange}
+          />
         </div>
       </div>
 
-      {/* Bottom toolbar (under the input, like Kiro) */}
-      <div className="mt-2 flex items-center gap-1.5 px-1">
-        <ToolbarButton title="Web search (coming soon)" disabled>
+      {/* Bottom toolbar (interactive) */}
+      <div className="mt-2 flex items-center gap-1 px-1">
+        <ToolbarToggle
+          active={webSearch}
+          onToggle={() => onWebSearchChange(!webSearch)}
+          title={
+            webSearch
+              ? "Web search ON — results will be added to the AI's context"
+              : "Enable web search (Tavily)"
+          }
+          label={webSearch ? "Web ON" : "Web"}
+        >
           <Globe className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton title="Attach image (coming soon)" disabled>
+        </ToolbarToggle>
+
+        <ToolbarButton title="Attach an image" onClick={handleImagePick}>
           <ImagePlus className="size-4" />
         </ToolbarButton>
-        <ToolbarButton title="Select context (coming soon)" disabled>
-          <GitBranch className="size-4" />
-          <span className="text-xs">Select context</span>
-        </ToolbarButton>
 
-        {/* Currently active context pill (placeholder, mimics Kiro's repo chip) */}
-        <div className="ml-1 inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs text-muted-foreground">
-          <span className="inline-block size-1.5 rounded-full bg-emerald-500" />
-          <span className="font-medium">Horizon AI</span>
+        <ContextSelector value={contextId} onChange={onContextChange} />
+
+        {/* Active context pill (mirrors Kiro's repo chip) */}
+        <div className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs text-muted-foreground">
+          <span
+            className={cn(
+              "inline-block size-1.5 rounded-full",
+              webSearch ? "bg-sky-500 animate-pulse" : "bg-emerald-500",
+            )}
+          />
+          <span className="font-medium">
+            {currentContext?.label ?? "Default"}
+            {webSearch ? " · Web" : ""}
+          </span>
         </div>
+
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="hidden"
+          onChange={handleImageChosen}
+        />
       </div>
 
       <p className="mt-2 px-1 text-center text-[11px] text-muted-foreground">
@@ -163,7 +207,6 @@ export function ChatInput({
   );
 }
 
-/** Small pulsing dot — gradient when streaming, faint ring when idle. */
 function StatusDot({ streaming }: { streaming: boolean }) {
   return (
     <div
@@ -209,6 +252,38 @@ function ToolbarButton({
       )}
     >
       {children}
+    </button>
+  );
+}
+
+function ToolbarToggle({
+  children,
+  active,
+  onToggle,
+  title,
+  label,
+}: {
+  children: React.ReactNode;
+  active: boolean;
+  onToggle: () => void;
+  title?: string;
+  label?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      title={title}
+      aria-pressed={active}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors",
+        active
+          ? "bg-sky-500/15 text-sky-600 dark:text-sky-300"
+          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+      )}
+    >
+      {children}
+      {label && <span>{label}</span>}
     </button>
   );
 }

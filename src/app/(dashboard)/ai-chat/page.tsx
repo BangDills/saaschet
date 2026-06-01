@@ -12,10 +12,9 @@ import {
 } from "@/lib/chat/storage";
 import type { ChatMessage, Conversation, ModelInfo } from "@/lib/chat/types";
 import { defaultModelId, defaultModels } from "@/lib/chat/models";
+import { defaultContextId } from "@/lib/chat/contexts";
 
-/** A snapshot of which messages the panel was mounted with. */
 type PanelInstance = {
-  /** React key — only changes on explicit user action (new chat or open chat) */
   key: string;
   initialMessages: ChatMessage[];
 };
@@ -25,20 +24,16 @@ const FRESH_PANEL: PanelInstance = { key: "new", initialMessages: [] };
 export default function AIChatPage() {
   const [models, setModels] = React.useState<ModelInfo[]>(defaultModels);
   const [modelId, setModelId] = React.useState<string>(defaultModelId);
+  const [contextId, setContextId] = React.useState<string>(defaultContextId);
+  const [webSearch, setWebSearch] = React.useState<boolean>(false);
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
-
-  /** id we are persisting to. `null` until first message of a new chat. */
   const [activeId, setActiveId] = React.useState<string | null>(null);
-
-  /** React identity of the chat panel — controls when useChat resets. */
   const [panel, setPanel] = React.useState<PanelInstance>(FRESH_PANEL);
 
-  // Hydrate conversations from localStorage on mount.
   React.useEffect(() => {
     setConversations(listConversations());
   }, []);
 
-  // Fetch live model list from /api/models on mount.
   React.useEffect(() => {
     let cancelled = false;
     fetch("/api/models")
@@ -79,8 +74,6 @@ export default function AIChatPage() {
     }
   }
 
-  // Called by ChatPanel whenever messages change. We persist here AND
-  // create the conversation id on the first user message of a fresh chat.
   function handleMessagesChange(msgs: ChatMessage[]) {
     if (msgs.length === 0) return;
 
@@ -116,7 +109,6 @@ export default function AIChatPage() {
 
   return (
     <div className="-mx-4 -my-6 flex h-[calc(100vh-5rem)] sm:-mx-6 lg:-mx-8">
-      {/* Conversations sidebar */}
       <aside className="hidden w-72 shrink-0 border-r border-border bg-card md:flex md:flex-col">
         <ConversationList
           items={conversations}
@@ -127,7 +119,6 @@ export default function AIChatPage() {
         />
       </aside>
 
-      {/* Chat panel — model selector now lives inside the chat input */}
       <section className="flex min-w-0 flex-1 flex-col">
         <ChatPanel
           key={panel.key}
@@ -136,6 +127,10 @@ export default function AIChatPage() {
           modelId={modelId}
           models={models}
           onModelChange={setModelId}
+          contextId={contextId}
+          onContextChange={setContextId}
+          webSearch={webSearch}
+          onWebSearchChange={setWebSearch}
           onMessagesChange={handleMessagesChange}
         />
       </section>
