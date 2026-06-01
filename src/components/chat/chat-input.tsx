@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowUp, Globe, ImagePlus, Square } from "lucide-react";
+import { ArrowUp, Globe, ImagePlus, Sparkles, Square } from "lucide-react";
 import { ModelSelector } from "./model-selector";
 import { RepoSelector } from "./repo-selector";
 import type { ModelInfo } from "@/lib/chat/types";
@@ -23,6 +23,9 @@ export type ChatInputProps = {
   /** repo selector state (owner/name or null) */
   repo: string | null;
   onRepoChange: (next: string | null) => void;
+  /** agent mode toggle (read+write tools) */
+  agentMode: boolean;
+  onAgentModeChange: (next: boolean) => void;
   /** layout variant */
   variant?: "default" | "centered";
 };
@@ -50,6 +53,8 @@ export function ChatInput({
   onWebSearchChange,
   repo,
   onRepoChange,
+  agentMode,
+  onAgentModeChange,
 }: ChatInputProps) {
   const [value, setValue] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -152,6 +157,23 @@ export function ChatInput({
       {/* Bottom toolbar */}
       <div className="mt-2 flex items-center gap-1 px-1">
         <ToolbarToggle
+          active={agentMode}
+          variant="violet"
+          onToggle={() => onAgentModeChange(!agentMode)}
+          title={
+            !repo
+              ? "Connect a repo first to enable Agent Mode"
+              : agentMode
+                ? "Agent Mode ON — the model can read, edit, and open PRs in the connected repo"
+                : "Enable Agent Mode (multi-step tool use)"
+          }
+          label={agentMode ? "Agent ON" : "Agent"}
+          disabled={!repo}
+        >
+          <Sparkles className="size-4" />
+        </ToolbarToggle>
+
+        <ToolbarToggle
           active={webSearch}
           onToggle={() => onWebSearchChange(!webSearch)}
           title={
@@ -175,12 +197,16 @@ export function ChatInput({
           <span
             className={cn(
               "inline-block size-1.5 rounded-full",
-              webSearch ? "animate-pulse bg-sky-500" : "bg-emerald-500",
+              agentMode
+                ? "animate-pulse bg-violet-500"
+                : webSearch
+                  ? "animate-pulse bg-sky-500"
+                  : "bg-emerald-500",
             )}
           />
           <span className="font-medium">
             {repo ?? "Horizon AI"}
-            {webSearch ? " · Web" : ""}
+            {agentMode ? " · Agent" : webSearch ? " · Web" : ""}
           </span>
         </div>
 
@@ -257,12 +283,16 @@ function ToolbarToggle({
   onToggle,
   title,
   label,
+  variant = "sky",
+  disabled,
 }: {
   children: React.ReactNode;
   active: boolean;
   onToggle: () => void;
   title?: string;
   label?: string;
+  variant?: "sky" | "violet";
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -270,11 +300,16 @@ function ToolbarToggle({
       onClick={onToggle}
       title={title}
       aria-pressed={active}
+      disabled={disabled}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors",
-        active
-          ? "bg-sky-500/15 text-sky-600 dark:text-sky-300"
-          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+        "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent",
+        active && variant === "sky" && "bg-sky-500/15 text-sky-600 dark:text-sky-300",
+        active &&
+          variant === "violet" &&
+          "bg-violet-500/15 text-violet-600 dark:text-violet-300",
+        !active &&
+          "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
       )}
     >
       {children}

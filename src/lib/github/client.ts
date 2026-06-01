@@ -252,3 +252,253 @@ export async function fetchUserRepos(token: string): Promise<UserRepo[]> {
     updatedAt: new Date(r.updated_at).getTime(),
   }));
 }
+
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * READ helpers used by Agent Mode tools
+ * ────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Fetch the raw content of a single file at a given ref.
+ * Caps at 60KB so a malicious / huge file can't blow up the model context.
+ */
+export async function fetchFileContent(
+  owner: string,
+  name: string,
+  filePath: string,
+  ref: string,
+  token?: string,
+): Promise<{ content: string; truncated: boolean; sha: string }> {
+  const res = await ghFetch(
+    `${GH_API}/repos/${owner}/${name}/contents/${encodeURI(filePath)}?ref=${encodeURIComponent(ref)}`,
+    token,
+  );
+  if (!res.ok) {
+    throw new Error(
+      `GitHub ${res.status} for ${filePath}: ${await res
+        .text()
+        .then((t) => t.slice(0, 200))}`,
+    );
+  }
+  const json = (await res.json()) as {
+    content?: string;
+    encoding?: string;
+    sha: string;
+    type?: string;
+  };
+  if (json.type !== "file" || !json.content) {
+    throw new Error(`Path ${filePath} is not a regular file`);
+  }
+  const decoded =
+    json.encoding === "base64"
+      ? Buffer.from(json.content, "base64").toString("utf-8")
+      : json.content;
+  const MAX = 60_000;
+  if (decoded.length > MAX) {
+    return { content: decoded.slice(0, MAX), truncated: true, sha: json.sha };
+  }
+  return { content: decoded, truncated: false, sha: json.sha };
+}
+
+/**
+ * List directory entries at a given path. Empty `dirPath` lists the repo root.
+ */
+export async function fetchDirectoryListing(
+  owner: string,
+  name: string,
+  dirPath: string,
+  ref: string,
+  token?: string,
+): Promise<GitHubFile[]> {
+  const url = dirPath
+    ? `${GH_API}/repos/${owner}/${name}/contents/${encodeURI(dirPath)}?ref=${encodeURIComponent(ref)}`
+    : `${GH_API}/repos/${owner}/${name}/contents/?ref=${encodeURIComponent(ref)}`;
+  const res = await ghFetch(url, token);
+  if (!res.ok) {
+    throw new Error(
+      `GitHub ${res.status}: ${await res.text().then((t) => t.slice(0, 200))}`,
+    );
+  }
+  const json = (await res.json()) as Array<{
+    path: string;
+    type: string;
+    size?: number;
+  }>;
+  return json
+    .slice(0, 200)
+    .map((f) => ({
+      path: f.path,
+      type: f.type === "dir" ? "dir" : "file",
+      size: f.size,
+    }));
+}
+
+/** Search code in a single repo via GitHub's code search API. */
+export async function searchCode(
+  owner: string,
+  name: string,
+  query: string,
+  token?: string,
+): Promise<Array<{ path: string; snippet: string }>> {
+  // Note: GitHub's code search requires authentication.
+  if (!token) return [];
+  const fullQuery = `${query} repo:${owner}/${name}`;
+  const res = await fetch(
+    `${GH_API}/search/code?q=${encodeURIComponent(fullQuery)}&per_page=10`,
+    { headers: authHeaders(token), next: { revalidate: 120 } },
+  );
+  if (!res.ok) {
+    throw new Error(
+      `GitHub search ${res.status}: ${await res.text().then((t) => t.slice(0, 200))}`,
+    );
+  }
+  const json = (await res.json()) as {
+    items?: Array<{
+      path: string;
+      text_matches?: Array<{ fragment?: string }>;
+    }>;
+  };
+  return (json.items ?? []).map((item) => ({
+    path: item.path,
+    snippet:
+      item.text_matches?.[0]?.fragment?.slice(0, 500) ?? "(no preview)",
+  }));
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * WRITE helpers used by Agent Mode tools (create branch, commit, PR)
+ * ────────────────────────────────────────────────────────────────────── */
+
+/** Get the SHA the named branch points to. */
+export async function getBranchSha(
+  owner: string,
+  name: string,
+  branch: string,
+  token: string,
+): Promise<string> {
+  const res = await fetch(
+    `${GH_API}/repos/${owner}/${name}/git/refs/heads/${encodeURIComponent(branch)}`,
+    { headers: authHeaders(token), cache: "no-store" },
+  );
+  if (!res.ok) {
+    throw new Error(
+      `Get branch ${branch} failed: ${res.status} ${await res
+        .text()
+        .then((t) => t.slice(0, 200))}`,
+    );
+  }
+  const json = (await res.json()) as { object: { sha: string } };
+  return json.object.sha;
+}
+
+/** Create a new branch off `fromSha`. */
+export async function createBranch(
+  owner: string,
+  name: string,
+  newBranch: string,
+  fromSha: string,
+  token: string,
+): Promise<void> {
+  const res = await fetch(`${GH_API}/repos/${owner}/${name}/git/refs`, {
+    method: "POST",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ref: `refs/heads/${newBranch}`,
+      sha: fromSha,
+    }),
+  });
+  if (!res.ok && res.status !== 422) {
+    // 422 = already exists; we treat that as idempotent.
+    throw new Error(
+      `Create branch ${newBranch} failed: ${res.status} ${await res
+        .text()
+        .then((t) => t.slice(0, 200))}`,
+    );
+  }
+}
+
+/**
+ * Create-or-update a file on a branch. Returns the resulting commit SHA.
+ *
+ * If the file already exists, GitHub requires the previous blob SHA. We
+ * fetch it transparently when the caller doesn't supply one.
+ */
+export async function putFile(
+  owner: string,
+  name: string,
+  filePath: string,
+  content: string,
+  branch: string,
+  message: string,
+  token: string,
+  existingSha?: string,
+): Promise<{ commitSha: string }> {
+  let sha = existingSha;
+  if (!sha) {
+    // Try to look it up — silently ignore 404 (file doesn't exist yet).
+    const lookup = await fetch(
+      `${GH_API}/repos/${owner}/${name}/contents/${encodeURI(filePath)}?ref=${encodeURIComponent(branch)}`,
+      { headers: authHeaders(token), cache: "no-store" },
+    );
+    if (lookup.ok) {
+      const j = (await lookup.json()) as { sha?: string };
+      sha = j.sha;
+    }
+  }
+
+  const res = await fetch(
+    `${GH_API}/repos/${owner}/${name}/contents/${encodeURI(filePath)}`,
+    {
+      method: "PUT",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        content: Buffer.from(content, "utf-8").toString("base64"),
+        branch,
+        ...(sha ? { sha } : {}),
+      }),
+    },
+  );
+
+  if (!res.ok) {
+    throw new Error(
+      `Write ${filePath} failed: ${res.status} ${await res
+        .text()
+        .then((t) => t.slice(0, 200))}`,
+    );
+  }
+  const json = (await res.json()) as { commit: { sha: string } };
+  return { commitSha: json.commit.sha };
+}
+
+/** Open a pull request from `headBranch` into `baseBranch`. */
+export async function createPullRequest(
+  owner: string,
+  name: string,
+  headBranch: string,
+  baseBranch: string,
+  title: string,
+  body: string,
+  token: string,
+): Promise<{ url: string; number: number }> {
+  const res = await fetch(`${GH_API}/repos/${owner}/${name}/pulls`, {
+    method: "POST",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title,
+      body,
+      head: headBranch,
+      base: baseBranch,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Open PR failed: ${res.status} ${await res
+        .text()
+        .then((t) => t.slice(0, 200))}`,
+    );
+  }
+  const json = (await res.json()) as { html_url: string; number: number };
+  return { url: json.html_url, number: json.number };
+}

@@ -22,6 +22,13 @@ export default function AIChatPage() {
   const [modelId, setModelId] = React.useState<string>(defaultModelId);
   const [webSearch, setWebSearch] = React.useState<boolean>(false);
   const [repo, setRepo] = React.useState<string | null>(null);
+  const [agentMode, setAgentMode] = React.useState<boolean>(false);
+
+  // Auto-disable agent mode if the user disconnects the repo — agent
+  // mode is meaningless without one.
+  React.useEffect(() => {
+    if (!repo && agentMode) setAgentMode(false);
+  }, [repo, agentMode]);
 
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
   const [active, setActive] = React.useState<ActivePanel>(freshPanel);
@@ -132,6 +139,8 @@ export default function AIChatPage() {
           onWebSearchChange={setWebSearch}
           repo={repo}
           onRepoChange={setRepo}
+          agentMode={agentMode}
+          onAgentModeChange={setAgentMode}
           onAssistantFinish={handleAssistantFinish}
         />
       </section>

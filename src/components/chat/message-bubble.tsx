@@ -4,26 +4,67 @@ import * as React from "react";
 import { Bot, User } from "lucide-react";
 import { Markdown } from "./markdown";
 import { ReasoningBlock } from "./reasoning-block";
+import { ToolCall, type ToolCallPart } from "./tool-call";
 import { parseReasoningSegments } from "@/lib/chat/parse-reasoning";
 import { cn } from "@/lib/utils";
 
+/** A subset of the AI SDK's UIMessagePart that the bubble cares about. */
+export type AnyPart =
+  | { type: "text"; text: string }
+  | ({ type: `tool-${string}` | "dynamic-tool" } & ToolCallPart);
+
 export type MessageBubbleProps = {
   role: "user" | "assistant" | "system";
-  content: string;
+  /** When given, renders message parts in order (text + tool calls). Falls
+   *  back to `content` for legacy / persisted messages. */
+  parts?: AnyPart[];
+  /** Plain string fallback. Used when only finalized text is available. */
+  content?: string;
   /** when true, shows a subtle pulsing cursor at the end (streaming) */
   streaming?: boolean;
 };
 
-function MessageBubbleImpl({ role, content, streaming }: MessageBubbleProps) {
+/** Walk parts and render in order; keep tool calls inline between text. */
+function renderParts(parts: AnyPart[], streaming?: boolean) {
+  return parts.map((p, idx) => {
+    if (p.type === "text") {
+      // Apply reasoning-tag splitting on assistant text parts.
+      const segs = parseReasoningSegments(p.text || "");
+      return (
+        <React.Fragment key={`t-${idx}`}>
+          {segs.map((seg, i) => {
+            if (seg.type === "reasoning") {
+              return (
+                <ReasoningBlock
+                  key={`r-${idx}-${i}`}
+                  content={seg.content}
+                  streaming={streaming}
+                  inProgress={!seg.closed}
+                />
+              );
+            }
+            return seg.content ? (
+              <Markdown key={`m-${idx}-${i}`} streaming={streaming}>
+                {seg.content}
+              </Markdown>
+            ) : null;
+          })}
+        </React.Fragment>
+      );
+    }
+    // Tool call (static or dynamic)
+    return <ToolCall key={p.toolCallId ?? `tc-${idx}`} part={p} />;
+  });
+}
+
+function MessageBubbleImpl({
+  role,
+  parts,
+  content,
+  streaming,
+}: MessageBubbleProps) {
   if (role === "system") return null;
   const isUser = role === "user";
-
-  // Parse reasoning out of assistant messages so long <think> blocks live
-  // inside a collapsible component. For user messages we just render text.
-  const segments = React.useMemo(
-    () => (isUser ? null : parseReasoningSegments(content || "")),
-    [isUser, content],
-  );
 
   return (
     <div className={cn("flex w-full gap-3 px-4 py-4", isUser && "justify-end")}>
@@ -43,11 +84,25 @@ function MessageBubbleImpl({ role, content, streaming }: MessageBubbleProps) {
       >
         {isUser ? (
           <p className="whitespace-pre-wrap text-[15px] leading-relaxed">
-            {content}
+            {content ??
+              parts
+                ?.map((p) => (p.type === "text" ? p.text : ""))
+                .join("") ??
+              ""}
           </p>
+        ) : parts && parts.length > 0 ? (
+          <>
+            {renderParts(parts, streaming)}
+            {streaming && (
+              <span
+                aria-hidden
+                className="ml-0.5 inline-block size-2 -translate-y-0.5 animate-pulse rounded-full bg-foreground/60 align-middle"
+              />
+            )}
+          </>
         ) : (
           <>
-            {segments?.map((seg, i) => {
+            {parseReasoningSegments(content || "").map((seg, i) => {
               if (seg.type === "reasoning") {
                 return (
                   <ReasoningBlock
@@ -83,15 +138,17 @@ function MessageBubbleImpl({ role, content, streaming }: MessageBubbleProps) {
   );
 }
 
-/**
- * Memoized bubble — re-renders only when its props actually change. This
- * stops the entire message list from re-rendering on every streamed
- * token; only the *last* bubble (whose `content` is changing) updates.
- */
+/** Memoized — short-circuits when role/content/streaming/parts are unchanged. */
 export const MessageBubble = React.memo(MessageBubbleImpl, (prev, next) => {
-  return (
-    prev.role === next.role &&
-    prev.content === next.content &&
-    prev.streaming === next.streaming
-  );
+  if (prev.role !== next.role) return false;
+  if (prev.streaming !== next.streaming) return false;
+  if (prev.content !== next.content) return false;
+  // Compare parts shallowly via JSON for tool state changes.
+  if ((prev.parts ? prev.parts.length : 0) !== (next.parts ? next.parts.length : 0)) {
+    return false;
+  }
+  if (prev.parts && next.parts) {
+    return JSON.stringify(prev.parts) === JSON.stringify(next.parts);
+  }
+  return true;
 });
