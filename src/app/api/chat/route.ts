@@ -5,6 +5,8 @@ import { defaultModelId } from "@/lib/chat/models";
 import { searchWeb, formatSearchResults } from "@/lib/chat/web-search";
 import { deriveTitle } from "@/lib/chat/storage";
 import { createClient } from "@/lib/supabase/server";
+import { fetchRepoBundle, parseRepoSlug } from "@/lib/github/client";
+import { formatRepoForContext } from "@/lib/github/format";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +25,9 @@ type ChatRequestBody = {
   conversationId: string;
   /** When true, run web search on the latest user message and prepend results. */
   webSearch?: boolean;
+  /** "owner/repo" — when set, the repo's README + manifest + tree is
+   *  injected as context. Also persisted onto the conversation row. */
+  repo?: string | null;
   /** Optional system prompt override. */
   system?: string;
 };
@@ -82,6 +87,7 @@ export async function POST(req: Request) {
   const modelId = body.model || defaultModelId;
   const wantsWebSearch = body.webSearch === true;
   const conversationId = body.conversationId;
+  const repoSlug = body.repo?.trim() || null;
 
   if (!conversationId) {
     return NextResponse.json(
@@ -99,7 +105,6 @@ export async function POST(req: Request) {
   const userText = lastUserText(messages);
 
   // ── Upsert conversation ──────────────────────────────────────────────
-  // Look up first to decide whether to set title (only on creation).
   const { data: existingConv } = await supabase
     .from("conversations")
     .select("id, title")
@@ -107,14 +112,13 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (!existingConv) {
-    const { error: insertErr } = await supabase
-      .from("conversations")
-      .insert({
-        id: conversationId,
-        user_id: user.id,
-        title: deriveTitle(userText),
-        model_id: modelId,
-      });
+    const { error: insertErr } = await supabase.from("conversations").insert({
+      id: conversationId,
+      user_id: user.id,
+      title: deriveTitle(userText),
+      model_id: modelId,
+      github_repo: repoSlug,
+    });
     if (insertErr) {
       return NextResponse.json(
         { error: `Failed to create conversation: ${insertErr.message}` },
@@ -122,11 +126,11 @@ export async function POST(req: Request) {
       );
     }
   } else {
-    // Existing conv: update model_id + touch updated_at.
     await supabase
       .from("conversations")
       .update({
         model_id: modelId,
+        github_repo: repoSlug,
         updated_at: new Date().toISOString(),
       })
       .eq("id", conversationId);
@@ -145,7 +149,7 @@ export async function POST(req: Request) {
     );
   }
 
-  // ── Build system prompt (with optional web search) ───────────────────
+  // ── Build system prompt (web search + connected repo) ────────────────
   let system = body.system?.trim() || DEFAULT_SYSTEM;
 
   if (wantsWebSearch) {
@@ -169,6 +173,28 @@ export async function POST(req: Request) {
     }
   }
 
+  if (repoSlug) {
+    const parsed = parseRepoSlug(repoSlug);
+    if (parsed) {
+      // Use the user's stored GitHub token if they signed in via GitHub
+      // OAuth — gives us the higher 5000/h rate limit.
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("github_token")
+        .eq("id", user.id)
+        .maybeSingle();
+      const ghToken: string | undefined = profile?.github_token ?? undefined;
+
+      try {
+        const bundle = await fetchRepoBundle(parsed.owner, parsed.name, ghToken);
+        system = `${system}\n\n${formatRepoForContext(bundle)}`;
+      } catch (err) {
+        console.warn("[chat] repo fetch failed:", err);
+        system = `${system}\n\nNote: the user wanted ${parsed.owner}/${parsed.name} as repo context but it could not be fetched. Politely tell them the repo is unreachable (private without sufficient OAuth scope, or rate-limited) and continue without it.`;
+      }
+    }
+  }
+
   // ── Stream the model response ────────────────────────────────────────
   const digitalocean = createOpenAI({ baseURL: DO_BASE_URL, apiKey });
 
@@ -177,7 +203,6 @@ export async function POST(req: Request) {
       model: digitalocean.chat(modelId),
       system,
       messages: await convertToModelMessages(messages),
-      // Save the assistant message once streaming completes.
       onFinish: async ({ text }) => {
         const { error: assistantErr } = await supabase.from("messages").insert({
           conversation_id: conversationId,
@@ -190,7 +215,6 @@ export async function POST(req: Request) {
             assistantErr,
           );
         }
-        // Touch updated_at so the conversation rises in the sidebar.
         await supabase
           .from("conversations")
           .update({ updated_at: new Date().toISOString() })
