@@ -241,7 +241,7 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
                     {reposState.error}
                   </p>
                   <a
-                    href="/auth/login/github?next=/ai-chat"
+                    href="/api/github/oauth"
                     className="inline-flex items-center gap-1 rounded text-[11px] font-medium text-amber-700 underline underline-offset-2 hover:opacity-80 dark:text-amber-300"
                   >
                     Reconnect GitHub
@@ -350,7 +350,7 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
                 </p>
               )}
               <a
-                href="/auth/login/github?next=/ai-chat"
+                href="/api/github/oauth"
                 className={cn(
                   "mt-2 inline-flex w-full items-center justify-center gap-2 rounded-md",
                   "border border-border bg-background px-2.5 py-1.5 text-xs font-medium",
