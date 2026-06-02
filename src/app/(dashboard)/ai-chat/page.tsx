@@ -1,11 +1,19 @@
 "use client";
 
 import * as React from "react";
-import { ConversationList } from "@/components/chat/conversation-list";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { newId } from "@/lib/chat/storage";
 import type { ChatMessage, Conversation, ModelInfo } from "@/lib/chat/types";
 import { defaultModelId, defaultModels } from "@/lib/chat/models";
+import {
+  Plus,
+  History,
+  MessageSquare,
+  Trash2,
+  ChevronDown,
+  X,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type ActivePanel = {
   /** UUID used as both React key AND the conversationId sent to /api/chat. */
@@ -32,6 +40,25 @@ export default function AIChatPage() {
 
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
   const [active, setActive] = React.useState<ActivePanel>(freshPanel);
+  const [historyOpen, setHistoryOpen] = React.useState(false);
+
+  // Close history dropdown when clicking outside
+  const historyRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        historyRef.current &&
+        !historyRef.current.contains(e.target as Node)
+      ) {
+        setHistoryOpen(false);
+      }
+    }
+    if (historyOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [historyOpen]);
 
   // Hydrate the sidebar with the user's conversations from Supabase.
   const reloadConversations = React.useCallback(async () => {
@@ -74,6 +101,7 @@ export default function AIChatPage() {
 
   function startNewChat() {
     setActive(freshPanel());
+    setHistoryOpen(false);
   }
 
   async function openChat(id: string) {
@@ -91,6 +119,7 @@ export default function AIChatPage() {
         conversationId: conv.id,
         initialMessages: conv.messages,
       });
+      setHistoryOpen(false);
     } catch {
       // ignore network error
     }
@@ -116,17 +145,98 @@ export default function AIChatPage() {
   }, [reloadConversations]);
 
   return (
-    <div className="-mx-4 -my-6 flex h-[calc(100vh-5rem)] sm:-mx-6 lg:-mx-8">
-      <aside className="hidden w-72 shrink-0 border-r border-border bg-card md:flex md:flex-col">
-        <ConversationList
-          items={conversations}
-          activeId={active.conversationId}
-          onSelect={openChat}
-          onNew={startNewChat}
-          onDelete={removeChat}
-        />
-      </aside>
+    <div className="-mx-4 -my-6 flex h-[calc(100vh-5rem)] flex-col sm:-mx-6 lg:-mx-8">
+      {/* ── Top bar: New Chat + History toggle ── */}
+      <div className="flex items-center gap-2 border-b border-border bg-card/80 px-4 py-2 backdrop-blur-md">
+        <button
+          onClick={startNewChat}
+          className="flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:opacity-90"
+        >
+          <Plus className="size-4" />
+          New chat
+        </button>
 
+        <div ref={historyRef} className="relative">
+          <button
+            onClick={() => setHistoryOpen((prev) => !prev)}
+            className={cn(
+              "flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm font-medium transition-colors",
+              historyOpen
+                ? "bg-accent text-accent-foreground"
+                : "bg-background text-foreground hover:bg-accent/60",
+            )}
+          >
+            <History className="size-4" />
+            History
+            <ChevronDown
+              className={cn(
+                "size-3.5 transition-transform",
+                historyOpen && "rotate-180",
+              )}
+            />
+          </button>
+
+          {/* ── Dropdown panel ── */}
+          {historyOpen && (
+            <div className="absolute left-0 top-full z-50 mt-1 w-80 rounded-xl border border-border bg-card shadow-xl">
+              <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+                <span className="text-sm font-semibold">
+                  Conversations ({conversations.length})
+                </span>
+                <button
+                  onClick={() => setHistoryOpen(false)}
+                  className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+              <div className="max-h-80 overflow-y-auto p-2">
+                {conversations.length === 0 ? (
+                  <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+                    No conversations yet.
+                    <br />
+                    Start chatting to begin.
+                  </p>
+                ) : (
+                  <div className="space-y-0.5">
+                    {conversations.map((conv) => {
+                      const isActive = conv.id === active.conversationId;
+                      return (
+                        <div
+                          key={conv.id}
+                          className={cn(
+                            "group flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition-colors",
+                            isActive
+                              ? "bg-accent text-accent-foreground"
+                              : "hover:bg-accent/60",
+                          )}
+                        >
+                          <button
+                            onClick={() => openChat(conv.id)}
+                            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                          >
+                            <MessageSquare className="size-3.5 shrink-0 text-muted-foreground" />
+                            <span className="truncate">{conv.title}</span>
+                          </button>
+                          <button
+                            onClick={() => removeChat(conv.id)}
+                            aria-label="Delete conversation"
+                            className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-red-500 group-hover:opacity-100"
+                          >
+                            <Trash2 className="size-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Chat area (full width, no sidebar) ── */}
       <section className="flex min-w-0 flex-1 flex-col">
         <ChatPanel
           key={active.conversationId}
