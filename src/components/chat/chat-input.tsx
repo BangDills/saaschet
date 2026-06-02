@@ -188,23 +188,7 @@ export function ChatInput({
 
         <RepoSelector value={repo} onChange={onRepoChange} />
 
-        {/* Active context pill */}
-        <div className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs text-muted-foreground">
-          <span
-            className={cn(
-              "inline-block size-1.5 rounded-full",
-              agentMode
-                ? "animate-pulse bg-violet-500"
-                : webSearch
-                  ? "animate-pulse bg-sky-500"
-                  : "bg-emerald-500",
-            )}
-          />
-          <span className="font-medium">
-            {repo ?? "SaaSchet"}
-            {agentMode ? " · Agent" : webSearch ? " · Web" : ""}
-          </span>
-        </div>
+
 
         <input
           ref={fileInputRef}
@@ -215,11 +199,7 @@ export function ChatInput({
         />
       </div>
 
-      <p className="mt-2 px-1 text-center text-[11px] text-muted-foreground">
-        <kbd className="rounded border border-border px-1">Enter</kbd> to send ·{" "}
-        <kbd className="rounded border border-border px-1">Shift+Enter</kbd> for
-        new line
-      </p>
+
     </div>
   );
 }

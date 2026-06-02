@@ -270,7 +270,7 @@ export function ChatPanel({
         </>
       ) : (
         <div className="flex h-full flex-col overflow-y-auto px-4 py-8">
-          <div className="m-auto flex w-full max-w-3xl flex-col items-center gap-8">
+          <div className="mx-auto mt-auto mb-[15%] flex w-full max-w-3xl flex-col items-center gap-8">
             <div className="text-center">
               <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
                 Halo! 👋
