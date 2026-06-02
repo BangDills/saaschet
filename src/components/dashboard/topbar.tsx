@@ -86,7 +86,7 @@ export function Topbar({ initials }: TopbarProps) {
                   <Zap className="size-5 fill-current" />
                 </div>
                 <span className="text-xl font-bold tracking-tight">
-                  Horizon AI
+                  SaaSchet
                 </span>
               </div>
               <Button

@@ -33,7 +33,7 @@ export function Sidebar({
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
           <Zap className="size-5 fill-current" />
         </div>
-        <span className="text-xl font-bold tracking-tight">Horizon AI</span>
+        <span className="text-xl font-bold tracking-tight">SaaSchet</span>
       </div>
 
       <div className="mb-2 border-t border-sidebar-border" />

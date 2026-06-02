@@ -539,5 +539,5 @@ export type AgentToolName = (typeof AGENT_TOOL_NAMES)[number];
 export function generateWorkBranchName(): string {
   const date = new Date().toISOString().slice(0, 10);
   const id = Math.random().toString(36).slice(2, 8);
-  return `horizon-ai/${date}-${id}`;
+  return `saaschet/${date}-${id}`;
 }

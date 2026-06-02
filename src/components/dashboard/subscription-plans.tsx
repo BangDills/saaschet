@@ -38,7 +38,7 @@ const PLANS: {
     tier: "free",
     name: "Free",
     price: "$0",
-    description: "Great for trying out Horizon AI",
+    description: "Great for trying out SaaSchet",
     limit: 50,
     features: [
       "50 credits per day",

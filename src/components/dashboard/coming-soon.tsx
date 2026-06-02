@@ -10,7 +10,7 @@ export function ComingSoon({ title }: { title: string }) {
       <div className="space-y-1">
         <h2 className="text-xl font-semibold">{title}</h2>
         <p className="max-w-md text-sm text-muted-foreground">
-          This section is part of the Horizon AI demo. The UI shell is ready —
+          This section is part of the SaaSchet platform. The UI shell is ready —
           functionality will be wired up in the next steps.
         </p>
       </div>

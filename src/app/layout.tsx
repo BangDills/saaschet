@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Horizon AI — AI SaaS Dashboard",
+  title: "SaaSchet — AI SaaS Dashboard",
   description: "Manage your AI credits, users, and generations in one place.",
 };
 

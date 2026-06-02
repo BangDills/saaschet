@@ -201,7 +201,7 @@ export function ChatInput({
             )}
           />
           <span className="font-medium">
-            {repo ?? "Horizon AI"}
+            {repo ?? "SaaSchet"}
             {agentMode ? " · Agent" : webSearch ? " · Web" : ""}
           </span>
         </div>

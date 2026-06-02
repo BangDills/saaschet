@@ -44,7 +44,7 @@ function authHeaders(token?: string): HeadersInit {
   const h: Record<string, string> = {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
-    "User-Agent": "horizon-ai-saaschet",
+    "User-Agent": "saaschet",
   };
   if (token) h.Authorization = `Bearer ${token}`;
   return h;
