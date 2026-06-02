@@ -178,7 +178,7 @@ export default function AIChatPage() {
 
           {/* ── Dropdown panel ── */}
           {historyOpen && (
-            <div className="absolute left-0 top-full z-50 mt-1 w-80 rounded-xl border border-border bg-card shadow-xl">
+            <div className="absolute left-0 top-full z-[100] mt-1 w-80 rounded-xl border border-border bg-card shadow-xl">
               <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
                 <span className="text-sm font-semibold">
                   Conversations ({conversations.length})
