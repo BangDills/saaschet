@@ -24,7 +24,7 @@ export type NavItem = {
 
 const allNavItems: NavItem[] = [
   { label: "Main Dashboard", href: "/", icon: LayoutDashboard, adminOnly: true },
-  { label: "AI Chat UI", href: "/ai-chat", icon: MessageSquare },
+  { label: "AI Agent", href: "/ai-chat", icon: MessageSquare },
   { label: "AI Text Generator", href: "/ai-text", icon: FileText },
   { label: "AI Image Generator", href: "/ai-image", icon: ImageIcon },
   { label: "AI Text to Speech", href: "/ai-speech", icon: Mic },
