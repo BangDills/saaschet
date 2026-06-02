@@ -36,26 +36,32 @@ export async function GET(request: NextRequest) {
   const session = data.session;
   const user = data.user;
   const providerToken = session?.provider_token;
-  const meta = (user?.user_metadata ?? {}) as {
+
+  // Check if GitHub is among the user's identities (works for both
+  // primary GitHub sign-in AND linked GitHub identity on an email user).
+  const hasGitHub = user?.identities?.some((id) => id.provider === "github");
+
+  // Extract GitHub metadata from any GitHub identity.
+  const githubIdentity = user?.identities?.find(
+    (id) => id.provider === "github",
+  );
+  const meta = (githubIdentity?.identity_data ?? user?.user_metadata ?? {}) as {
     user_name?: string;
     avatar_url?: string;
     full_name?: string;
     name?: string;
   };
 
-  if (user && providerToken) {
-    const provider = user.app_metadata?.provider;
-    if (provider === "github") {
-      await supabase
-        .from("profiles")
-        .update({
-          github_token: providerToken,
-          github_username: meta.user_name ?? null,
-          avatar_url: meta.avatar_url ?? null,
-          full_name: meta.full_name ?? meta.name ?? null,
-        })
-        .eq("id", user.id);
-    }
+  if (user && providerToken && hasGitHub) {
+    await supabase
+      .from("profiles")
+      .update({
+        github_token: providerToken,
+        github_username: meta.user_name ?? null,
+        avatar_url: meta.avatar_url ?? null,
+        // Don't overwrite full_name if user already set one via email signup.
+      })
+      .eq("id", user.id);
   }
 
   return NextResponse.redirect(`${origin}${next}`);
