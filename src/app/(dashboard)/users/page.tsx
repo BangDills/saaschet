@@ -12,6 +12,14 @@ export default async function UsersPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // Admin-only page.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (profile?.role !== "admin") redirect("/ai-chat");
+
   // Use the admin client to list auth.users (requires service_role key).
   const admin = createAdminClient();
   const {

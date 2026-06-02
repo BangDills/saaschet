@@ -170,6 +170,14 @@ export default async function MainDashboardPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // Admin-only page — regular users go to AI Chat (the core product).
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (profile?.role !== "admin") redirect("/ai-chat");
+
   const data = await loadDashboard(user.id);
   const { credits, totals, daily, byModel, recent } = data;
   const todayTotal = totals.todayChat + totals.todayAgent;

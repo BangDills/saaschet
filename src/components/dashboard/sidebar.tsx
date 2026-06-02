@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Zap } from "lucide-react";
-import { navItems } from "@/lib/nav";
+import { getNavItems, type UserRole } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { CreditsMeter } from "./credits-meter";
@@ -13,6 +13,7 @@ export type SidebarProps = {
   initials: string;
   email: string;
   avatarUrl: string | null;
+  role: UserRole;
 };
 
 export function Sidebar({
@@ -20,8 +21,10 @@ export function Sidebar({
   initials,
   email,
   avatarUrl,
+  role,
 }: SidebarProps) {
   const pathname = usePathname();
+  const items = getNavItems(role);
 
   return (
     <aside className="hidden h-screen w-72 shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-5 lg:flex">
@@ -36,7 +39,7 @@ export function Sidebar({
       <div className="mb-2 border-t border-sidebar-border" />
 
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto py-2">
-        {navItems.map((item) => {
+        {items.map((item) => {
           const active =
             item.href === "/"
               ? pathname === "/"

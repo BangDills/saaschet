@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
 import { createClient } from "@/lib/supabase/server";
+import type { UserRole } from "@/lib/nav";
 
 export default async function DashboardLayout({
   children,
@@ -20,9 +21,11 @@ export default async function DashboardLayout({
   // trigger on auth.users insert (see supabase/migrations).
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, avatar_url")
+    .select("full_name, avatar_url, role")
     .eq("id", user.id)
     .maybeSingle();
+
+  const role: UserRole = (profile?.role as UserRole) ?? "user";
 
   const displayName =
     profile?.full_name?.trim() || user.email?.split("@")[0] || "Member";
@@ -41,6 +44,7 @@ export default async function DashboardLayout({
         initials={initials}
         email={user.email ?? ""}
         avatarUrl={profile?.avatar_url ?? null}
+        role={role}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar initials={initials} />
