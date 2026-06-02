@@ -147,7 +147,7 @@ export default function AIChatPage() {
   return (
     <div className="-mx-4 -my-6 flex h-[calc(100vh-5rem)] flex-col sm:-mx-6 lg:-mx-8">
       {/* ── Top bar: New Chat + History toggle ── */}
-      <div className="flex items-center gap-2 border-b border-border bg-card/80 px-4 py-2 backdrop-blur-md">
+      <div className="relative z-[60] flex items-center gap-2 border-b border-border bg-card/80 px-4 py-2 backdrop-blur-md">
         <button
           onClick={startNewChat}
           className="flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:opacity-90"
@@ -178,7 +178,7 @@ export default function AIChatPage() {
 
           {/* ── Dropdown panel ── */}
           {historyOpen && (
-            <div className="absolute left-0 top-full z-[100] mt-1 w-80 rounded-xl border border-border bg-card shadow-xl">
+            <div className="absolute left-0 top-full z-50 mt-1 w-80 rounded-xl border border-border bg-card shadow-xl">
               <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
                 <span className="text-sm font-semibold">
                   Conversations ({conversations.length})
