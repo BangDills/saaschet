@@ -1,26 +1,71 @@
 "use client";
 
 import * as React from "react";
-import { MoreHorizontal } from "lucide-react";
-import { users as allUsers, type UserRow } from "@/lib/data";
+import { Crown, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-const PAGE_SIZE = 4;
+export type RealUserRow = {
+  id: string;
+  email: string;
+  fullName: string | null;
+  avatarUrl: string | null;
+  githubUsername: string | null;
+  provider: string;
+  tier: "free" | "pro";
+  totalUsed: number;
+  createdAt: string;
+  lastSignIn: string | null;
+};
 
-function ProviderBadge({ provider }: { provider: UserRow["provider"] }) {
+const PAGE_SIZE = 8;
+
+function TierBadge({ tier }: { tier: "free" | "pro" }) {
   return (
-    <span className="text-sm text-muted-foreground">{provider}</span>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+        tier === "pro"
+          ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+          : "bg-muted text-muted-foreground",
+      )}
+    >
+      {tier === "pro" && <Crown className="size-2.5" />}
+      {tier}
+    </span>
   );
 }
 
-export function UsersTable() {
+function ProviderBadge({ provider }: { provider: string }) {
+  const label =
+    provider === "github"
+      ? "GitHub"
+      : provider === "google"
+        ? "Google"
+        : "Email";
+  return (
+    <span className="text-sm text-muted-foreground">{label}</span>
+  );
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "Never";
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function UsersTable({ users }: { users: RealUserRow[] }) {
   const [page, setPage] = React.useState(0);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
 
-  const totalPages = Math.ceil(allUsers.length / PAGE_SIZE);
-  const pageRows = allUsers.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  const totalPages = Math.ceil(users.length / PAGE_SIZE);
+  const pageRows = users.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
 
   const allOnPageSelected =
     pageRows.length > 0 && pageRows.every((r) => selected.has(r.id));
@@ -46,73 +91,118 @@ export function UsersTable() {
   return (
     <Card className="overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[820px] text-left">
+        <table className="w-full min-w-[900px] text-left">
           <thead>
             <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <th className="w-12 px-6 py-4">
+              <th className="w-12 px-4 py-4">
                 <Checkbox
                   checked={allOnPageSelected}
                   onChange={toggleAllOnPage}
                   aria-label="Select all"
                 />
               </th>
-              <th className="px-2 py-4">Email Address</th>
-              <th className="px-2 py-4">Provider</th>
-              <th className="px-2 py-4">Created</th>
-              <th className="px-2 py-4">Last Sign In</th>
-              <th className="px-2 py-4">User UID</th>
-              <th className="w-12 px-6 py-4" />
+              <th className="px-3 py-4">User</th>
+              <th className="px-3 py-4">Provider</th>
+              <th className="px-3 py-4">Plan</th>
+              <th className="px-3 py-4 text-right">Credits Used</th>
+              <th className="px-3 py-4">Created</th>
+              <th className="px-3 py-4">Last Sign In</th>
+              <th className="w-12 px-4 py-4" />
             </tr>
           </thead>
           <tbody>
-            {pageRows.map((row) => {
-              const isSelected = selected.has(row.id);
-              return (
-                <tr
-                  key={row.id}
-                  className={cn(
-                    "border-b border-border text-sm transition-colors last:border-0 hover:bg-muted/50",
-                    isSelected && "bg-muted/40",
-                  )}
+            {pageRows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={8}
+                  className="px-4 py-12 text-center text-sm text-muted-foreground"
                 >
-                  <td className="px-6 py-4">
-                    <Checkbox
-                      checked={isSelected}
-                      onChange={() => toggleRow(row.id)}
-                      aria-label={`Select ${row.email}`}
-                    />
-                  </td>
-                  <td className="px-2 py-4 font-medium">{row.email}</td>
-                  <td className="px-2 py-4">
-                    <ProviderBadge provider={row.provider} />
-                  </td>
-                  <td className="px-2 py-4 text-muted-foreground">
-                    {row.created}
-                  </td>
-                  <td className="px-2 py-4 text-muted-foreground">
-                    {row.lastSignIn}
-                  </td>
-                  <td className="px-2 py-4 font-mono text-xs text-muted-foreground">
-                    {row.uid.slice(0, 18)}…
-                  </td>
-                  <td className="px-6 py-4">
-                    <button
-                      aria-label="Row actions"
-                      className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                    >
-                      <MoreHorizontal className="size-4" />
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
+                  No users yet.
+                </td>
+              </tr>
+            ) : (
+              pageRows.map((row) => {
+                const isSelected = selected.has(row.id);
+                return (
+                  <tr
+                    key={row.id}
+                    className={cn(
+                      "border-b border-border text-sm transition-colors last:border-0 hover:bg-muted/50",
+                      isSelected && "bg-muted/40",
+                    )}
+                  >
+                    <td className="px-4 py-3">
+                      <Checkbox
+                        checked={isSelected}
+                        onChange={() => toggleRow(row.id)}
+                        aria-label={`Select ${row.email}`}
+                      />
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="flex items-center gap-3">
+                        {row.avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={row.avatarUrl}
+                            alt=""
+                            className="size-8 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex size-8 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
+                            {(row.fullName || row.email)
+                              .slice(0, 2)
+                              .toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">
+                            {row.fullName || row.email.split("@")[0]}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {row.email}
+                          </p>
+                          {row.githubUsername && (
+                            <p className="text-[10px] text-muted-foreground">
+                              @{row.githubUsername}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <ProviderBadge provider={row.provider} />
+                    </td>
+                    <td className="px-3 py-3">
+                      <TierBadge tier={row.tier} />
+                    </td>
+                    <td className="px-3 py-3 text-right tabular-nums font-mono text-muted-foreground">
+                      {row.totalUsed.toLocaleString()}
+                    </td>
+                    <td className="px-3 py-3 text-xs text-muted-foreground">
+                      {formatDate(row.createdAt)}
+                    </td>
+                    <td className="px-3 py-3 text-xs text-muted-foreground">
+                      {formatDate(row.lastSignIn)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        aria-label="Row actions"
+                        className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                      >
+                        <MoreHorizontal className="size-4" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
 
-      <div className="flex items-center justify-between gap-4 border-t border-border px-6 py-4">
+      <div className="flex items-center justify-between gap-4 border-t border-border px-4 py-3">
         <p className="text-sm text-muted-foreground">
-          {selected.size} of {allUsers.length} row(s) selected.
+          {selected.size} of {users.length} row(s) selected.
         </p>
         <div className="flex items-center gap-2">
           <Button

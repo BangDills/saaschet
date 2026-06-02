@@ -91,12 +91,8 @@ export function ChatInput({
   }
 
   function handleImageChosen(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    // Multimodal vision support is planned — for now, clear the picker silently.
     e.target.value = "";
-    if (!file) return;
-    alert(
-      `Image picked: ${file.name}\n\nMultimodal vision support is queued — for now your prompt is sent as text only.`,
-    );
   }
 
   const canSend = value.trim().length > 0 && !disabled;
@@ -186,7 +182,7 @@ export function ChatInput({
           <Globe className="size-4" />
         </ToolbarToggle>
 
-        <ToolbarButton title="Attach an image" onClick={handleImagePick}>
+        <ToolbarButton title="Attach image (coming soon)" disabled onClick={handleImagePick}>
           <ImagePlus className="size-4" />
         </ToolbarButton>
 

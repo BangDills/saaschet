@@ -1,6 +1,5 @@
 import {
   LayoutDashboard,
-  Bot,
   MessageSquare,
   FileText,
   Image as ImageIcon,
@@ -21,7 +20,7 @@ export type NavItem = {
 
 export const navItems: NavItem[] = [
   { label: "Main Dashboard", href: "/", icon: LayoutDashboard },
-  { label: "AI Assistant", href: "/ai-assistant", icon: Bot },
+
   { label: "AI Chat UI", href: "/ai-chat", icon: MessageSquare },
   { label: "AI Text Generator", href: "/ai-text", icon: FileText },
   { label: "AI Image Generator", href: "/ai-image", icon: ImageIcon },

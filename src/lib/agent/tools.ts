@@ -394,8 +394,12 @@ export function createAgentTools(ctx: AgentContext) {
         replace: string;
         commit_message: string;
       }) => {
-        // Always read from the default branch so we operate on canonical source.
-        const baseRef = await getDefaultBranch();
+        // Read from the work branch if it exists (so edits after a
+        // write_file in the same turn see the latest content), otherwise
+        // fall back to the default branch.
+        const baseRef = ctx.branchesCreated.has(ctx.workBranch)
+          ? ctx.workBranch
+          : await getDefaultBranch();
         let original: { content: string; truncated: boolean };
         try {
           original = await fetchFileContent(

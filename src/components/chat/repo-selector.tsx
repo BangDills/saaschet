@@ -281,13 +281,6 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
                 ) : (
                   filteredRepos.map((r) => {
                     const isActive = value === r.fullName;
-                    const isLoading =
-                      status.kind === "loading" &&
-                      input.trim() === "" &&
-                      // when clicking a list item we set status loading but
-                      // don't write to input — there's no perfect match,
-                      // best-effort highlight.
-                      false;
                     return (
                       <button
                         key={r.fullName}
@@ -331,9 +324,6 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
                             )}
                           </div>
                         </div>
-                        {isLoading && (
-                          <Loader2 className="size-3 animate-spin text-muted-foreground" />
-                        )}
                       </button>
                     );
                   })
