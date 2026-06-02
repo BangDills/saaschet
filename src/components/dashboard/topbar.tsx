@@ -68,14 +68,12 @@ export function Topbar({ initials }: TopbarProps) {
           />
           <div className="absolute left-0 top-0 h-full w-64 border-r border-sidebar-border bg-sidebar shadow-lg">
             <div className="flex items-center justify-between px-4 py-3">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <span className="text-sm font-bold">S</span>
-                </div>
-                <span className="text-base font-semibold tracking-tight">
-                  SaaSchet
-                </span>
-              </div>
+              <Link
+                href="/"
+                className="text-base font-semibold tracking-tight text-foreground hover:text-primary transition-colors"
+              >
+                SaaSchet AI Studio
+              </Link>
               <Button
                 variant="ghost"
                 size="icon"

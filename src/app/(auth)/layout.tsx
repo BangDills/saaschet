@@ -9,13 +9,11 @@ export default function AuthLayout({
     <div className="flex min-h-screen flex-col bg-background">
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-6xl items-center px-4 py-3 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <span className="text-sm font-bold">S</span>
-            </div>
-            <span className="text-base font-semibold tracking-tight">
-              SaaSchet
-            </span>
+          <Link
+            href="/"
+            className="text-base font-semibold tracking-tight text-foreground hover:text-primary transition-colors"
+          >
+            SaaSchet AI Studio
           </Link>
         </div>
       </header>

@@ -28,13 +28,13 @@ export function Sidebar({
   return (
     <aside className="hidden h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
       {/* Brand */}
-      <div className="flex items-center gap-2.5 px-5 py-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <span className="text-sm font-bold">S</span>
-        </div>
-        <span className="text-base font-semibold tracking-tight text-foreground">
-          SaaSchet
-        </span>
+      <div className="px-5 py-4">
+        <Link
+          href="/"
+          className="text-base font-semibold tracking-tight text-foreground hover:text-primary transition-colors"
+        >
+          SaaSchet AI Studio
+        </Link>
       </div>
 
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-2">
