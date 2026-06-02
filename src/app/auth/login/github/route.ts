@@ -26,11 +26,9 @@ export const dynamic = "force-dynamic";
  * - `public_repo`   — read access to the user's public repos (also gives
  *                     the 5000 req/hour rate limit for content fetching)
  *
- * NOTE: For path 2 to work, **"Manual Linking" must be enabled** in
+ * IMPORTANT: For path 2 to work, **"Manual Linking" must be enabled** in
  * Supabase: Dashboard → Authentication → Settings → toggle
- * "Allow manual linking". Without it, linkIdentity returns an error and
- * we fall back to `signInWithOAuth`, which on most setups will still
- * link by email if "Email confirmations" are on.
+ * "Allow manual linking".
  */
 export async function GET(request: NextRequest) {
   const { origin, searchParams } = new URL(request.url);
@@ -41,7 +39,8 @@ export async function GET(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Path 2: already signed in — try to link the GitHub identity.
+  // Path 2: User is already signed in — LINK GitHub to their existing account.
+  // This does NOT create a new account; it adds GitHub as a second identity.
   if (user) {
     const { data, error } = await supabase.auth.linkIdentity({
       provider: "github",
@@ -50,16 +49,24 @@ export async function GET(request: NextRequest) {
         scopes: "read:user user:email public_repo",
       },
     });
+
     if (!error && data?.url) {
       return NextResponse.redirect(data.url);
     }
-    // Fall through to signInWithOAuth as a fallback if linkIdentity isn't
-    // available on this Supabase project (the "Manual Linking" feature
-    // toggle is off, or older client). Supabase will usually still merge
-    // by email if Email confirmations are required.
+
+    // linkIdentity failed — DO NOT fall through to signInWithOAuth,
+    // because that would create a new account and log out the current user.
+    // Instead, redirect back with an error message.
+    const msg = error?.message ?? "github_link_failed";
+    return NextResponse.redirect(
+      `${origin}${next}?error=${encodeURIComponent(
+        `Could not link GitHub: ${msg}. ` +
+          `Make sure "Manual Linking" is enabled in Supabase Auth settings.`,
+      )}`,
+    );
   }
 
-  // Path 1: not signed in (or fallback) — start a fresh OAuth flow.
+  // Path 1: User is NOT signed in — start a fresh GitHub OAuth sign-in.
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "github",
     options: {
@@ -70,9 +77,8 @@ export async function GET(request: NextRequest) {
 
   if (error || !data.url) {
     const msg = error?.message ?? "github_oauth_init_failed";
-    const target = user ? "/ai-chat" : "/login";
     return NextResponse.redirect(
-      `${origin}${target}?error=${encodeURIComponent(msg)}`,
+      `${origin}/login?error=${encodeURIComponent(msg)}`,
     );
   }
 
