@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Zap } from "lucide-react";
 
 export default function AuthLayout({
   children,
@@ -9,12 +8,14 @@ export default function AuthLayout({
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <header className="border-b border-border">
-        <div className="mx-auto flex max-w-6xl items-center px-4 py-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <Zap className="size-5 fill-current" />
+        <div className="mx-auto flex max-w-6xl items-center px-4 py-3 sm:px-6 lg:px-8">
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <span className="text-sm font-bold">S</span>
             </div>
-            <span className="text-xl font-bold tracking-tight">SaaSchet</span>
+            <span className="text-base font-semibold tracking-tight">
+              SaaSchet
+            </span>
           </Link>
         </div>
       </header>
