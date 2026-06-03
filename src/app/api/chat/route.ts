@@ -373,11 +373,27 @@ export async function POST(req: Request) {
   if (wantsAgent && daytonaKey) {
     try {
       const daytona = getDaytonaClient();
-      sandbox = await daytona.create({
-        language: "typescript",
-        envVars: { NODE_ENV: "development" },
-      });
-      console.log(`[daytona] Sandbox created: ${sandbox.id}`);
+
+      // Use image-based creation for explicit resource allocation.
+      // Configurable via env vars; defaults: 4 CPU, 4GB RAM, 20GB disk.
+      const cpu = Number(process.env.DAYTONA_SANDBOX_CPU) || 4;
+      const memory = Number(process.env.DAYTONA_SANDBOX_MEMORY) || 4;
+      const disk = Number(process.env.DAYTONA_SANDBOX_DISK) || 20;
+
+      sandbox = await daytona.create(
+        {
+          image: process.env.DAYTONA_SANDBOX_IMAGE || "daytonaio/ai-node:22",
+          language: "typescript",
+          resources: { cpu, memory, disk },
+          envVars: { NODE_ENV: "development" },
+          autoStopInterval: 15,   // auto-stop after 15 min idle
+          autoDeleteInterval: 0,  // ephemeral: delete on stop
+        },
+        { timeout: 90 },
+      );
+      console.log(
+        `[daytona] Sandbox created: ${sandbox.id} (${cpu} CPU, ${memory}GB RAM, ${disk}GB disk)`,
+      );
 
       sandboxTools = createSandboxTools({
         sandbox,
@@ -388,7 +404,8 @@ export async function POST(req: Request) {
 
       // Append sandbox info to system prompt
       system += `\n\n## Sandbox (Code Execution)
-You have a live sandbox environment powered by Daytona. You can:
+You have a live sandbox environment powered by Daytona (${cpu} CPU cores, ${memory}GB RAM).
+You can:
 - **run_command**: Execute any shell command (npm install, npm test, git, etc.)
 - **execute_code**: Run TypeScript/JavaScript code snippets
 - **sandbox_read_file** / **sandbox_write_file**: Read/write files in the sandbox
