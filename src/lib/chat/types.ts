@@ -37,4 +37,6 @@ export type ModelInfo = {
   label: string;
   vendor: string;
   tag?: string;
+  /** True when this model reliably supports tool calling for Agent Mode. */
+  agentCapable?: boolean;
 };

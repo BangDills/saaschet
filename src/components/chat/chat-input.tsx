@@ -146,6 +146,7 @@ export function ChatInput({
             models={models}
             value={modelId}
             onChange={onModelChange}
+            agentMode={agentMode}
           />
         </div>
       </div>

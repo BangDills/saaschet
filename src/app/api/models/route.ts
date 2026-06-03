@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { defaultModels, vendorOrder } from "@/lib/chat/models";
+import {
+  defaultModels,
+  vendorOrder,
+  isNonChatModel,
+  isAgentCapable,
+} from "@/lib/chat/models";
 import type { ModelInfo } from "@/lib/chat/types";
 
 export const runtime = "nodejs";
@@ -27,19 +32,22 @@ function vendorFromId(id: string): string {
   const lower = id.toLowerCase();
   if (lower.includes("claude") || lower.startsWith("anthropic"))
     return "Anthropic";
-  if (lower.includes("gpt") || lower.startsWith("openai")) return "OpenAI";
+  if (lower.includes("gpt") || lower.startsWith("openai") || lower.startsWith("o1") || lower.startsWith("o3"))
+    return "OpenAI";
   if (lower.includes("deepseek")) return "DeepSeek";
-  if (lower.includes("minimax") || lower.includes("abab")) return "MiniMax";
+  if (lower.includes("gemma") || lower.includes("gemini")) return "Google";
+  if (lower.includes("llama") || lower.includes("maverick")) return "Meta";
   if (lower.includes("qwen")) return "Qwen";
-  if (lower.includes("llama") || lower.includes("meta")) return "Meta";
-  if (lower.includes("mistral") || lower.includes("nemo") || lower.includes("codestral") || lower.includes("mixtral"))
+  if (lower.includes("kimi")) return "Kimi";
+  if (lower.includes("nemotron") || lower.includes("nvidia")) return "Nvidia";
+  if (lower.includes("minimax") || lower.includes("abab")) return "MiniMax";
+  if (lower.includes("mistral") || lower.includes("codestral") || lower.includes("mixtral"))
     return "Mistral";
-  if (lower.includes("gemini") || lower.includes("gemma")) return "Google";
+  if (lower.includes("glm")) return "GLM";
+  if (lower.includes("arcee") || lower.includes("trinity")) return "Arcee";
   if (lower.includes("phi")) return "Microsoft";
   if (lower.includes("jamba")) return "AI21";
   if (lower.includes("command") || lower.includes("cohere")) return "Cohere";
-  if (lower.includes("yi")) return "01.AI";
-  if (lower.includes("dbrx")) return "Databricks";
   if (lower.includes("falcon")) return "TII";
   return "Other";
 }
@@ -48,6 +56,7 @@ function prettyLabel(id: string): string {
   return id
     .replace(/^anthropic-/, "")
     .replace(/^openai-/, "")
+    .replace(/^alibaba-/, "")
     .replace(/-instruct$/, "")
     .replace(/-/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
@@ -57,7 +66,6 @@ function prettyLabel(id: string): string {
 function sortByVendor(a: ModelInfo, b: ModelInfo): number {
   const ai = vendorOrder.indexOf(a.vendor as (typeof vendorOrder)[number]);
   const bi = vendorOrder.indexOf(b.vendor as (typeof vendorOrder)[number]);
-  // Known vendors come before unknown ones
   const aIdx = ai === -1 ? vendorOrder.length : ai;
   const bIdx = bi === -1 ? vendorOrder.length : bi;
   if (aIdx !== bIdx) return aIdx - bIdx;
@@ -92,15 +100,18 @@ export async function GET() {
     const json = (await res.json()) as DOModelListResponse;
     const items = json.data ?? [];
 
-    // Map ALL models to our shape — no vendor filtering.
-    const live: ModelInfo[] = items.map((m) => {
-      const vendor = vendorFromId(m.id);
-      return {
-        id: m.id,
-        label: prettyLabel(m.id),
-        vendor,
-      } satisfies ModelInfo;
-    });
+    // Filter out non-chat models, map to our shape, tag agent-capable.
+    const live: ModelInfo[] = items
+      .filter((m) => !isNonChatModel(m.id))
+      .map((m) => {
+        const vendor = vendorFromId(m.id);
+        return {
+          id: m.id,
+          label: prettyLabel(m.id),
+          vendor,
+          agentCapable: isAgentCapable(m.id),
+        } satisfies ModelInfo;
+      });
 
     if (live.length === 0) {
       return NextResponse.json({

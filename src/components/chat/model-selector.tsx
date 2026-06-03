@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, Check } from "lucide-react";
+import { ChevronDown, Check, Sparkles } from "lucide-react";
 import type { ModelInfo } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +14,8 @@ export type ModelSelectorProps = {
    * "default" → bordered card-like button, used elsewhere
    */
   variant?: "compact" | "default";
+  /** When true, non-agent-capable models are dimmed. */
+  agentMode?: boolean;
 };
 
 export function ModelSelector({
@@ -21,6 +23,7 @@ export function ModelSelector({
   value,
   onChange,
   variant = "compact",
+  agentMode = false,
 }: ModelSelectorProps) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -66,19 +69,30 @@ export function ModelSelector({
         <span className="truncate">
           {current?.label ?? "Select model"}
         </span>
+        {current?.agentCapable && (
+          <Sparkles className="size-3 text-violet-500" />
+        )}
         <ChevronDown className="size-3.5 opacity-70" />
       </button>
 
       {open && (
         <div
           className={cn(
-            "absolute z-30 max-h-80 w-72 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg",
+            "absolute z-30 max-h-80 w-80 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg",
             // Show dropdown ABOVE the trigger when compact (it sits at bottom of input)
             variant === "compact"
               ? "bottom-full right-0 mb-2"
               : "top-full left-0 mt-2",
           )}
         >
+          {agentMode && (
+            <div className="mx-3 mb-1 mt-1.5 flex items-center gap-1.5 rounded-md bg-violet-500/10 px-2 py-1.5 text-[11px] text-violet-600 dark:text-violet-300">
+              <Sparkles className="size-3 shrink-0" />
+              <span>
+                Agent Mode active — <Sparkles className="inline size-2.5" /> models support tool calling
+              </span>
+            </div>
+          )}
           {groups.map(([vendor, items]) => (
             <div key={vendor} className="py-1">
               <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -86,6 +100,7 @@ export function ModelSelector({
               </p>
               {items.map((m) => {
                 const active = m.id === value;
+                const dimmed = agentMode && !m.agentCapable;
                 return (
                   <button
                     key={m.id}
@@ -96,6 +111,7 @@ export function ModelSelector({
                     className={cn(
                       "flex w-full items-start gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent",
                       active && "bg-accent",
+                      dimmed && "opacity-40",
                     )}
                   >
                     <Check
@@ -105,10 +121,20 @@ export function ModelSelector({
                       )}
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{m.label}</p>
+                      <p className="flex items-center gap-1.5 truncate font-medium">
+                        {m.label}
+                        {m.agentCapable && (
+                          <Sparkles className="size-3 shrink-0 text-violet-500" />
+                        )}
+                      </p>
                       {m.tag && (
                         <p className="truncate text-xs text-muted-foreground">
                           {m.tag}
+                        </p>
+                      )}
+                      {dimmed && (
+                        <p className="text-[10px] text-amber-500">
+                          Not recommended for Agent Mode
                         </p>
                       )}
                     </div>

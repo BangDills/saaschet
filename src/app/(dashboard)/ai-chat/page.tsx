@@ -40,6 +40,16 @@ export default function AIChatPage() {
     if (!repo && agentMode) setAgentMode(false);
   }, [repo, agentMode]);
 
+  // When agent mode is toggled ON and the current model isn't agent-capable,
+  // auto-switch to the first agent-capable model for the best experience.
+  React.useEffect(() => {
+    if (!agentMode) return;
+    const current = models.find((m) => m.id === modelId);
+    if (current?.agentCapable) return;
+    const best = models.find((m) => m.agentCapable);
+    if (best) setModelId(best.id);
+  }, [agentMode, modelId, models]);
+
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
   const [active, setActive] = React.useState<ActivePanel>(freshPanel);
   const [historyOpen, setHistoryOpen] = React.useState(false);

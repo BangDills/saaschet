@@ -1,19 +1,112 @@
 import type { ModelInfo } from "./types";
 
 /**
- * All vendor labels we know how to detect from DigitalOcean model IDs.
- * Used for sorting — vendor order in this array determines display order.
+ * Vendor display order in the model selector.
  */
 export const vendorOrder = [
   "Anthropic",
   "OpenAI",
-  "Google",
   "DeepSeek",
+  "Google",
   "Meta",
-  "Mistral",
   "Qwen",
+  "Kimi",
+  "Nvidia",
   "MiniMax",
+  "Mistral",
+  "GLM",
+  "Arcee",
 ] as const;
+
+/**
+ * Model IDs that are NOT chat models and should be excluded from the
+ * selector. Embedding, image-gen, TTS, reranker, video, and router models.
+ */
+const NON_CHAT_PATTERNS = [
+  "embedding",
+  "reranker",
+  "gpt-image",
+  "stable-diffusion",
+  "wan2",
+  "tts",
+  "router:",
+  "all-mini-lm",
+  "bge-",
+  "e5-large",
+  "gte-large",
+  "multi-qa",
+  "gpt-oss-",    // fine-tuning base models, not chat
+];
+
+/** Returns true when the model id is NOT a chat model. */
+export function isNonChatModel(id: string): boolean {
+  const lower = id.toLowerCase();
+  return NON_CHAT_PATTERNS.some((p) => lower.includes(p));
+}
+
+/**
+ * Model IDs that are known to handle tool-calling well and are suitable
+ * for Agent Mode (multi-step coding tasks with GitHub + sandbox tools).
+ *
+ * Criteria: strong reasoning, reliable tool calling, large output window,
+ * good at code generation and understanding.
+ */
+export const agentCapableModels = new Set([
+  // Anthropic — best-in-class at tool calling & coding
+  "anthropic-claude-opus-4.8",
+  "anthropic-claude-opus-4.7",
+  "anthropic-claude-opus-4.6",
+  "anthropic-claude-opus-4.5",
+  "anthropic-claude-opus-4",
+  "anthropic-claude-4.6-sonnet",
+  "anthropic-claude-4.5-sonnet",
+  "anthropic-claude-4.1-opus",
+  "anthropic-claude-sonnet-4",
+  "anthropic-claude-haiku-4.5",
+
+  // OpenAI — excellent tool calling & coding
+  "openai-gpt-5.5",
+  "openai-gpt-5.4-pro",
+  "openai-gpt-5.4",
+  "openai-gpt-5.4-mini",
+  "openai-gpt-5.3-codex",
+  "openai-gpt-5.2-pro",
+  "openai-gpt-5.2",
+  "openai-gpt-5.1-codex-max",
+  "openai-gpt-5",
+  "openai-gpt-5-mini",
+  "openai-gpt-4.1",
+  "openai-gpt-4o",
+  "openai-o3",
+  "openai-o1",
+
+  // DeepSeek — strong reasoning & coding
+  "deepseek-v4-pro",
+  "deepseek-4-flash",
+  "deepseek-3.2",
+
+  // Qwen — excellent coder models
+  "qwen3-coder-flash",
+  "qwen3.5-397b-a17b",
+
+  // Kimi — strong tool calling
+  "kimi-k2.6",
+  "kimi-k2.5",
+
+  // Nvidia — strong large model
+  "nvidia-nemotron-3-super-120b",
+
+  // Google — good tool calling
+  "gemma-4-31B-it",
+
+  // GLM — capable agent
+  "glm-5",
+]);
+
+/** Check if a model is suitable for agent mode (tool calling). */
+export function isAgentCapable(modelId: string): boolean {
+  return agentCapableModels.has(modelId);
+}
 
 /**
  * Curated default model catalog for DigitalOcean Serverless Inference.
@@ -26,54 +119,96 @@ export const vendorOrder = [
 export const defaultModels: ModelInfo[] = [
   // Anthropic
   {
-    id: "anthropic-claude-3.5-sonnet",
-    label: "Claude 3.5 Sonnet",
+    id: "anthropic-claude-opus-4.8",
+    label: "Claude Opus 4.8",
     vendor: "Anthropic",
-    tag: "Premium · multilingual",
+    tag: "Best · 1M context",
+    agentCapable: true,
   },
   {
-    id: "anthropic-claude-3.5-haiku",
-    label: "Claude 3.5 Haiku",
+    id: "anthropic-claude-4.6-sonnet",
+    label: "Claude 4.6 Sonnet",
     vendor: "Anthropic",
     tag: "Fast premium",
+    agentCapable: true,
+  },
+  {
+    id: "anthropic-claude-haiku-4.5",
+    label: "Claude Haiku 4.5",
+    vendor: "Anthropic",
+    tag: "Fastest",
+    agentCapable: true,
   },
 
   // OpenAI
   {
-    id: "openai-gpt-4o",
-    label: "GPT-4o",
+    id: "openai-gpt-5.5",
+    label: "GPT-5.5",
     vendor: "OpenAI",
-    tag: "Premium",
+    tag: "Flagship · 1M context",
+    agentCapable: true,
   },
   {
-    id: "openai-gpt-4o-mini",
-    label: "GPT-4o mini",
+    id: "openai-gpt-5.4-pro",
+    label: "GPT-5.4 Pro",
     vendor: "OpenAI",
-    tag: "Fast premium",
+    tag: "Premium · 1M context",
+    agentCapable: true,
+  },
+  {
+    id: "openai-gpt-5.3-codex",
+    label: "GPT-5.3 Codex",
+    vendor: "OpenAI",
+    tag: "Best coder",
+    agentCapable: true,
+  },
+  {
+    id: "openai-gpt-5.4-mini",
+    label: "GPT-5.4 Mini",
+    vendor: "OpenAI",
+    tag: "Fast & cheap",
+    agentCapable: true,
   },
 
   // DeepSeek
   {
-    id: "deepseek-r1-distill-llama-70b",
-    label: "DeepSeek R1 Distill 70B",
+    id: "deepseek-v4-pro",
+    label: "DeepSeek V4 Pro",
     vendor: "DeepSeek",
-    tag: "Reasoning",
+    tag: "1M context · reasoning",
+    agentCapable: true,
   },
-
-  // MiniMax
   {
-    id: "minimax-text-01",
-    label: "MiniMax Text-01",
-    vendor: "MiniMax",
-    tag: "Long context",
+    id: "deepseek-4-flash",
+    label: "DeepSeek 4 Flash",
+    vendor: "DeepSeek",
+    tag: "Fast reasoning",
+    agentCapable: true,
   },
 
   // Qwen
   {
-    id: "qwen2.5-72b-instruct",
-    label: "Qwen 2.5 72B",
+    id: "qwen3-coder-flash",
+    label: "Qwen3 Coder Flash",
     vendor: "Qwen",
-    tag: "Open · multilingual",
+    tag: "Fast coder",
+    agentCapable: true,
+  },
+  {
+    id: "qwen3.5-397b-a17b",
+    label: "Qwen 3.5 397B",
+    vendor: "Qwen",
+    tag: "Large MoE",
+    agentCapable: true,
+  },
+
+  // Kimi
+  {
+    id: "kimi-k2.6",
+    label: "Kimi K2.6",
+    vendor: "Kimi",
+    tag: "262K context",
+    agentCapable: true,
   },
 ];
 
