@@ -15,6 +15,8 @@ export const vendorOrder = [
   "MiniMax",
   "Mistral",
   "GLM",
+  "MiMo",
+  "Stealth",
   "Arcee",
 ] as const;
 
@@ -89,6 +91,11 @@ export const agentCapableModels = new Set([
   "qwen3-coder-flash",
   "qwen3.5-397b-a17b",
 
+  // OpenCode free models (via OpenCode Zen API)
+  "opencode/deepseek-v4-flash-free",
+  "opencode/qwen3.6-plus-free",
+  "opencode/nemotron-3-super-free",
+
   // NOTE: The following models are NOT agent-capable because they don't
   // properly implement the OpenAI tool_calls spec:
   // - Kimi K2.x: sends type:"" instead of type:"function"
@@ -101,6 +108,74 @@ export function isAgentCapable(modelId: string): boolean {
   return agentCapableModels.has(modelId);
 }
 
+/** Check if a model routes through OpenCode Zen instead of DigitalOcean. */
+export function isOpenCodeModel(modelId: string): boolean {
+  return modelId.startsWith("opencode/");
+}
+
+/** Get the actual model ID sent to the OpenCode API (strip prefix). */
+export function getOpenCodeModelId(modelId: string): string {
+  return modelId.replace(/^opencode\//, "");
+}
+
+/**
+ * Known OpenCode Zen free models. These don't require payment — only a
+ * free OpenCode account for the API key.
+ */
+export const opencodeFreeMod: ModelInfo[] = [
+  {
+    id: "opencode/deepseek-v4-flash-free",
+    label: "DeepSeek V4 Flash",
+    vendor: "DeepSeek",
+    tag: "FREE · OpenCode",
+    agentCapable: true,
+    provider: "opencode",
+    free: true,
+  },
+  {
+    id: "opencode/qwen3.6-plus-free",
+    label: "Qwen 3.6 Plus",
+    vendor: "Qwen",
+    tag: "FREE · OpenCode",
+    agentCapable: true,
+    provider: "opencode",
+    free: true,
+  },
+  {
+    id: "opencode/nemotron-3-super-free",
+    label: "Nemotron 3 Super",
+    vendor: "Nvidia",
+    tag: "FREE · OpenCode",
+    agentCapable: true,
+    provider: "opencode",
+    free: true,
+  },
+  {
+    id: "opencode/mimo-v2.5-free",
+    label: "MiMo V2.5",
+    vendor: "MiMo",
+    tag: "FREE · OpenCode",
+    provider: "opencode",
+    free: true,
+  },
+  {
+    id: "opencode/minimax-m3-free",
+    label: "MiniMax M3",
+    vendor: "MiniMax",
+    tag: "FREE · OpenCode",
+    provider: "opencode",
+    free: true,
+  },
+  {
+    id: "opencode/big-pickle",
+    label: "Big Pickle",
+    vendor: "Stealth",
+    tag: "FREE · OpenCode",
+    provider: "opencode",
+    free: true,
+  },
+];
+
 /**
  * Curated default model catalog for DigitalOcean Serverless Inference.
  *
@@ -110,6 +185,10 @@ export function isAgentCapable(modelId: string): boolean {
  * if the upstream is down).
  */
 export const defaultModels: ModelInfo[] = [
+  // ── OpenCode Free Models (shown first!) ──
+  ...opencodeFreeMod,
+
+  // ── DigitalOcean Models ──
   // Anthropic
   {
     id: "anthropic-claude-opus-4.8",
@@ -197,3 +276,4 @@ export const defaultModels: ModelInfo[] = [
 ];
 
 export const defaultModelId = defaultModels[0].id;
+

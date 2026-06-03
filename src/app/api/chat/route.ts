@@ -6,7 +6,11 @@ import {
   stepCountIs,
   type UIMessage,
 } from "ai";
-import { defaultModelId } from "@/lib/chat/models";
+import {
+  defaultModelId,
+  isOpenCodeModel,
+  getOpenCodeModelId,
+} from "@/lib/chat/models";
 import { searchWeb, formatSearchResults } from "@/lib/chat/web-search";
 import { deriveTitle } from "@/lib/chat/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -34,6 +38,8 @@ export const maxDuration = 300;
 
 const DO_BASE_URL =
   process.env.DO_INFERENCE_BASE_URL ?? "https://inference.do-ai.run/v1";
+const OPENCODE_BASE_URL =
+  process.env.OPENCODE_BASE_URL ?? "https://opencode.ai/zen/v1";
 
 const DEFAULT_SYSTEM = `You are **SaaSchet AI**, an advanced, intelligent assistant.
 
@@ -154,16 +160,8 @@ export async function POST(req: Request) {
   }
 
   // ── Inference key check ──────────────────────────────────────────────
-  const apiKey = process.env.DO_INFERENCE_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      {
-        error:
-          "DO_INFERENCE_API_KEY is not set. Add it to your environment variables.",
-      },
-      { status: 500 },
-    );
-  }
+  const doApiKey = process.env.DO_INFERENCE_API_KEY;
+  const opencodeApiKey = process.env.OPENCODE_API_KEY;
 
   // ── Parse body ───────────────────────────────────────────────────────
   let body: ChatRequestBody;
@@ -410,11 +408,25 @@ Workflow: read code → edit via sandbox → run tests → if passing, commit vi
     : undefined;
 
   // ── Stream the model response ────────────────────────────────────────
-  const digitalocean = createOpenAI({ baseURL: DO_BASE_URL, apiKey });
+  // Route to the correct provider based on model prefix.
+  const useOpenCode = isOpenCodeModel(modelId);
+  const resolvedModelId = useOpenCode ? getOpenCodeModelId(modelId) : modelId;
+  const resolvedKey = useOpenCode ? opencodeApiKey : doApiKey;
+  const resolvedBaseURL = useOpenCode ? OPENCODE_BASE_URL : DO_BASE_URL;
+
+  if (!resolvedKey) {
+    const envVar = useOpenCode ? "OPENCODE_API_KEY" : "DO_INFERENCE_API_KEY";
+    return NextResponse.json(
+      { error: `${envVar} is not set. Add it to your environment variables.` },
+      { status: 500 },
+    );
+  }
+
+  const provider = createOpenAI({ baseURL: resolvedBaseURL, apiKey: resolvedKey });
 
   try {
     const result = streamText({
-      model: digitalocean.chat(modelId),
+      model: provider.chat(resolvedModelId),
       system,
       messages: await convertToModelMessages(messages),
       // Agent mode: enable tools + multi-step loop. Cap at 20 steps for

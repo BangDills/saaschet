@@ -123,6 +123,11 @@ export function ModelSelector({
                     <div className="min-w-0 flex-1">
                       <p className="flex items-center gap-1.5 truncate font-medium">
                         {m.label}
+                        {m.free && (
+                          <span className="shrink-0 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                            Free
+                          </span>
+                        )}
                         {m.agentCapable && (
                           <Sparkles className="size-3 shrink-0 text-violet-500" />
                         )}
