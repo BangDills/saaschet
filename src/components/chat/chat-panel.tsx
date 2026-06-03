@@ -127,6 +127,7 @@ export function ChatPanel({
   // ── Background processing polling ──────────────────────────────────
   // When we restore a conversation that has initialMessages (from DB),
   // check if the server is still processing and poll for new messages.
+  // Client gives up after MAX_POLL_MS to avoid polling forever.
   const [isServerProcessing, setIsServerProcessing] = React.useState(false);
   const isRestoredConversation = initialMessages.length > 0;
   const pollIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(
@@ -134,13 +135,50 @@ export function ChatPanel({
   );
   const lastMsgCountRef = React.useRef(initialMessages.length);
 
+  /** Stop polling and reload messages from DB (server may have saved partial work). */
+  const stopPollingAndReload = React.useCallback(async () => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    setIsServerProcessing(false);
+
+    // Always reload messages — even if the server crashed, it may have
+    // saved partial output (e.g. some tool calls completed).
+    try {
+      const convRes = await fetch(
+        `/api/conversations/${conversationId}`,
+        { cache: "no-store" },
+      );
+      if (convRes.ok) {
+        const convJson = (await convRes.json()) as {
+          conversation?: { messages: ChatMessage[] };
+        };
+        if (convJson.conversation?.messages) {
+          const fresh = toUIMessages(convJson.conversation.messages);
+          setMessages(fresh);
+          lastMsgCountRef.current = convJson.conversation.messages.length;
+          fireCreditsRefresh();
+          onAssistantFinish?.();
+        }
+      }
+    } catch {
+      // reload failure is non-fatal
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
+
   // Start polling when this is a restored conversation
   React.useEffect(() => {
     if (!isRestoredConversation) return;
 
     let cancelled = false;
 
-    // Initial status check
+    // Max polling duration: 3 minutes (matches server stale threshold).
+    // After this, assume the server died and stop waiting.
+    const MAX_POLL_MS = 3 * 60 * 1000;
+    let pollStartedAt: number | null = null;
+
     async function checkStatus() {
       try {
         const res = await fetch(
@@ -155,10 +193,18 @@ export function ChatPanel({
 
         if (json.status === "processing") {
           setIsServerProcessing(true);
+          pollStartedAt = Date.now();
 
           // Start polling if not already
           if (!pollIntervalRef.current) {
             pollIntervalRef.current = setInterval(async () => {
+              // Check client-side timeout
+              if (pollStartedAt && Date.now() - pollStartedAt > MAX_POLL_MS) {
+                console.log("[poll] Client-side timeout reached, stopping");
+                await stopPollingAndReload();
+                return;
+              }
+
               try {
                 const pollRes = await fetch(
                   `/api/conversations/${conversationId}/status`,
@@ -170,44 +216,23 @@ export function ChatPanel({
                   messageCount: number;
                 };
 
-                // Server finished — fetch the updated messages
+                // Server finished (status=idle) or new messages arrived
                 if (
                   pollJson.status === "idle" ||
                   pollJson.messageCount > lastMsgCountRef.current
                 ) {
-                  if (pollIntervalRef.current) {
-                    clearInterval(pollIntervalRef.current);
-                    pollIntervalRef.current = null;
-                  }
-                  setIsServerProcessing(false);
-
-                  // Reload messages from DB
-                  const convRes = await fetch(
-                    `/api/conversations/${conversationId}`,
-                    { cache: "no-store" },
-                  );
-                  if (convRes.ok) {
-                    const convJson = (await convRes.json()) as {
-                      conversation?: {
-                        messages: ChatMessage[];
-                      };
-                    };
-                    if (convJson.conversation?.messages) {
-                      const fresh = toUIMessages(
-                        convJson.conversation.messages,
-                      );
-                      setMessages(fresh);
-                      lastMsgCountRef.current =
-                        convJson.conversation.messages.length;
-                      fireCreditsRefresh();
-                      onAssistantFinish?.();
-                    }
-                  }
+                  await stopPollingAndReload();
                 }
               } catch {
                 // polling errors are non-fatal
               }
             }, 3000);
+          }
+        } else {
+          // Not processing — but check if there are new messages
+          // (server may have finished just before we started polling)
+          if (json.messageCount > lastMsgCountRef.current) {
+            await stopPollingAndReload();
           }
         }
       } catch {
@@ -225,7 +250,7 @@ export function ChatPanel({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId, isRestoredConversation]);
+  }, [conversationId, isRestoredConversation, stopPollingAndReload]);
 
   const [streamStartedAt, setStreamStartedAt] = React.useState<number | null>(
     null,
