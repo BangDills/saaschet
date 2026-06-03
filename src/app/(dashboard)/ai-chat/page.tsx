@@ -147,7 +147,7 @@ export default function AIChatPage() {
   return (
     <div className="-mx-4 -my-6 flex h-[calc(100vh-5rem)] flex-col sm:-mx-6 lg:-mx-8">
       {/* ── Top bar: New Chat + History toggle ── */}
-      <div className="relative z-[60] flex items-center gap-2 bg-background px-4 py-2">
+      <div className="relative z-10 flex items-center gap-2 bg-background px-4 py-2">
         <div ref={historyRef} className="relative">
           <button
             onClick={() => setHistoryOpen((prev) => !prev)}
