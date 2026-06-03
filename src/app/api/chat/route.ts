@@ -375,10 +375,10 @@ export async function POST(req: Request) {
       const daytona = getDaytonaClient();
 
       // Use image-based creation for explicit resource allocation.
-      // Configurable via env vars; defaults: 4 CPU, 4GB RAM, 20GB disk.
-      const cpu = Number(process.env.DAYTONA_SANDBOX_CPU) || 4;
-      const memory = Number(process.env.DAYTONA_SANDBOX_MEMORY) || 4;
-      const disk = Number(process.env.DAYTONA_SANDBOX_DISK) || 20;
+      // Configurable via env vars; defaults: 8 CPU, 8GB RAM, 30GB disk.
+      const cpu = Number(process.env.DAYTONA_SANDBOX_CPU) || 8;
+      const memory = Number(process.env.DAYTONA_SANDBOX_MEMORY) || 8;
+      const disk = Number(process.env.DAYTONA_SANDBOX_DISK) || 30;
 
       sandbox = await daytona.create(
         {
