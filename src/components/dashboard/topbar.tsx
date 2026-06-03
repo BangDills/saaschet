@@ -67,7 +67,12 @@ export function Topbar({ initials }: TopbarProps) {
           <ThemeToggle />
 
           {/* Profile avatar dropdown */}
-          <div ref={profileRef} className="relative">
+          <div
+            ref={profileRef}
+            className="relative"
+            onMouseEnter={() => setProfileOpen(true)}
+            onMouseLeave={() => setProfileOpen(false)}
+          >
             <button
               onClick={() => setProfileOpen((p) => !p)}
               className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-80"
