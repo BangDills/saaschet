@@ -4,7 +4,7 @@ import {
   vendorOrder,
   isNonChatModel,
   isAgentCapable,
-  opencodeFreeMod,
+  allFreeModels,
 } from "@/lib/chat/models";
 import type { ModelInfo } from "@/lib/chat/types";
 
@@ -122,8 +122,8 @@ export async function GET() {
       });
     }
 
-    // Merge: OpenCode free models first, then DigitalOcean live models.
-    const merged = [...opencodeFreeMod, ...live];
+    // Merge: All free models first, then DigitalOcean live models.
+    const merged = [...allFreeModels, ...live];
 
     return NextResponse.json({
       models: merged.sort(sortByVendor),

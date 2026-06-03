@@ -8,8 +8,10 @@ import {
 } from "ai";
 import {
   defaultModelId,
-  isOpenCodeModel,
-  getOpenCodeModelId,
+  resolveProvider,
+  stripProviderPrefix,
+  PROVIDER_BASE_URLS,
+  PROVIDER_ENV_KEYS,
 } from "@/lib/chat/models";
 import { searchWeb, formatSearchResults } from "@/lib/chat/web-search";
 import { deriveTitle } from "@/lib/chat/storage";
@@ -36,10 +38,7 @@ export const dynamic = "force-dynamic";
 // a full landing page) can involve 10–20 tool calls which take time.
 export const maxDuration = 300;
 
-const DO_BASE_URL =
-  process.env.DO_INFERENCE_BASE_URL ?? "https://inference.do-ai.run/v1";
-const OPENCODE_BASE_URL =
-  process.env.OPENCODE_BASE_URL ?? "https://opencode.ai/zen/v1";
+
 
 const DEFAULT_SYSTEM = `You are **SaaSchet AI**, an advanced, intelligent assistant.
 
@@ -160,8 +159,7 @@ export async function POST(req: Request) {
   }
 
   // ── Inference key check ──────────────────────────────────────────────
-  const doApiKey = process.env.DO_INFERENCE_API_KEY;
-  const opencodeApiKey = process.env.OPENCODE_API_KEY;
+  // Keys are resolved dynamically per-provider below.
 
   // ── Parse body ───────────────────────────────────────────────────────
   let body: ChatRequestBody;
@@ -432,15 +430,17 @@ Workflow: read code → create files (batch) → install deps → test → commi
 
   // ── Stream the model response ────────────────────────────────────────
   // Route to the correct provider based on model prefix.
-  const useOpenCode = isOpenCodeModel(modelId);
-  const resolvedModelId = useOpenCode ? getOpenCodeModelId(modelId) : modelId;
-  const resolvedKey = useOpenCode ? opencodeApiKey : doApiKey;
-  const resolvedBaseURL = useOpenCode ? OPENCODE_BASE_URL : DO_BASE_URL;
+  const providerName = resolveProvider(modelId);
+  const resolvedModelId = stripProviderPrefix(modelId);
+  const envKey = PROVIDER_ENV_KEYS[providerName];
+  const resolvedKey = process.env[envKey];
+  const resolvedBaseURL =
+    process.env[`${envKey.replace('_API_KEY', '_BASE_URL')}`] ||
+    PROVIDER_BASE_URLS[providerName];
 
   if (!resolvedKey) {
-    const envVar = useOpenCode ? "OPENCODE_API_KEY" : "DO_INFERENCE_API_KEY";
     return NextResponse.json(
-      { error: `${envVar} is not set. Add it to your environment variables.` },
+      { error: `${envKey} is not set. Add it to your environment variables.` },
       { status: 500 },
     );
   }
