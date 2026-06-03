@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { Bot, User } from "lucide-react";
 import { Markdown } from "./markdown";
 import { ReasoningBlock } from "./reasoning-block";
 import { ToolCall, type ToolCallPart } from "./tool-call";
@@ -67,19 +66,17 @@ function MessageBubbleImpl({
   const isUser = role === "user";
 
   return (
-    <div className={cn("flex w-full gap-3 px-4 py-4", isUser && "justify-end")}>
-      {!isUser && (
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-foreground">
-          <Bot className="size-4" />
-        </div>
+    <div
+      className={cn(
+        "flex w-full px-4 py-3",
+        isUser ? "justify-end" : "justify-start",
       )}
-
+    >
       <div
         className={cn(
-          "max-w-[min(85%,48rem)] rounded-2xl px-4 py-3",
           isUser
-            ? "bg-primary text-primary-foreground"
-            : "border border-border bg-card text-card-foreground",
+            ? "max-w-[min(75%,32rem)] rounded-2xl bg-secondary px-4 py-2.5 text-secondary-foreground"
+            : "max-w-[min(85%,48rem)] text-foreground",
         )}
       >
         {isUser ? (
@@ -96,7 +93,7 @@ function MessageBubbleImpl({
             {streaming && (
               <span
                 aria-hidden
-                className="ml-0.5 inline-block size-2 -translate-y-0.5 animate-pulse rounded-full bg-foreground/60 align-middle"
+                className="ml-0.5 inline-block size-2 -translate-y-0.5 animate-pulse rounded-full bg-foreground/40 align-middle"
               />
             )}
           </>
@@ -122,18 +119,12 @@ function MessageBubbleImpl({
             {streaming && (
               <span
                 aria-hidden
-                className="ml-0.5 inline-block size-2 -translate-y-0.5 animate-pulse rounded-full bg-foreground/60 align-middle"
+                className="ml-0.5 inline-block size-2 -translate-y-0.5 animate-pulse rounded-full bg-foreground/40 align-middle"
               />
             )}
           </>
         )}
       </div>
-
-      {isUser && (
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-          <User className="size-4" />
-        </div>
-      )}
     </div>
   );
 }
