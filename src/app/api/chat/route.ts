@@ -16,6 +16,9 @@ import {
   createAgentTools,
   generateWorkBranchName,
 } from "@/lib/agent/tools";
+import { getDaytonaClient } from "@/lib/daytona/client";
+import { createSandboxTools } from "@/lib/daytona/sandbox-tools";
+import type { Sandbox } from "@daytona/sdk";
 import {
   assertCanSpend,
   recordSpend,
@@ -349,7 +352,9 @@ export async function POST(req: Request) {
   }
 
   // ── Build agent tools (only when wantsAgent) ─────────────────────────
-  const tools = wantsAgent
+  let sandbox: Sandbox | null = null;
+
+  const githubTools = wantsAgent
     ? createAgentTools({
         repoSlug: repoSlug!,
         githubToken: githubToken!,
@@ -357,6 +362,47 @@ export async function POST(req: Request) {
         workBranch: generateWorkBranchName(),
         branchesCreated: new Set(),
       })
+    : undefined;
+
+  // Optionally add Daytona sandbox tools (code execution, terminal)
+  let sandboxTools: ReturnType<typeof createSandboxTools> | undefined;
+  const daytonaKey = process.env.DAYTONA_API_KEY;
+
+  if (wantsAgent && daytonaKey) {
+    try {
+      const daytona = getDaytonaClient();
+      sandbox = await daytona.create({
+        language: "typescript",
+        envVars: { NODE_ENV: "development" },
+      });
+      console.log(`[daytona] Sandbox created: ${sandbox.id}`);
+
+      sandboxTools = createSandboxTools({
+        sandbox,
+        repoSlug: repoSlug!,
+        githubToken: githubToken!,
+        repoCloned: false,
+      });
+
+      // Append sandbox info to system prompt
+      system += `\n\n## Sandbox (Code Execution)
+You have a live sandbox environment powered by Daytona. You can:
+- **run_command**: Execute any shell command (npm install, npm test, git, etc.)
+- **execute_code**: Run TypeScript/JavaScript code snippets
+- **sandbox_read_file** / **sandbox_write_file**: Read/write files in the sandbox
+- **sandbox_list_files**: List directory contents
+
+The user's repo is automatically cloned when you first use a sandbox tool.
+Use sandbox tools to BUILD, TEST, and VERIFY your changes before committing via GitHub tools.
+Workflow: read code → edit via sandbox → run tests → if passing, commit via GitHub.`;
+    } catch (err) {
+      console.warn("[daytona] Sandbox creation failed, proceeding without:", err);
+    }
+  }
+
+  // Merge all tools
+  const tools = githubTools
+    ? { ...githubTools, ...(sandboxTools || {}) }
     : undefined;
 
   // ── Stream the model response ────────────────────────────────────────
@@ -408,6 +454,16 @@ export async function POST(req: Request) {
           });
         } catch (err) {
           console.error("[credits] recordSpend failed:", err);
+        }
+
+        // Clean up sandbox after response is complete
+        if (sandbox) {
+          try {
+            await sandbox.delete();
+            console.log(`[daytona] Sandbox ${sandbox.id} deleted`);
+          } catch (err) {
+            console.warn("[daytona] Sandbox cleanup failed:", err);
+          }
         }
       },
     });
