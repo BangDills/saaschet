@@ -284,7 +284,7 @@ export function ChatPanel({
 
             <ChatInput variant="centered" {...inputProps} />
           </div>
-          <div className="shrink-0 pb-8 sm:pb-8" />
+          <div className="shrink-0 pb-15 sm:pb-8" />
         </div>
       )}
     </div>
