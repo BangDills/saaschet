@@ -264,7 +264,7 @@ export function ChatPanel({
             </div>
           </div>
 
-          <div className="border-t border-border bg-background/80 px-4 py-3 backdrop-blur-md">
+          <div className="bg-background px-4 py-3">
             <ChatInput {...inputProps} />
           </div>
         </>
