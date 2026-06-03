@@ -30,7 +30,7 @@ export function Sidebar({
       {/* Brand */}
       <div className="px-5 py-4">
         <Link
-          href="/"
+          href="/ai-chat"
           className="text-base font-semibold tracking-tight text-foreground hover:text-primary transition-colors"
         >
           SaaSchet AI Studio
