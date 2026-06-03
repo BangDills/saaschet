@@ -89,18 +89,11 @@ export const agentCapableModels = new Set([
   "qwen3-coder-flash",
   "qwen3.5-397b-a17b",
 
-  // Kimi — strong tool calling
-  "kimi-k2.6",
-  "kimi-k2.5",
-
-  // Nvidia — strong large model
-  "nvidia-nemotron-3-super-120b",
-
-  // Google — good tool calling
-  "gemma-4-31B-it",
-
-  // GLM — capable agent
-  "glm-5",
+  // NOTE: The following models are NOT agent-capable because they don't
+  // properly implement the OpenAI tool_calls spec:
+  // - Kimi K2.x: sends type:"" instead of type:"function"
+  // - Nvidia Nemotron: inconsistent tool call format
+  // - Gemma, GLM, Arcee: untested/unreliable tool calling
 ]);
 
 /** Check if a model is suitable for agent mode (tool calling). */
@@ -199,15 +192,6 @@ export const defaultModels: ModelInfo[] = [
     label: "Qwen 3.5 397B",
     vendor: "Qwen",
     tag: "Large MoE",
-    agentCapable: true,
-  },
-
-  // Kimi
-  {
-    id: "kimi-k2.6",
-    label: "Kimi K2.6",
-    vendor: "Kimi",
-    tag: "262K context",
     agentCapable: true,
   },
 ];
