@@ -1,36 +1,27 @@
 import type { ModelInfo } from "./types";
 
 /**
- * Vendors we want to expose in the model selector.
- *
- * Both the curated catalog below AND the live `/api/models` proxy filter
- * against this list, so anything DigitalOcean ships outside of these
- * vendors is hidden from the dropdown.
+ * All vendor labels we know how to detect from DigitalOcean model IDs.
+ * Used for sorting — vendor order in this array determines display order.
  */
-export const allowedVendors = [
+export const vendorOrder = [
   "Anthropic",
   "OpenAI",
+  "Google",
   "DeepSeek",
-  "MiniMax",
+  "Meta",
+  "Mistral",
   "Qwen",
+  "MiniMax",
 ] as const;
-
-export type AllowedVendor = (typeof allowedVendors)[number];
-
-export function isAllowedVendor(v: string): v is AllowedVendor {
-  return (allowedVendors as readonly string[]).includes(v);
-}
 
 /**
  * Curated default model catalog for DigitalOcean Serverless Inference.
  *
  * The full live list is fetched at runtime from /api/models, which proxies
- * GET https://inference.do-ai.run/v1/models and filters down to the
- * vendors above. This static list is shown immediately while the live
- * fetch is in flight (and serves as a fallback if the upstream is down).
- *
- * IDs follow DigitalOcean's published naming. Update freely as the
- * platform's catalog evolves.
+ * GET https://inference.do-ai.run/v1/models. This static list is shown
+ * immediately while the live fetch is in flight (and serves as a fallback
+ * if the upstream is down).
  */
 export const defaultModels: ModelInfo[] = [
   // Anthropic
@@ -69,7 +60,7 @@ export const defaultModels: ModelInfo[] = [
     tag: "Reasoning",
   },
 
-  // MiniMax (best-effort id; will be replaced by live list when available)
+  // MiniMax
   {
     id: "minimax-text-01",
     label: "MiniMax Text-01",
@@ -77,7 +68,7 @@ export const defaultModels: ModelInfo[] = [
     tag: "Long context",
   },
 
-  // Qwen (best-effort id; live list overrides)
+  // Qwen
   {
     id: "qwen2.5-72b-instruct",
     label: "Qwen 2.5 72B",

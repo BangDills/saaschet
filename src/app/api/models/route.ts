@@ -1,9 +1,5 @@
 import { NextResponse } from "next/server";
-import {
-  defaultModels,
-  allowedVendors,
-  isAllowedVendor,
-} from "@/lib/chat/models";
+import { defaultModels, vendorOrder } from "@/lib/chat/models";
 import type { ModelInfo } from "@/lib/chat/types";
 
 export const runtime = "nodejs";
@@ -25,8 +21,7 @@ type DOModelListResponse = {
 };
 
 /**
- * Best-effort vendor label from the model id. Must align with the labels
- * in `allowedVendors` so filtering works.
+ * Best-effort vendor label from the model id.
  */
 function vendorFromId(id: string): string {
   const lower = id.toLowerCase();
@@ -36,9 +31,16 @@ function vendorFromId(id: string): string {
   if (lower.includes("deepseek")) return "DeepSeek";
   if (lower.includes("minimax") || lower.includes("abab")) return "MiniMax";
   if (lower.includes("qwen")) return "Qwen";
-  if (lower.includes("llama")) return "Meta";
-  if (lower.includes("mistral") || lower.includes("nemo")) return "Mistral";
-  if (lower.includes("gemini")) return "Google";
+  if (lower.includes("llama") || lower.includes("meta")) return "Meta";
+  if (lower.includes("mistral") || lower.includes("nemo") || lower.includes("codestral") || lower.includes("mixtral"))
+    return "Mistral";
+  if (lower.includes("gemini") || lower.includes("gemma")) return "Google";
+  if (lower.includes("phi")) return "Microsoft";
+  if (lower.includes("jamba")) return "AI21";
+  if (lower.includes("command") || lower.includes("cohere")) return "Cohere";
+  if (lower.includes("yi")) return "01.AI";
+  if (lower.includes("dbrx")) return "Databricks";
+  if (lower.includes("falcon")) return "TII";
   return "Other";
 }
 
@@ -51,18 +53,21 @@ function prettyLabel(id: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-/** Sort: keep the order of allowedVendors, then alphabetical within vendor. */
+/** Sort: known vendors first (by vendorOrder), then alphabetical. */
 function sortByVendor(a: ModelInfo, b: ModelInfo): number {
-  const ai = allowedVendors.indexOf(a.vendor as never);
-  const bi = allowedVendors.indexOf(b.vendor as never);
-  if (ai !== bi) return ai - bi;
+  const ai = vendorOrder.indexOf(a.vendor as (typeof vendorOrder)[number]);
+  const bi = vendorOrder.indexOf(b.vendor as (typeof vendorOrder)[number]);
+  // Known vendors come before unknown ones
+  const aIdx = ai === -1 ? vendorOrder.length : ai;
+  const bIdx = bi === -1 ? vendorOrder.length : bi;
+  if (aIdx !== bIdx) return aIdx - bIdx;
   return a.label.localeCompare(b.label);
 }
 
 export async function GET() {
   const apiKey = process.env.DO_INFERENCE_API_KEY;
 
-  // No key configured → return curated list (already filtered).
+  // No key configured → return curated list.
   if (!apiKey) {
     return NextResponse.json({
       models: [...defaultModels].sort(sortByVendor),
@@ -87,23 +92,21 @@ export async function GET() {
     const json = (await res.json()) as DOModelListResponse;
     const items = json.data ?? [];
 
-    // Map to our shape and filter to allowed vendors only.
-    const live: ModelInfo[] = items
-      .map((m) => {
-        const vendor = vendorFromId(m.id);
-        return {
-          id: m.id,
-          label: prettyLabel(m.id),
-          vendor,
-        } satisfies ModelInfo;
-      })
-      .filter((m) => isAllowedVendor(m.vendor));
+    // Map ALL models to our shape — no vendor filtering.
+    const live: ModelInfo[] = items.map((m) => {
+      const vendor = vendorFromId(m.id);
+      return {
+        id: m.id,
+        label: prettyLabel(m.id),
+        vendor,
+      } satisfies ModelInfo;
+    });
 
     if (live.length === 0) {
       return NextResponse.json({
         models: [...defaultModels].sort(sortByVendor),
         source: "fallback",
-        warning: "Live list contained no models from allowed vendors",
+        warning: "Live list was empty",
       });
     }
 
