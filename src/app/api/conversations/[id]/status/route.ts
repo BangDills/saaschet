@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic";
 /**
  * Maximum time a conversation can stay in "processing" before we consider
  * it stale (the serverless function timed out or crashed without cleanup).
- * Vercel max is 120s, so 3 minutes gives generous buffer.
+ * Vercel maxDuration is set to 300s (5 min), so 6 minutes gives buffer.
  */
-const STALE_THRESHOLD_MS = 3 * 60 * 1000;
+const STALE_THRESHOLD_MS = 6 * 60 * 1000;
 
 /**
  * GET /api/conversations/[id]/status

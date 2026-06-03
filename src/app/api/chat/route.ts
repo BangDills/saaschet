@@ -28,7 +28,9 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // Agent loops can run multi-step; bump the function timeout on Vercel.
-export const maxDuration = 120;
+// 300s = 5 minutes, the maximum on Vercel Pro. Agent tasks (e.g. creating
+// a full landing page) can involve 10–20 tool calls which take time.
+export const maxDuration = 300;
 
 const DO_BASE_URL =
   process.env.DO_INFERENCE_BASE_URL ?? "https://inference.do-ai.run/v1";

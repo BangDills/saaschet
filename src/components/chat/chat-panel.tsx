@@ -174,9 +174,10 @@ export function ChatPanel({
 
     let cancelled = false;
 
-    // Max polling duration: 3 minutes (matches server stale threshold).
-    // After this, assume the server died and stop waiting.
-    const MAX_POLL_MS = 3 * 60 * 1000;
+    // Max polling duration: 6 minutes (matches server stale threshold).
+    // Server functions can run up to 5 min (maxDuration=300), so we wait
+    // a bit longer before assuming the server died.
+    const MAX_POLL_MS = 6 * 60 * 1000;
     let pollStartedAt: number | null = null;
 
     async function checkStatus() {
