@@ -20,6 +20,8 @@ export type Conversation = {
   modelId: string;
   /** "owner/repo" connected to this thread, or null */
   githubRepo: string | null;
+  /** 'idle' | 'processing' — tracks whether the server is still generating */
+  status?: string;
   /** Empty when this object came from the list endpoint. */
   messages: ChatMessage[];
   createdAt: number;

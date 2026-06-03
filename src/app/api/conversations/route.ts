@@ -9,6 +9,7 @@ type ConversationRow = {
   title: string;
   model_id: string;
   github_repo: string | null;
+  status: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -28,7 +29,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("conversations")
-    .select("id, title, model_id, github_repo, created_at, updated_at")
+    .select("id, title, model_id, github_repo, status, created_at, updated_at")
     .eq("user_id", user.id)
     .order("updated_at", { ascending: false });
 
@@ -42,6 +43,7 @@ export async function GET() {
     title: c.title,
     modelId: c.model_id,
     githubRepo: c.github_repo,
+    status: c.status ?? "idle",
     messages: [],
     createdAt: new Date(c.created_at).getTime(),
     updatedAt: new Date(c.updated_at).getTime(),

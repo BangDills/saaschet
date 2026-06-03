@@ -254,6 +254,7 @@ export async function POST(req: Request) {
       title: deriveTitle(userText),
       model_id: modelId,
       github_repo: repoSlug,
+      status: "processing",
     });
     if (insertErr) {
       return NextResponse.json(
@@ -267,6 +268,7 @@ export async function POST(req: Request) {
       .update({
         model_id: modelId,
         github_repo: repoSlug,
+        status: "processing",
         updated_at: new Date().toISOString(),
       })
       .eq("id", conversationId);
@@ -436,7 +438,7 @@ Workflow: read code → edit via sandbox → run tests → if passing, commit vi
         }
         await supabase
           .from("conversations")
-          .update({ updated_at: new Date().toISOString() })
+          .update({ status: "idle", updated_at: new Date().toISOString() })
           .eq("id", conversationId);
 
         // Tally tool calls across all steps and record the credit spend.
@@ -476,6 +478,13 @@ Workflow: read code → edit via sandbox → run tests → if passing, commit vi
       },
     });
   } catch (err) {
+    // Mark conversation as idle on error so polling clients stop waiting.
+    await supabase
+      .from("conversations")
+      .update({ status: "idle", updated_at: new Date().toISOString() })
+      .eq("id", conversationId)
+      .then(() => {}, () => {});
+
     const message =
       err instanceof Error ? err.message : "Unknown inference error";
     return NextResponse.json(

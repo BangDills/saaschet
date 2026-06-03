@@ -7,6 +7,7 @@ import type { ChatMessage, ModelInfo } from "@/lib/chat/types";
 import { MessageBubble, type AnyPart } from "./message-bubble";
 import { ChatInput } from "./chat-input";
 import { StreamingPill } from "./streaming-pill";
+import { ProcessingIndicator } from "./processing-indicator";
 import { fireCreditsRefresh } from "@/components/dashboard/credits-meter";
 
 function partsToText(parts: UIMessage["parts"] | undefined): string {
@@ -107,7 +108,7 @@ export function ChatPanel({
     [],
   );
 
-  const { messages, sendMessage, status, stop, error } = useChat({
+  const { messages, setMessages, sendMessage, status, stop, error } = useChat({
     id: conversationId,
     messages: toUIMessages(initialMessages),
     transport,
@@ -122,6 +123,109 @@ export function ChatPanel({
   });
 
   const isStreaming = status === "submitted" || status === "streaming";
+
+  // ── Background processing polling ──────────────────────────────────
+  // When we restore a conversation that has initialMessages (from DB),
+  // check if the server is still processing and poll for new messages.
+  const [isServerProcessing, setIsServerProcessing] = React.useState(false);
+  const isRestoredConversation = initialMessages.length > 0;
+  const pollIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
+  const lastMsgCountRef = React.useRef(initialMessages.length);
+
+  // Start polling when this is a restored conversation
+  React.useEffect(() => {
+    if (!isRestoredConversation) return;
+
+    let cancelled = false;
+
+    // Initial status check
+    async function checkStatus() {
+      try {
+        const res = await fetch(
+          `/api/conversations/${conversationId}/status`,
+          { cache: "no-store" },
+        );
+        if (!res.ok || cancelled) return;
+        const json = (await res.json()) as {
+          status: string;
+          messageCount: number;
+        };
+
+        if (json.status === "processing") {
+          setIsServerProcessing(true);
+
+          // Start polling if not already
+          if (!pollIntervalRef.current) {
+            pollIntervalRef.current = setInterval(async () => {
+              try {
+                const pollRes = await fetch(
+                  `/api/conversations/${conversationId}/status`,
+                  { cache: "no-store" },
+                );
+                if (!pollRes.ok) return;
+                const pollJson = (await pollRes.json()) as {
+                  status: string;
+                  messageCount: number;
+                };
+
+                // Server finished — fetch the updated messages
+                if (
+                  pollJson.status === "idle" ||
+                  pollJson.messageCount > lastMsgCountRef.current
+                ) {
+                  if (pollIntervalRef.current) {
+                    clearInterval(pollIntervalRef.current);
+                    pollIntervalRef.current = null;
+                  }
+                  setIsServerProcessing(false);
+
+                  // Reload messages from DB
+                  const convRes = await fetch(
+                    `/api/conversations/${conversationId}`,
+                    { cache: "no-store" },
+                  );
+                  if (convRes.ok) {
+                    const convJson = (await convRes.json()) as {
+                      conversation?: {
+                        messages: ChatMessage[];
+                      };
+                    };
+                    if (convJson.conversation?.messages) {
+                      const fresh = toUIMessages(
+                        convJson.conversation.messages,
+                      );
+                      setMessages(fresh);
+                      lastMsgCountRef.current =
+                        convJson.conversation.messages.length;
+                      fireCreditsRefresh();
+                      onAssistantFinish?.();
+                    }
+                  }
+                }
+              } catch {
+                // polling errors are non-fatal
+              }
+            }, 3000);
+          }
+        }
+      } catch {
+        // initial check failure — non-fatal
+      }
+    }
+
+    checkStatus();
+
+    return () => {
+      cancelled = true;
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, isRestoredConversation]);
 
   const [streamStartedAt, setStreamStartedAt] = React.useState<number | null>(
     null,
@@ -254,6 +358,10 @@ export function ChatPanel({
                     onStop={stop}
                   />
                 )}
+
+              {/* Background processing indicator — shown when conversation
+                  was restored from DB and server is still working */}
+              {isServerProcessing && !isStreaming && <ProcessingIndicator />}
 
               {error && (
                 <div className="mx-4 my-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">

@@ -21,6 +21,8 @@ type ActivePanel = {
   initialMessages: ChatMessage[];
 };
 
+const LS_KEY = "saaschet:lastConversationId";
+
 function freshPanel(): ActivePanel {
   return { conversationId: newId(), initialMessages: [] };
 }
@@ -78,6 +80,34 @@ export default function AIChatPage() {
     reloadConversations();
   }, [reloadConversations]);
 
+  // Persist last active conversation to localStorage
+  React.useEffect(() => {
+    if (active.initialMessages.length > 0) {
+      try {
+        localStorage.setItem(LS_KEY, active.conversationId);
+      } catch {
+        // localStorage may be unavailable
+      }
+    }
+  }, [active.conversationId, active.initialMessages.length]);
+
+  // Auto-restore last conversation on mount
+  const restoredRef = React.useRef(false);
+  React.useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+
+    try {
+      const lastId = localStorage.getItem(LS_KEY);
+      if (lastId) {
+        openChat(lastId);
+      }
+    } catch {
+      // localStorage may be unavailable
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Fetch the live model list.
   React.useEffect(() => {
     let cancelled = false;
@@ -102,6 +132,11 @@ export default function AIChatPage() {
   function startNewChat() {
     setActive(freshPanel());
     setHistoryOpen(false);
+    try {
+      localStorage.removeItem(LS_KEY);
+    } catch {
+      // ignore
+    }
   }
 
   async function openChat(id: string) {
