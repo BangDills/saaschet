@@ -405,15 +405,21 @@ export async function POST(req: Request) {
       // Append sandbox info to system prompt
       system += `\n\n## Sandbox (Code Execution)
 You have a live sandbox environment powered by Daytona (${cpu} CPU cores, ${memory}GB RAM).
-You can:
+Available tools:
 - **run_command**: Execute any shell command (npm install, npm test, git, etc.)
 - **execute_code**: Run TypeScript/JavaScript code snippets
-- **sandbox_read_file** / **sandbox_write_file**: Read/write files in the sandbox
+- **sandbox_read_file**: Read a file in the sandbox
+- **sandbox_write_file**: Write a single file
+- **sandbox_write_files**: Write MULTIPLE files in ONE call (STRONGLY PREFERRED for 2+ files)
 - **sandbox_list_files**: List directory contents
 
+### ⚡ Performance Rules (IMPORTANT)
+1. **ALWAYS use sandbox_write_files** when creating 2+ files. NEVER call sandbox_write_file in a loop — each call adds latency.
+2. **Batch operations**: Create all files first, then run npm install once, then test once.
+3. **Minimize tool calls**: Combine related operations. Fewer calls = faster execution.
+
 The user's repo is automatically cloned when you first use a sandbox tool.
-Use sandbox tools to BUILD, TEST, and VERIFY your changes before committing via GitHub tools.
-Workflow: read code → edit via sandbox → run tests → if passing, commit via GitHub.`;
+Workflow: read code → create files (batch) → install deps → test → commit via GitHub.`;
     } catch (err) {
       console.warn("[daytona] Sandbox creation failed, proceeding without:", err);
     }
@@ -441,17 +447,33 @@ Workflow: read code → edit via sandbox → run tests → if passing, commit vi
 
   const provider = createOpenAI({ baseURL: resolvedBaseURL, apiKey: resolvedKey });
 
+  // ── Context trimming ───────────────────────────────────────────────
+  // Long conversations slow down inference dramatically. Keep only
+  // the most recent messages; older context is already in the model's
+  // memory from previous turns.
+  const MAX_CONTEXT_MESSAGES = 20;
+  const trimmedMessages =
+    messages.length > MAX_CONTEXT_MESSAGES
+      ? messages.slice(-MAX_CONTEXT_MESSAGES)
+      : messages;
+
+  if (messages.length > MAX_CONTEXT_MESSAGES) {
+    const dropped = messages.length - MAX_CONTEXT_MESSAGES;
+    system += `\n\nNote: ${dropped} older messages were trimmed from context to keep response fast. Focus on the most recent messages.`;
+  }
+
   try {
     const result = streamText({
       model: provider.chat(resolvedModelId),
       system,
-      messages: await convertToModelMessages(messages),
-      // Agent mode: enable tools + multi-step loop. Cap at 20 steps for
+      messages: await convertToModelMessages(trimmedMessages),
+      // Agent mode: enable tools + multi-step loop. Cap at 25 steps for
       // complex multi-file tasks while still preventing runaway loops.
       ...(tools
         ? {
             tools,
-            stopWhen: stepCountIs(20),
+            stopWhen: stepCountIs(25),
+            toolCallStreaming: true,
           }
         : {}),
       onFinish: async (event) => {

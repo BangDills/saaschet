@@ -181,7 +181,8 @@ export function createSandboxTools(ctx: SandboxContext) {
       description:
         "Write content to a file in the sandbox filesystem. " +
         "Creates the file if it doesn't exist. " +
-        "Path is relative to the repo root (workspace/repo/).",
+        "Path is relative to the repo root (workspace/repo/). " +
+        "For writing MULTIPLE files at once, prefer sandbox_write_files instead.",
       inputSchema: schema<{ path: string; content: string }>({
         type: "object",
         properties: {
@@ -219,6 +220,83 @@ export function createSandboxTools(ctx: SandboxContext) {
             error: `Failed to write ${path}: ${err instanceof Error ? err.message : String(err)}`,
           };
         }
+      },
+    }),
+
+    sandbox_write_files: tool({
+      description:
+        "Write MULTIPLE files in a SINGLE tool call. " +
+        "Much faster than calling sandbox_write_file repeatedly. " +
+        "Use this whenever you need to create 2+ files (e.g. scaffolding a project). " +
+        "Each file has a path (relative to repo root) and content.",
+      inputSchema: schema<{
+        files: { path: string; content: string }[];
+      }>({
+        type: "object",
+        properties: {
+          files: {
+            type: "array",
+            description: "Array of files to write.",
+            items: {
+              type: "object",
+              properties: {
+                path: {
+                  type: "string",
+                  description: "File path relative to repo root.",
+                },
+                content: {
+                  type: "string",
+                  description: "File content to write.",
+                },
+              },
+              required: ["path", "content"],
+            },
+          },
+        },
+        required: ["files"],
+        additionalProperties: false,
+      }),
+      execute: async ({
+        files,
+      }: {
+        files: { path: string; content: string }[];
+      }) => {
+        if (!ctx.repoCloned) {
+          await cloneRepo(ctx);
+        }
+
+        const results: { path: string; success: boolean; error?: string }[] = [];
+
+        // Write all files in parallel for maximum speed
+        await Promise.all(
+          files.map(async ({ path, content }) => {
+            try {
+              const fullPath = `workspace/repo/${path}`;
+              const dir = fullPath.substring(0, fullPath.lastIndexOf("/"));
+              if (dir) {
+                await ctx.sandbox.process.executeCommand(`mkdir -p "${dir}"`);
+              }
+              const b64 = Buffer.from(content).toString("base64");
+              await ctx.sandbox.process.executeCommand(
+                `echo "${b64}" | base64 -d > "${fullPath}"`,
+              );
+              results.push({ path, success: true });
+            } catch (err) {
+              results.push({
+                path,
+                success: false,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+          }),
+        );
+
+        const ok = results.filter((r) => r.success).length;
+        const fail = results.filter((r) => !r.success).length;
+        return {
+          summary: `${ok} written, ${fail} failed`,
+          files: results,
+        };
       },
     }),
 

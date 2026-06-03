@@ -121,6 +121,12 @@ const TOOL_META: Record<string, ToolMeta> = {
     done: "Wrote code",
     category: "write",
   },
+  sandbox_write_files: {
+    Icon: Code2,
+    running: "Writing files…",
+    done: "Wrote files",
+    category: "write",
+  },
   sandbox_list_files: {
     Icon: Folder,
     running: "Listing files…",
@@ -180,6 +186,12 @@ function summarizeInput(toolName: string, input: unknown): string {
     case "sandbox_read_file":
     case "sandbox_write_file":
       return typeof obj.path === "string" ? obj.path : "";
+    case "sandbox_write_files": {
+      const files = Array.isArray(obj.files) ? obj.files : [];
+      if (files.length === 0) return "";
+      if (files.length === 1) return files[0]?.path ?? "1 file";
+      return `${files.length} files`;
+    }
     case "search_code":
     case "web_search":
       return typeof obj.query === "string" ? `"${obj.query}"` : "";
