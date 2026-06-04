@@ -53,6 +53,9 @@ export const agentCapableModels = new Set([
   // Kimi — tool calling fixed via kimi-compat.ts
   "kimi-k2.6",
   "kimi-k2.5",
+
+  // GLM — DO categorizes as tool-calling capable
+  "glm-5",
 ]);
 
 /** Check if a model is suitable for agent mode (tool calling). */
