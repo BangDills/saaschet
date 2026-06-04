@@ -140,9 +140,9 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  console.log(
-    `[github/callback] GitHub token saved for user ${user.id} (${githubUsername})`,
-  );
+  if (process.env.DEBUG_AUTH) {
+    console.info(`[github/callback] token saved for ${githubUsername}`);
+  }
 
   return NextResponse.redirect(`${origin}/ai-chat`);
 }

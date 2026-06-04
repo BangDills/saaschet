@@ -54,6 +54,9 @@ export function CreditsMeter() {
     }
   }, []);
 
+  // Subscribe to credits updates + initial fetch. Legitimate
+  // external-system subscription pattern (custom DOM event).
+  /* eslint-disable react-hooks/set-state-in-effect */
   React.useEffect(() => {
     refresh();
     const handler = () => {
@@ -62,6 +65,7 @@ export function CreditsMeter() {
     window.addEventListener(REFRESH_EVENT, handler);
     return () => window.removeEventListener(REFRESH_EVENT, handler);
   }, [refresh]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (loading || !snap) {
     return (

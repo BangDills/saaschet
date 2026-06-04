@@ -98,13 +98,15 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
   }, [open]);
 
   // Lazy-load the user's repos the first time the popover opens.
+  const loadedRef = React.useRef(false);
   React.useEffect(() => {
     if (!open) return;
-    if (reposState.kind !== "idle") return;
-    setReposState({ kind: "loading", githubConnected: false, repos: [] });
+    if (loadedRef.current || reposState.kind !== "idle") return;
+    loadedRef.current = true;
+    // Kick off the fetch — setState only happens in async callbacks below,
+    // which are NOT synchronous within the effect body.
     fetch("/api/github/repos", { cache: "no-store" })
       .then(async (r) => {
-        // 502 still has a JSON body for githubConnected:true + error
         const json = (await r.json()) as ReposResponse;
         return { ok: r.ok, json };
       })

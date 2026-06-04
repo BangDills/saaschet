@@ -70,16 +70,23 @@ function formatDate(dateStr: string): string {
 }
 
 export function HistoryTable({ rows }: { rows: HistoryRow[] }) {
-  const [range, setRange] = React.useState<DateRange>("30d");
+  const [range, setRangeRaw] = React.useState<DateRange>("30d");
   const [page, setPage] = React.useState(0);
+  // Track a snapshot of "now" so useMemo stays pure. Updated when range changes.
+  const [now, setNow] = React.useState(() => Date.now());
+
+  const setRange = React.useCallback((r: DateRange) => {
+    setRangeRaw(r);
+    setPage(0);
+    setNow(Date.now());
+  }, []);
 
   const filtered = React.useMemo(() => {
     if (range === "all") return rows;
-    const now = Date.now();
     const cutoff =
       range === "7d" ? now - 7 * 86_400_000 : now - 30 * 86_400_000;
     return rows.filter((r) => new Date(r.createdAt).getTime() >= cutoff);
-  }, [rows, range]);
+  }, [rows, range, now]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const pageRows = filtered.slice(
@@ -87,11 +94,6 @@ export function HistoryTable({ rows }: { rows: HistoryRow[] }) {
     page * PAGE_SIZE + PAGE_SIZE,
   );
   const totalCredits = filtered.reduce((s, r) => s + r.cost, 0);
-
-  // Reset page when filter changes
-  React.useEffect(() => {
-    setPage(0);
-  }, [range]);
 
   return (
     <div className="space-y-4">

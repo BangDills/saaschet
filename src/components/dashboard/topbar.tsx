@@ -30,7 +30,10 @@ export function Topbar({ initials }: TopbarProps) {
   const [profileOpen, setProfileOpen] = React.useState(false);
   const profileRef = React.useRef<HTMLDivElement>(null);
 
+  // Close menus on route change — legitimate sync with router state.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   React.useEffect(() => setOpen(false), [pathname]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   React.useEffect(() => setProfileOpen(false), [pathname]);
 
   // Close profile dropdown on outside click

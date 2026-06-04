@@ -89,6 +89,9 @@ export function ChatPanel({
   }, [repo]);
 
 
+  // The body callback is invoked at send-time (deferred), NOT during
+  // render. Accessing .current there is safe — suppress false positive.
+  /* eslint-disable react-hooks/refs */
   const transport = React.useMemo(
     () =>
       new DefaultChatTransport({
@@ -102,6 +105,7 @@ export function ChatPanel({
       }),
     [],
   );
+  /* eslint-enable react-hooks/refs */
 
   const { messages, setMessages, sendMessage, status, stop, error } = useChat({
     id: conversationId,
@@ -245,12 +249,14 @@ export function ChatPanel({
         pollIntervalRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, isRestoredConversation, stopPollingAndReload]);
 
   const [streamStartedAt, setStreamStartedAt] = React.useState<number | null>(
     null,
   );
+  // Sync streaming status → streamStartedAt. Legitimate sync with
+  // external system (useChat streaming flag).
+  /* eslint-disable react-hooks/set-state-in-effect */
   React.useEffect(() => {
     if (isStreaming && streamStartedAt === null) {
       setStreamStartedAt(Date.now());
@@ -258,6 +264,7 @@ export function ChatPanel({
       setStreamStartedAt(null);
     }
   }, [isStreaming, streamStartedAt]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const hasMessages = messages.length > 0;
 

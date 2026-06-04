@@ -73,9 +73,19 @@ export default function AIChatPage() {
     }
   }, []);
 
+  // Load conversations on mount
   React.useEffect(() => {
-    reloadConversations();
-  }, [reloadConversations]);
+    let cancelled = false;
+    fetch("/api/conversations")
+      .then((r) => r.json())
+      .then((json) => {
+        if (!cancelled && Array.isArray(json.conversations)) {
+          setConversations(json.conversations);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Persist last active conversation to localStorage
   React.useEffect(() => {
@@ -102,7 +112,6 @@ export default function AIChatPage() {
     } catch {
       // localStorage may be unavailable
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fetch the live model list.

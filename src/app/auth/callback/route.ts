@@ -45,12 +45,9 @@ export async function GET(request: NextRequest) {
     providerToken = sessionData.session?.provider_token ?? null;
   }
 
-  console.log("[auth/callback] user:", user?.id);
-  console.log("[auth/callback] provider_token present:", !!providerToken);
-  console.log(
-    "[auth/callback] identities:",
-    user?.identities?.map((i) => i.provider).join(", "),
-  );
+  if (process.env.DEBUG_AUTH) {
+    console.info("[auth/callback] user:", user?.id, "provider_token:", !!providerToken);
+  }
 
   // Check if user has a GitHub identity.
   const githubIdentity = user?.identities?.find(
@@ -89,12 +86,12 @@ export async function GET(request: NextRequest) {
             avatar_url: meta.avatar_url ?? null,
           })
           .eq("id", user.id);
-        console.log("[auth/callback] profile updated via admin client");
+        if (process.env.DEBUG_AUTH) console.info("[auth/callback] profile updated via admin");
       } catch (adminErr) {
         console.error("[auth/callback] admin update also failed:", adminErr);
       }
     } else {
-      console.log("[auth/callback] profile updated successfully");
+      if (process.env.DEBUG_AUTH) console.info("[auth/callback] profile updated");
     }
   } else if (user && githubIdentity && !providerToken) {
     // provider_token not available — this happens with some linkIdentity flows.
