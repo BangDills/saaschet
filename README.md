@@ -1,83 +1,150 @@
-# Horizon AI — SaaS Dashboard
+# SaaSchet — AI-Powered SaaS Platform
 
-Modern AI SaaS dashboard built with **Next.js 16**, **React 19**, **Tailwind CSS v4**, **Recharts**, and **next-themes**. Designed to be deployed on shared cPanel hosting via Node.js Selector (Phusion Passenger).
+Modern AI SaaS platform built with **Next.js 16**, **React 19**, **Tailwind CSS v4**, and **Vercel AI SDK**. Features an AI coding agent with GitHub integration, live sandbox execution, multi-model support, and a full dashboard with auth.
 
-![dashboard preview](public/next.svg)
+## ✨ Features
 
-## Features
+### AI Chat & Agent Mode
+- **Multi-model chat** — DeepSeek V4 Pro, DeepSeek 4 Flash, Kimi K2.5/K2.6, GLM 5
+- **Free model** — DeepSeek V4 Flash via OpenCode (no payment required)
+- **Automatic Agent Mode** — models with tool-calling auto-enable agent tools when a repo is connected
+- **GitHub integration** — read, write, edit, search code, create branches & PRs
+- **Live sandbox** — Daytona-powered sandboxes (8 CPU, 8GB RAM) for running code
+- **Batch file writes** — write multiple files in a single tool call
+- **Web search** — Tavily-powered in-chat web search toggle
+- **Streaming** — real-time tool call streaming with context trimming
+- **Kimi compat** — automatic SSE stream patching for Kimi K2.x tool calling
 
-- Sidebar with 11 navigation entries (AI Assistant, Chat, Text/Image/Speech generators, Users, Subscription, History, etc.)
-- 4 KPI stat cards (Total Credits Used, Total Users, Credits Available, Current Plan)
-- Area chart for daily credit usage (last 30 days, mobile + desktop split)
-- Bar chart for monthly credit usage (current vs previous period)
-- Users table with row selection and pagination
+### Dashboard
+- KPI stat cards (Credits Used, Total Users, Credits Available, Plan)
+- Area chart (daily credit usage, last 30 days)
+- Bar chart (monthly credit usage)
+- Users table with pagination
 - Light / Dark mode toggle
-- Fully responsive (mobile drawer included)
-- Custom Next.js server (`server.js`) ready for cPanel Passenger
+- Fully responsive (mobile drawer)
 
-## Tech stack
+### Auth & Infrastructure
+- Supabase authentication (email/password, OAuth)
+- Chat history persistence (conversations stored in Supabase)
+- Credits system with usage tracking
+- Row Level Security (RLS) on all tables
 
-| Concern        | Choice                                |
-| -------------- | ------------------------------------- |
-| Framework      | Next.js 16 (App Router) + TypeScript  |
-| Styling        | Tailwind CSS v4 + custom design tokens|
-| Icons          | lucide-react                          |
-| Charts         | Recharts                              |
-| Theming        | next-themes                           |
-| Runtime target | Node.js >= 20.9                       |
+## 🛠 Tech Stack
 
-## Local development
+| Concern | Choice |
+|---------|--------|
+| Framework | Next.js 16 (App Router) + TypeScript |
+| Styling | Tailwind CSS v4 + custom design tokens |
+| AI SDK | Vercel AI SDK v6 (`ai`, `@ai-sdk/openai`) |
+| Inference | DigitalOcean Serverless Inference (OpenAI-compatible) |
+| Free Models | OpenCode Zen API |
+| Sandbox | Daytona SDK (ephemeral containers) |
+| Auth & DB | Supabase (Postgres + Auth + RLS) |
+| Web Search | Tavily AI |
+| Icons | lucide-react |
+| Charts | Recharts |
+| Theming | next-themes |
+| Deployment | Vercel (primary) / cPanel (legacy) |
+
+## 🚀 Quick Start
 
 ```bash
+# 1. Clone
+git clone https://github.com/BangDills/saaschet.git
+cd saaschet
+
+# 2. Install
 npm install
+
+# 3. Configure environment
+cp .env.example .env.local
+# Edit .env.local with your keys (see Environment Variables below)
+
+# 4. Run
 npm run dev
-# open http://localhost:3000
+# Open http://localhost:3000
 ```
 
-## Production build
+## 🔑 Environment Variables
 
-```bash
-npm run build
-npm start                # standard Next.js server
-# or
-npm run start:cpanel     # custom server.js (used on cPanel)
-```
+Copy `.env.example` to `.env.local` and fill in your keys:
 
-## Deployment
+| Variable | Required | Description |
+|----------|:---:|-------------|
+| `DO_INFERENCE_API_KEY` | ✅ | DigitalOcean model access key ([get here](https://cloud.digitalocean.com)) |
+| `OPENCODE_API_KEY` | Optional | OpenCode Zen API key for free DeepSeek model ([opencode.ai](https://opencode.ai)) |
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Supabase anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Supabase service role key (server-side only) |
+| `TAVILY_API_KEY` | Optional | Tavily API key for web search ([tavily.com](https://tavily.com)) |
+| `GITHUB_TOKEN` | Optional | GitHub PAT for agent mode repo access |
+| `DAYTONA_API_KEY` | Optional | Daytona API key for live sandbox execution |
+| `DAYTONA_SERVER_URL` | Optional | Daytona server URL |
+| `DAYTONA_TARGET` | Optional | Daytona target region |
 
-See **[DEPLOY_CPANEL.md](./DEPLOY_CPANEL.md)** for the full step-by-step guide to deploy this app on cPanel using Node.js Selector.
-
-## Project structure
+## 📁 Project Structure
 
 ```
 src/
   app/
-    (dashboard)/        # Authenticated dashboard route group
-      layout.tsx        # Sidebar + Topbar shell
-      page.tsx          # Main Dashboard
-      ai-assistant/     # ...and other feature pages
-    layout.tsx          # Root layout (theme provider, fonts)
-    globals.css         # Design tokens (light + dark)
+    (auth)/               # Login / signup pages
+    (dashboard)/          # Authenticated dashboard route group
+      layout.tsx          # Sidebar + Topbar shell
+      page.tsx            # Main Dashboard (KPI cards, charts)
+      ai-chat/            # AI Chat page (multi-model, agent)
+      ai-text/            # AI Text generator
+      ai-image/           # AI Image generator
+      ai-speech/          # AI Speech generator
+      history/            # Chat history browser
+      profile/            # User profile settings
+      subscription/       # Subscription management
+      users/              # Admin users table
+    api/
+      chat/route.ts       # AI chat endpoint (streaming, tools, multi-provider)
+      models/route.ts     # Model list endpoint (whitelisted)
+      conversations/      # CRUD for chat history
+      credits/            # Credits balance API
+      dashboard/          # Dashboard stats API
+      github/             # GitHub OAuth callback
+      profile/            # Profile API
+    layout.tsx            # Root layout (theme, fonts)
+    globals.css           # Design tokens (light + dark)
   components/
-    dashboard/          # Sidebar, Topbar, charts, table
-    ui/                 # Card, Button, Badge primitives
-    theme-provider.tsx
+    chat/                 # ChatPanel, ChatInput, ModelSelector, ToolCall UI
+    dashboard/            # Sidebar, Topbar, charts, stat cards
+    auth/                 # Auth forms
+    ui/                   # Card, Button, Badge primitives
   lib/
-    data.ts             # Dummy data (replace with API calls)
-    nav.ts              # Sidebar config
-    utils.ts            # cn(), formatNumber()
-server.js               # Custom Next.js server for Passenger
-next.config.ts
+    chat/                 # Models config, types, web search, kimi-compat
+    agent/                # Agent tools (GitHub read/write/edit/search)
+    github/               # GitHub API client
+    daytona/              # Sandbox tools (run_command, write_file, etc.)
+    credits/              # Credits system
+    supabase/             # Supabase client (server + browser)
+    nav.ts                # Sidebar navigation config
+    utils.ts              # cn(), formatNumber()
+  middleware.ts           # Supabase auth middleware
 ```
 
-## Roadmap
+## 🤖 Supported Models
 
-This is **step 1 of 3** — the UI shell with dummy data. Next steps:
+| Model | Provider | Agent Capable | Free |
+|-------|----------|:---:|:---:|
+| DeepSeek V4 Flash | OpenCode | ✅ | ✅ |
+| DeepSeek V4 Pro | DigitalOcean | ✅ | — |
+| DeepSeek 4 Flash | DigitalOcean | ✅ | — |
+| Kimi K2.6 | DigitalOcean | ✅ | — |
+| Kimi K2.5 | DigitalOcean | ✅ | — |
+| GLM 5 | DigitalOcean | — | — |
 
-1. ~~Frontend dashboard with dummy data~~ ✅
-2. Authentication + database (Supabase or MySQL on cPanel)
-3. Wire up AI generators (text/image/speech) with credits ledger
+## 🏗 Deployment
 
-## License
+### Vercel (recommended)
+Push to GitHub → connect to Vercel → add env vars → deploy.
+
+### cPanel (legacy)
+See **[DEPLOY_CPANEL.md](./DEPLOY_CPANEL.md)** for the step-by-step guide.
+
+## 📄 License
 
 MIT

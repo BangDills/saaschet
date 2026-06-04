@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import {
   defaultModels,
   vendorOrder,
-  isNonChatModel,
   isAgentCapable,
   allFreeModels,
 } from "@/lib/chat/models";
