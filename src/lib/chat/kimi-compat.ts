@@ -1,7 +1,7 @@
 /**
- * Kimi K2.x compatibility layer.
+ * Tool-call type compatibility layer for Kimi K2.x and GLM-5.
  *
- * Kimi models send `"type":""` instead of `"type":"function"` in streaming
+ * These models send `"type":""` instead of `"type":"function"` in streaming
  * tool_call chunks, which breaks the Vercel AI SDK's type validation.
  *
  * This module provides a custom `fetch` wrapper that transparently patches
@@ -9,15 +9,22 @@
  */
 
 /**
- * Returns true if the model ID belongs to a Kimi model that needs
- * the tool-call type fix.
+ * Returns true if the model ID belongs to a model that sends
+ * `"type":""` in tool_call streaming chunks and needs the fix.
+ *
+ * Known affected models:
+ * - Kimi K2.x (kimi-k2.5, kimi-k2.6)
+ * - GLM-5
  */
-export function isKimiModel(modelId: string): boolean {
-  return /^kimi-/i.test(modelId);
+export function needsToolCallTypeFix(modelId: string): boolean {
+  return /^kimi-/i.test(modelId) || /^glm-/i.test(modelId);
 }
 
+// Keep the old name as an alias for backward compatibility.
+export const isKimiModel = needsToolCallTypeFix;
+
 /**
- * A drop-in `fetch` replacement that intercepts Kimi SSE responses and
+ * A drop-in `fetch` replacement that intercepts SSE responses and
  * fixes `"type":""` → `"type":"function"` on the fly.
  *
  * Usage:
@@ -25,11 +32,11 @@ export function isKimiModel(modelId: string): boolean {
  * const provider = createOpenAI({
  *   baseURL,
  *   apiKey,
- *   fetch: kimiCompatFetch,
+ *   fetch: toolCallCompatFetch,
  * });
  * ```
  */
-export const kimiCompatFetch: typeof globalThis.fetch = async (
+export const toolCallCompatFetch: typeof globalThis.fetch = async (
   input,
   init,
 ) => {
@@ -47,7 +54,7 @@ export const kimiCompatFetch: typeof globalThis.fetch = async (
   const transform = new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {
       const text = decoder.decode(chunk, { stream: true });
-      // Fix: Kimi sends "type":"" in tool_calls — patch to "type":"function"
+      // Fix: model sends "type":"" in tool_calls — patch to "type":"function"
       const fixed = text.replace(/"type":""/g, '"type":"function"');
       controller.enqueue(encoder.encode(fixed));
     },
@@ -67,3 +74,6 @@ export const kimiCompatFetch: typeof globalThis.fetch = async (
     headers: response.headers,
   });
 };
+
+// Keep old name as alias.
+export const kimiCompatFetch = toolCallCompatFetch;

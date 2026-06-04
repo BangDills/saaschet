@@ -14,7 +14,7 @@ import {
   PROVIDER_ENV_KEYS,
   isAgentCapable,
 } from "@/lib/chat/models";
-import { isKimiModel, kimiCompatFetch } from "@/lib/chat/kimi-compat";
+import { needsToolCallTypeFix, toolCallCompatFetch } from "@/lib/chat/kimi-compat";
 import { searchWeb, formatSearchResults } from "@/lib/chat/web-search";
 import { deriveTitle } from "@/lib/chat/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -473,9 +473,9 @@ Workflow: read code → create files (batch) → install deps → test → commi
   const provider = createOpenAI({
     baseURL: resolvedBaseURL,
     apiKey: resolvedKey,
-    // Kimi K2.x sends type:"" instead of type:"function" in tool_call
-    // chunks. Our compat fetch patches the SSE stream on the fly.
-    ...(isKimiModel(resolvedModelId) ? { fetch: kimiCompatFetch } : {}),
+    // Kimi K2.x and GLM-5 send type:"" instead of type:"function" in
+    // tool_call chunks. Our compat fetch patches the SSE stream on the fly.
+    ...(needsToolCallTypeFix(resolvedModelId) ? { fetch: toolCallCompatFetch } : {}),
   });
 
   // ── Context trimming ───────────────────────────────────────────────
