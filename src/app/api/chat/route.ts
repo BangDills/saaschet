@@ -13,6 +13,7 @@ import {
   PROVIDER_BASE_URLS,
   PROVIDER_ENV_KEYS,
 } from "@/lib/chat/models";
+import { isKimiModel, kimiCompatFetch } from "@/lib/chat/kimi-compat";
 import { searchWeb, formatSearchResults } from "@/lib/chat/web-search";
 import { deriveTitle } from "@/lib/chat/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -445,7 +446,13 @@ Workflow: read code → create files (batch) → install deps → test → commi
     );
   }
 
-  const provider = createOpenAI({ baseURL: resolvedBaseURL, apiKey: resolvedKey });
+  const provider = createOpenAI({
+    baseURL: resolvedBaseURL,
+    apiKey: resolvedKey,
+    // Kimi K2.x sends type:"" instead of type:"function" in tool_call
+    // chunks. Our compat fetch patches the SSE stream on the fly.
+    ...(isKimiModel(resolvedModelId) ? { fetch: kimiCompatFetch } : {}),
+  });
 
   // ── Context trimming ───────────────────────────────────────────────
   // Long conversations slow down inference dramatically. Keep only

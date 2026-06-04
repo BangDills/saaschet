@@ -92,10 +92,11 @@ export const agentCapableModels = new Set([
   // OpenCode free model
   "opencode/deepseek-v4-flash-free",
 
+  // Kimi — strong coder, tool calling fixed via kimi-compat.ts
+  "kimi-k2.6",
+  "kimi-k2.5",
 
-  // NOTE: The following models are NOT agent-capable because they don't
-  // properly implement the OpenAI tool_calls spec:
-  // - Kimi K2.x: sends type:"" instead of type:"function"
+  // NOTE: The following models are NOT agent-capable:
   // - Gemma, GLM, Arcee: untested/unreliable tool calling
 ]);
 
