@@ -494,10 +494,10 @@ Workflow: read code → create files (batch) → install deps → test → commi
   }
 
   try {
-    // DeepSeek V4 Pro uses internal "reasoning" tokens that eat into the
-    // output budget. 16k gives enough room for reasoning + tool calls.
-    // Other models also benefit from a generous output limit for agent tasks.
-    const maxOutputTokens = tools ? 16384 : 8192;
+    // Agent tasks generate large tool call arguments (e.g. full file content
+    // in write_file). 32k gives enough room for reasoning + multi-file writes.
+    // GLM-5 and DeepSeek V4 Pro also use reasoning tokens that eat into budget.
+    const maxOutputTokens = tools ? 32768 : 8192;
 
     const result = streamText({
       model: provider.chat(resolvedModelId),
