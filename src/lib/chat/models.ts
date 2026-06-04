@@ -96,15 +96,6 @@ export const agentCapableModels = new Set([
   "opencode/qwen3.6-plus-free",
   "opencode/nemotron-3-super-free",
 
-  // Groq free tier (blazing fast LPU inference)
-  "groq/llama-3.3-70b-versatile",
-  "groq/qwen-qwq-32b",
-  "groq/qwen3-32b",
-
-  // Cerebras free tier (20x faster than OpenAI, wafer-scale)
-  "cerebras/llama-4-scout-17b-16e-instruct",
-  "cerebras/llama3.3-70b",
-  "cerebras/qwen3-32b",
 
   // NOTE: The following models are NOT agent-capable because they don't
   // properly implement the OpenAI tool_calls spec:
@@ -124,12 +115,10 @@ export function isAgentCapable(modelId: string): boolean {
  * Models without a prefix route to DigitalOcean (the default provider).
  * ────────────────────────────────────────────────────────────────────── */
 
-type ProviderName = "digitalocean" | "opencode" | "groq" | "cerebras";
+type ProviderName = "digitalocean" | "opencode";
 
 const PROVIDER_PREFIXES: Record<string, ProviderName> = {
   "opencode/": "opencode",
-  "groq/": "groq",
-  "cerebras/": "cerebras",
 };
 
 /** Resolve which provider a model routes through. */
@@ -152,16 +141,12 @@ export function stripProviderPrefix(modelId: string): string {
 export const PROVIDER_BASE_URLS: Record<ProviderName, string> = {
   digitalocean: "https://inference.do-ai.run/v1",
   opencode: "https://opencode.ai/zen/v1",
-  groq: "https://api.groq.com/openai/v1",
-  cerebras: "https://api.cerebras.ai/v1",
 };
 
 /** Environment variable names for each provider's API key. */
 export const PROVIDER_ENV_KEYS: Record<ProviderName, string> = {
   digitalocean: "DO_INFERENCE_API_KEY",
   opencode: "OPENCODE_API_KEY",
-  groq: "GROQ_API_KEY",
-  cerebras: "CEREBRAS_API_KEY",
 };
 
 /**
@@ -222,81 +207,9 @@ export const opencodeFreeMod: ModelInfo[] = [
   },
 ];
 
-/**
- * Groq free-tier models. Incredibly fast inference via custom LPU hardware.
- * Free tier has rate limits (~6k tokens/min) but no payment required.
- * Get API key at: https://console.groq.com/keys
- */
-export const groqFreeModels: ModelInfo[] = [
-  {
-    id: "groq/llama-3.3-70b-versatile",
-    label: "Llama 3.3 70B",
-    vendor: "Meta",
-    tag: "FREE · Groq ⚡ ~500 tps",
-    agentCapable: true,
-    provider: "groq",
-    free: true,
-  },
-  {
-    id: "groq/qwen-qwq-32b",
-    label: "QwQ 32B",
-    vendor: "Qwen",
-    tag: "FREE · Groq ⚡ reasoning",
-    agentCapable: true,
-    provider: "groq",
-    free: true,
-  },
-  {
-    id: "groq/qwen3-32b",
-    label: "Qwen3 32B",
-    vendor: "Qwen",
-    tag: "FREE · Groq ⚡",
-    agentCapable: true,
-    provider: "groq",
-    free: true,
-  },
-];
-
-/**
- * Cerebras free-tier models. Wafer-scale AI chip — 20x faster than OpenAI.
- * Free tier with generous limits, no payment required.
- * Get API key at: https://cloud.cerebras.ai
- */
-export const cerebrasFreeModels: ModelInfo[] = [
-  {
-    id: "cerebras/llama-4-scout-17b-16e-instruct",
-    label: "Llama 4 Scout 17B",
-    vendor: "Meta",
-    tag: "FREE · Cerebras 🚀 20x speed",
-    agentCapable: true,
-    provider: "cerebras",
-    free: true,
-  },
-  {
-    id: "cerebras/llama3.3-70b",
-    label: "Llama 3.3 70B",
-    vendor: "Meta",
-    tag: "FREE · Cerebras 🚀",
-    agentCapable: true,
-    provider: "cerebras",
-    free: true,
-  },
-  {
-    id: "cerebras/qwen3-32b",
-    label: "Qwen3 32B",
-    vendor: "Qwen",
-    tag: "FREE · Cerebras 🚀",
-    agentCapable: true,
-    provider: "cerebras",
-    free: true,
-  },
-];
-
 /** All free models from all providers. */
 export const allFreeModels: ModelInfo[] = [
   ...opencodeFreeMod,
-  ...groqFreeModels,
-  ...cerebrasFreeModels,
 ];
 
 /**
