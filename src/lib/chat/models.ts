@@ -15,8 +15,6 @@ export const vendorOrder = [
   "MiniMax",
   "Mistral",
   "GLM",
-  "MiMo",
-  "Stealth",
   "Arcee",
 ] as const;
 
@@ -91,10 +89,8 @@ export const agentCapableModels = new Set([
   "qwen3-coder-flash",
   "qwen3.5-397b-a17b",
 
-  // OpenCode free models (via OpenCode Zen API)
+  // OpenCode free model
   "opencode/deepseek-v4-flash-free",
-  "opencode/qwen3.6-plus-free",
-  "opencode/nemotron-3-super-free",
 
 
   // NOTE: The following models are NOT agent-capable because they don't
@@ -160,48 +156,6 @@ export const opencodeFreeMod: ModelInfo[] = [
     vendor: "DeepSeek",
     tag: "FREE · OpenCode",
     agentCapable: true,
-    provider: "opencode",
-    free: true,
-  },
-  {
-    id: "opencode/qwen3.6-plus-free",
-    label: "Qwen 3.6 Plus",
-    vendor: "Qwen",
-    tag: "FREE · OpenCode",
-    agentCapable: true,
-    provider: "opencode",
-    free: true,
-  },
-  {
-    id: "opencode/nemotron-3-super-free",
-    label: "Nemotron 3 Super",
-    vendor: "Nvidia",
-    tag: "FREE · OpenCode",
-    agentCapable: true,
-    provider: "opencode",
-    free: true,
-  },
-  {
-    id: "opencode/mimo-v2.5-free",
-    label: "MiMo V2.5",
-    vendor: "MiMo",
-    tag: "FREE · OpenCode",
-    provider: "opencode",
-    free: true,
-  },
-  {
-    id: "opencode/minimax-m3-free",
-    label: "MiniMax M3",
-    vendor: "MiniMax",
-    tag: "FREE · OpenCode",
-    provider: "opencode",
-    free: true,
-  },
-  {
-    id: "opencode/big-pickle",
-    label: "Big Pickle",
-    vendor: "Stealth",
-    tag: "FREE · OpenCode",
     provider: "opencode",
     free: true,
   },
