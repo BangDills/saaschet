@@ -76,6 +76,15 @@ function sortByVendor(a: ModelInfo, b: ModelInfo): number {
 export async function GET() {
   const apiKey = process.env.DO_INFERENCE_API_KEY;
 
+  // Only these DO model IDs are shown in the selector.
+  const ALLOWED_DO_MODELS = new Set([
+    "deepseek-v4-pro",
+    "deepseek-4-flash",
+    "kimi-k2.6",
+    "kimi-k2.5",
+    "glm-5",
+  ]);
+
   // No key configured → return curated list.
   if (!apiKey) {
     return NextResponse.json({
@@ -101,9 +110,9 @@ export async function GET() {
     const json = (await res.json()) as DOModelListResponse;
     const items = json.data ?? [];
 
-    // Filter out non-chat models, map to our shape, tag agent-capable.
+    // Filter to ONLY whitelisted models.
     const live: ModelInfo[] = items
-      .filter((m) => !isNonChatModel(m.id))
+      .filter((m) => ALLOWED_DO_MODELS.has(m.id))
       .map((m) => {
         const vendor = vendorFromId(m.id);
         return {
@@ -122,7 +131,7 @@ export async function GET() {
       });
     }
 
-    // Merge: All free models first, then DigitalOcean live models.
+    // Merge: free models first, then whitelisted DO models.
     const merged = [...allFreeModels, ...live];
 
     return NextResponse.json({
