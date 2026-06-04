@@ -470,10 +470,16 @@ Workflow: read code → create files (batch) → install deps → test → commi
   }
 
   try {
+    // DeepSeek V4 Pro uses internal "reasoning" tokens that eat into the
+    // output budget. 16k gives enough room for reasoning + tool calls.
+    // Other models also benefit from a generous output limit for agent tasks.
+    const maxOutputTokens = tools ? 16384 : 8192;
+
     const result = streamText({
       model: provider.chat(resolvedModelId),
       system,
       messages: await convertToModelMessages(trimmedMessages),
+      maxOutputTokens,
       // Agent mode: enable tools + multi-step loop. Cap at 25 steps for
       // complex multi-file tasks while still preventing runaway loops.
       ...(tools
