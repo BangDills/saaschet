@@ -23,9 +23,8 @@ export type ChatInputProps = {
   /** repo selector state (owner/name or null) */
   repo: string | null;
   onRepoChange: (next: string | null) => void;
-  /** agent mode toggle (read+write tools) */
+  /** agent mode (auto-determined by model + repo) */
   agentMode: boolean;
-  onAgentModeChange: (next: boolean) => void;
   /** layout variant */
   variant?: "default" | "centered";
 };
@@ -54,7 +53,6 @@ export function ChatInput({
   repo,
   onRepoChange,
   agentMode,
-  onAgentModeChange,
 }: ChatInputProps) {
   const [value, setValue] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -153,22 +151,15 @@ export function ChatInput({
 
       {/* Bottom toolbar */}
       <div className="mt-2 flex items-center gap-1 px-1">
-        <ToolbarToggle
-          active={agentMode}
-          variant="violet"
-          onToggle={() => onAgentModeChange(!agentMode)}
-          title={
-            !repo
-              ? "Connect a repo first to enable Agent Mode"
-              : agentMode
-                ? "Agent Mode ON — the model can read, edit, and open PRs in the connected repo"
-                : "Enable Agent Mode (multi-step tool use)"
-          }
-          label={agentMode ? "Agent ON" : "Agent"}
-          disabled={!repo}
-        >
-          <Sparkles className="size-4" />
-        </ToolbarToggle>
+        {agentMode && (
+          <div
+            className="flex items-center gap-1 rounded-full bg-violet-500/15 px-2.5 py-1 text-xs font-medium text-violet-400"
+            title="Agent Mode is active — the model can read, edit, and open PRs in the connected repo"
+          >
+            <Sparkles className="size-3.5" />
+            Agent
+          </div>
+        )}
 
         <ToolbarToggle
           active={webSearch}

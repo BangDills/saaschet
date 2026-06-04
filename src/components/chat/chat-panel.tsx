@@ -52,7 +52,6 @@ export type ChatPanelProps = {
   repo: string | null;
   onRepoChange: (next: string | null) => void;
   agentMode: boolean;
-  onAgentModeChange: (next: boolean) => void;
   onAssistantFinish?: () => void;
 };
 
@@ -67,7 +66,6 @@ export function ChatPanel({
   repo,
   onRepoChange,
   agentMode,
-  onAgentModeChange,
   onAssistantFinish,
 }: ChatPanelProps) {
   // Refs for the transport body callback.
@@ -75,7 +73,7 @@ export function ChatPanel({
   const webSearchRef = React.useRef(webSearch);
   const conversationIdRef = React.useRef(conversationId);
   const repoRef = React.useRef(repo);
-  const agentModeRef = React.useRef(agentMode);
+
 
   React.useEffect(() => {
     modelIdRef.current = modelId;
@@ -89,9 +87,7 @@ export function ChatPanel({
   React.useEffect(() => {
     repoRef.current = repo;
   }, [repo]);
-  React.useEffect(() => {
-    agentModeRef.current = agentMode;
-  }, [agentMode]);
+
 
   const transport = React.useMemo(
     () =>
@@ -102,7 +98,6 @@ export function ChatPanel({
           model: modelIdRef.current,
           webSearch: webSearchRef.current,
           repo: repoRef.current,
-          agentMode: agentModeRef.current,
         }),
       }),
     [],
@@ -119,7 +114,7 @@ export function ChatPanel({
     // In agent mode the user wants to SEE tool calls happen in real time.
     // In chat mode the streaming text is hidden behind a pill so we can
     // throttle aggressively. Pick the rate at construction time.
-    experimental_throttle: agentModeRef.current ? 80 : 250,
+    experimental_throttle: agentMode ? 80 : 250,
   });
 
   const isStreaming = status === "submitted" || status === "streaming";
@@ -340,7 +335,6 @@ export function ChatPanel({
     repo,
     onRepoChange,
     agentMode,
-    onAgentModeChange,
   } as const;
 
   return (

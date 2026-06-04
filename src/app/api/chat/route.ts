@@ -12,6 +12,7 @@ import {
   stripProviderPrefix,
   PROVIDER_BASE_URLS,
   PROVIDER_ENV_KEYS,
+  isAgentCapable,
 } from "@/lib/chat/models";
 import { isKimiModel, kimiCompatFetch } from "@/lib/chat/kimi-compat";
 import { searchWeb, formatSearchResults } from "@/lib/chat/web-search";
@@ -121,9 +122,6 @@ type ChatRequestBody = {
   /** "owner/repo" — when set, the repo's README + manifest + tree is
    *  injected as context. Also persisted onto the conversation row. */
   repo?: string | null;
-  /** When true, the model gets access to GitHub read+write + web tools and
-   *  can call them in a multi-step loop. Requires `repo` to be set. */
-  agentMode?: boolean;
   /** Optional system prompt override. */
   system?: string;
 };
@@ -175,7 +173,10 @@ export async function POST(req: Request) {
   const wantsWebSearch = body.webSearch === true;
   const conversationId = body.conversationId;
   const repoSlug = body.repo?.trim() || null;
-  const wantsAgent = body.agentMode === true;
+
+  // Agent mode is automatic: if the model supports tool calling AND
+  // a repo is connected, agent tools are enabled.
+  const wantsAgent = isAgentCapable(modelId) && !!repoSlug;
 
   if (!conversationId) {
     return NextResponse.json(
