@@ -306,7 +306,7 @@ function ToolCallImpl({ part }: ToolCallProps) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs transition-colors"
+        className="flex w-full items-center gap-2.5 overflow-hidden px-3 py-2 text-left text-xs transition-colors"
       >
         {/* Expand chevron */}
         <span className="flex size-4 shrink-0 items-center justify-center">
@@ -334,7 +334,7 @@ function ToolCallImpl({ part }: ToolCallProps) {
         </span>
 
         {/* Label and path */}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 overflow-hidden">
           <span className="font-medium text-foreground">
             {isRunning ? meta.running : meta.done}
           </span>
@@ -343,11 +343,12 @@ function ToolCallImpl({ part }: ToolCallProps) {
           {(filePath || inputSummary) && (
             <span
               className={cn(
-                "ml-1.5 font-mono text-[11px]",
+                "ml-1.5 inline-block max-w-[45%] truncate align-bottom font-mono text-[11px]",
                 isRunning
                   ? "text-foreground/60"
                   : "text-muted-foreground",
               )}
+              title={filePath || inputSummary}
             >
               {filePath || inputSummary}
             </span>
@@ -366,9 +367,9 @@ function ToolCallImpl({ part }: ToolCallProps) {
             </span>
           )}
           {isDone && !isError && outputSummary && (
-            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-              <CheckCircle2 className="size-3 text-emerald-500" />
-              {outputSummary}
+            <span className="flex max-w-[50%] items-center gap-1 text-[10px] text-muted-foreground">
+              <CheckCircle2 className="size-3 shrink-0 text-emerald-500" />
+              <span className="truncate" title={outputSummary}>{outputSummary}</span>
             </span>
           )}
           {isDone && !isError && !outputSummary && (
