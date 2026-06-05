@@ -27,6 +27,10 @@ export type ChatInputProps = {
   agentMode: boolean;
   /** layout variant */
   variant?: "default" | "centered";
+  /** Whether user has connected their OpenAI account. */
+  openaiConnected?: boolean;
+  /** Callback to open the OpenAI connect dialog. */
+  onConnectOpenAI?: () => void;
 };
 
 /**
@@ -53,6 +57,8 @@ export function ChatInput({
   repo,
   onRepoChange,
   agentMode,
+  openaiConnected,
+  onConnectOpenAI,
 }: ChatInputProps) {
   const [value, setValue] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -145,6 +151,8 @@ export function ChatInput({
             value={modelId}
             onChange={onModelChange}
             agentMode={agentMode}
+            openaiConnected={openaiConnected}
+            onConnectOpenAI={onConnectOpenAI}
           />
         </div>
       </div>

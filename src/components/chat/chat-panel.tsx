@@ -9,6 +9,7 @@ import { ChatInput } from "./chat-input";
 import { StreamingPill } from "./streaming-pill";
 import { ProcessingIndicator } from "./processing-indicator";
 import { fireCreditsRefresh } from "@/components/dashboard/credits-meter";
+import { OpenAIConnectDialog } from "./openai-connect-dialog";
 
 function partsToText(parts: UIMessage["parts"] | undefined): string {
   if (!parts) return "";
@@ -106,6 +107,19 @@ export function ChatPanel({
     [],
   );
   /* eslint-enable react-hooks/refs */
+
+  // ── OpenAI connection state ──────────────────────────────────────────
+  const [openaiConnected, setOpenaiConnected] = React.useState(false);
+  const [showOpenAIDialog, setShowOpenAIDialog] = React.useState(false);
+
+  React.useEffect(() => {
+    fetch("/api/openai/status")
+      .then((r) => r.json())
+      .then((d: { connected?: boolean }) => {
+        if (d.connected) setOpenaiConnected(true);
+      })
+      .catch(() => {});
+  }, []);
 
   const { messages, setMessages, sendMessage, status, stop, error } = useChat({
     id: conversationId,
@@ -342,6 +356,8 @@ export function ChatPanel({
     repo,
     onRepoChange,
     agentMode,
+    openaiConnected,
+    onConnectOpenAI: () => setShowOpenAIDialog(true),
   } as const;
 
   return (
@@ -422,6 +438,13 @@ export function ChatPanel({
           <div className="shrink-0 pb-20 sm:pb-8" />
         </div>
       )}
+
+      {/* OpenAI Connect Dialog */}
+      <OpenAIConnectDialog
+        open={showOpenAIDialog}
+        onClose={() => setShowOpenAIDialog(false)}
+        onConnected={() => setOpenaiConnected(true)}
+      />
     </div>
   );
 }

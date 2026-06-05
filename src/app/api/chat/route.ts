@@ -32,6 +32,12 @@ import {
   recordSpend,
   OutOfCreditsError,
 } from "@/lib/credits/server";
+import {
+  refreshAccessToken,
+  needsRefresh,
+  expiresAt,
+} from "@/lib/openai/codex-auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -227,10 +233,10 @@ export async function POST(req: Request) {
 
   const userText = lastUserText(messages);
 
-  // ── Look up GitHub token (used by both context fetch + agent tools) ──
+  // ── Look up GitHub token + OpenAI tokens (used by context fetch + agent tools) ──
   const { data: profile } = await supabase
     .from("profiles")
-    .select("github_token")
+    .select("github_token, openai_access_token, openai_refresh_token, openai_token_expires")
     .eq("id", user.id)
     .maybeSingle();
   const githubToken: string | undefined = profile?.github_token ?? undefined;
@@ -457,17 +463,72 @@ Workflow: read code → create files (batch) → install deps → test → commi
   // Route to the correct provider based on model prefix.
   const providerName = resolveProvider(modelId);
   const resolvedModelId = stripProviderPrefix(modelId);
-  const envKey = PROVIDER_ENV_KEYS[providerName];
-  const resolvedKey = process.env[envKey];
-  const resolvedBaseURL =
-    process.env[`${envKey.replace('_API_KEY', '_BASE_URL')}`] ||
-    PROVIDER_BASE_URLS[providerName];
 
-  if (!resolvedKey) {
-    return NextResponse.json(
-      { error: `${envKey} is not set. Add it to your environment variables.` },
-      { status: 500 },
-    );
+  let resolvedKey: string | undefined;
+  let resolvedBaseURL: string;
+
+  if (providerName === "codex") {
+    // ── Codex: use the user's own ChatGPT OAuth token ──
+    if (!profile?.openai_access_token) {
+      return NextResponse.json(
+        {
+          error:
+            "This model requires you to connect your ChatGPT account. Go to Profile → Extensions to connect.",
+          code: "openai_auth_required",
+        },
+        { status: 403 },
+      );
+    }
+
+    let accessToken = profile.openai_access_token as string;
+    const refreshToken = (profile.openai_refresh_token as string) || "";
+    const tokenExpires = (profile.openai_token_expires as string) || null;
+
+    // Auto-refresh expired tokens
+    if (needsRefresh(tokenExpires) && refreshToken) {
+      try {
+        const newTokens = await refreshAccessToken(refreshToken);
+        accessToken = newTokens.access_token;
+
+        // Persist the new tokens
+        const admin = createAdminClient();
+        await admin
+          .from("profiles")
+          .update({
+            openai_access_token: newTokens.access_token,
+            openai_refresh_token: newTokens.refresh_token,
+            openai_token_expires: expiresAt(newTokens.expires_in),
+          })
+          .eq("id", user.id);
+      } catch (err) {
+        console.error("[chat] Codex token refresh failed:", err);
+        return NextResponse.json(
+          {
+            error:
+              "Your ChatGPT session has expired. Please reconnect in Profile → Extensions.",
+            code: "openai_auth_expired",
+          },
+          { status: 401 },
+        );
+      }
+    }
+
+    resolvedKey = accessToken;
+    resolvedBaseURL = PROVIDER_BASE_URLS[providerName];
+  } else {
+    // ── Standard provider: use server-side env key ──
+    const envKey = PROVIDER_ENV_KEYS[providerName];
+    resolvedKey = process.env[envKey];
+    resolvedBaseURL =
+      process.env[`${envKey.replace("_API_KEY", "_BASE_URL")}`] ||
+      PROVIDER_BASE_URLS[providerName];
+
+    if (!resolvedKey) {
+      return NextResponse.json(
+        { error: `${envKey} is not set. Add it to your environment variables.` },
+        { status: 500 },
+      );
+    }
   }
 
   const provider = createOpenAI({

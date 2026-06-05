@@ -4,6 +4,7 @@ import type { ModelInfo } from "./types";
  * Vendor display order in the model selector.
  */
 export const vendorOrder = [
+  "OpenAI",
   "DeepSeek",
   "Kimi",
   "GLM",
@@ -43,6 +44,9 @@ export function isNonChatModel(id: string): boolean {
  * good at code generation and understanding.
  */
 export const agentCapableModels = new Set([
+  // OpenAI Codex (ChatGPT subscription)
+  "codex/gpt-5.5",
+
   // DeepSeek
   "deepseek-v4-pro",
   "deepseek-4-flash",
@@ -70,10 +74,11 @@ export function isAgentCapable(modelId: string): boolean {
  * Models without a prefix route to DigitalOcean (the default provider).
  * ────────────────────────────────────────────────────────────────────── */
 
-type ProviderName = "digitalocean" | "opencode";
+type ProviderName = "digitalocean" | "opencode" | "codex";
 
 const PROVIDER_PREFIXES: Record<string, ProviderName> = {
   "opencode/": "opencode",
+  "codex/": "codex",
 };
 
 /** Resolve which provider a model routes through. */
@@ -96,12 +101,14 @@ export function stripProviderPrefix(modelId: string): string {
 export const PROVIDER_BASE_URLS: Record<ProviderName, string> = {
   digitalocean: "https://inference.do-ai.run/v1",
   opencode: "https://opencode.ai/zen/v1",
+  codex: "https://api.openai.com/v1",
 };
 
 /** Environment variable names for each provider's API key. */
 export const PROVIDER_ENV_KEYS: Record<ProviderName, string> = {
   digitalocean: "DO_INFERENCE_API_KEY",
   opencode: "OPENCODE_API_KEY",
+  codex: "", // Uses per-user OAuth tokens, not a server-side env key
 };
 
 /**
@@ -136,6 +143,17 @@ export const allFreeModels: ModelInfo[] = [
 export const defaultModels: ModelInfo[] = [
   // ── Free Models ──
   ...allFreeModels,
+
+  // ── OpenAI Codex (requires ChatGPT subscription OAuth) ──
+  {
+    id: "codex/gpt-5.5",
+    label: "GPT-5.5",
+    vendor: "OpenAI",
+    tag: "ChatGPT subscription",
+    agentCapable: true,
+    provider: "codex",
+    requiresAuth: true,
+  },
 
   // ── DigitalOcean Models ──
   {

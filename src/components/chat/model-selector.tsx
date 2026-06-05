@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, Check, Sparkles } from "lucide-react";
+import { ChevronDown, Check, Sparkles, Link, Lock } from "lucide-react";
 import type { ModelInfo } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +16,10 @@ export type ModelSelectorProps = {
   variant?: "compact" | "default";
   /** When true, non-agent-capable models are dimmed. */
   agentMode?: boolean;
+  /** Whether the user has connected their OpenAI account. */
+  openaiConnected?: boolean;
+  /** Callback when user clicks "Connect" on a requiresAuth model. */
+  onConnectOpenAI?: () => void;
 };
 
 export function ModelSelector({
@@ -24,6 +28,8 @@ export function ModelSelector({
   onChange,
   variant = "compact",
   agentMode = false,
+  openaiConnected = false,
+  onConnectOpenAI,
 }: ModelSelectorProps) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -105,6 +111,10 @@ export function ModelSelector({
                   <button
                     key={m.id}
                     onClick={() => {
+                      if (m.requiresAuth && !openaiConnected) {
+                        onConnectOpenAI?.();
+                        return;
+                      }
                       onChange(m.id);
                       setOpen(false);
                     }}
@@ -127,6 +137,19 @@ export function ModelSelector({
                           <span className="shrink-0 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
                             Free
                           </span>
+                        )}
+                        {m.requiresAuth && (
+                          openaiConnected ? (
+                            <span className="shrink-0 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                              <Link className="mr-0.5 inline size-2.5" />
+                              Connected
+                            </span>
+                          ) : (
+                            <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                              <Lock className="mr-0.5 inline size-2.5" />
+                              Connect
+                            </span>
+                          )
                         )}
                         {m.agentCapable && (
                           <Sparkles className="size-3 shrink-0 text-violet-500" />
