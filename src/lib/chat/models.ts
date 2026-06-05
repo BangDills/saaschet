@@ -101,7 +101,7 @@ export function stripProviderPrefix(modelId: string): string {
 export const PROVIDER_BASE_URLS: Record<ProviderName, string> = {
   digitalocean: "https://inference.do-ai.run/v1",
   opencode: "https://opencode.ai/zen/v1",
-  codex: "https://api.openai.com/v1",
+  codex: "https://chatgpt.com/backend-api/codex",
 };
 
 /** Environment variable names for each provider's API key. */

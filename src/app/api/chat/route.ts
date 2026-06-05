@@ -561,7 +561,9 @@ Workflow: read code → create files (batch) → install deps → test → commi
     const maxOutputTokens = tools ? 32768 : 8192;
 
     const result = streamText({
-      model: provider.chat(resolvedModelId),
+      model: providerName === "codex"
+        ? provider.responses(resolvedModelId)
+        : provider.chat(resolvedModelId),
       system,
       messages: await convertToModelMessages(trimmedMessages),
       maxOutputTokens,
