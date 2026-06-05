@@ -15,6 +15,14 @@ export async function codexCompatFetch(
   url: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  headers.set("OpenAI-Beta", "responses=v1");
+  headers.set("originator", "codex_cli_rs");
+  headers.set("Accept", "text/event-stream");
+  if (!headers.has("User-Agent")) {
+    headers.set("User-Agent", "codex_cli_rs/0.0.0");
+  }
+
   if (init?.body && typeof init.body === "string") {
     try {
       const body = JSON.parse(init.body) as Record<string, unknown>;
@@ -36,13 +44,44 @@ export async function codexCompatFetch(
         ? include
         : [...include, "reasoning.encrypted_content"];
 
+      // The Codex backend requires instructions as a top-level field. The
+      // OpenAI provider serializes system prompts as developer input items.
+      const input = Array.isArray(body.input) ? body.input : [];
+      if (typeof body.instructions !== "string" || !body.instructions.trim()) {
+        const instructionParts: string[] = [];
+        const nextInput: unknown[] = [];
+
+        for (const item of input) {
+          if (!isInputMessage(item)) {
+            nextInput.push(item);
+            continue;
+          }
+
+          if (item.role === "developer" || item.role === "system") {
+            const text = contentToText(item.content);
+            if (text) instructionParts.push(text);
+          } else {
+            nextInput.push(item);
+          }
+        }
+
+        if (instructionParts.length > 0) {
+          body.instructions = instructionParts.join("\n\n");
+          body.input = nextInput;
+        }
+      }
+
       init = {
         ...init,
+        headers,
         body: JSON.stringify(body),
       };
     } catch {
       // Not valid JSON — pass through unmodified
+      init = { ...init, headers };
     }
+  } else {
+    init = { ...init, headers };
   }
 
   const res = await fetch(url, init);
@@ -62,4 +101,31 @@ export async function codexCompatFetch(
   }
 
   return res;
+}
+
+type InputMessage = {
+  role?: unknown;
+  content?: unknown;
+};
+
+function isInputMessage(value: unknown): value is InputMessage {
+  return typeof value === "object" && value !== null && "role" in value;
+}
+
+function contentToText(content: unknown): string {
+  if (typeof content === "string") return content.trim();
+
+  if (!Array.isArray(content)) return "";
+
+  return content
+    .map((part) => {
+      if (typeof part === "string") return part;
+      if (typeof part !== "object" || part === null) return "";
+
+      const maybeText = (part as { text?: unknown }).text;
+      return typeof maybeText === "string" ? maybeText : "";
+    })
+    .filter(Boolean)
+    .join("\n")
+    .trim();
 }
