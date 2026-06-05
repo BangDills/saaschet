@@ -504,12 +504,14 @@ Workflow: read code → create files (batch) → install deps → test → commi
       system,
       messages: await convertToModelMessages(trimmedMessages),
       maxOutputTokens,
-      // Agent mode: enable tools + multi-step loop. Cap at 25 steps for
-      // complex multi-file tasks while still preventing runaway loops.
+      // Retry with exponential backoff for rate limits (DO imposes per-min limits).
+      maxRetries: 5,
+      // Agent mode: enable tools + multi-step loop. Cap at 15 steps to stay
+      // within rate limits while still handling multi-file tasks.
       ...(tools
         ? {
             tools,
-            stopWhen: stepCountIs(25),
+            stopWhen: stepCountIs(15),
             toolCallStreaming: true,
           }
         : {}),
