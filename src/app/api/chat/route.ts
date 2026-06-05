@@ -14,6 +14,7 @@ import {
   PROVIDER_ENV_KEYS,
   isAgentCapable,
 } from "@/lib/chat/models";
+import { codexCompatFetch } from "@/lib/chat/codex-compat";
 import { needsToolCallTypeFix, toolCallCompatFetch } from "@/lib/chat/kimi-compat";
 import { searchWeb, formatSearchResults } from "@/lib/chat/web-search";
 import { deriveTitle } from "@/lib/chat/storage";
@@ -534,9 +535,13 @@ Workflow: read code → create files (batch) → install deps → test → commi
   const provider = createOpenAI({
     baseURL: resolvedBaseURL,
     apiKey: resolvedKey,
-    // Kimi K2.x and GLM-5 send type:"" instead of type:"function" in
-    // tool_call chunks. Our compat fetch patches the SSE stream on the fly.
-    ...(needsToolCallTypeFix(resolvedModelId) ? { fetch: toolCallCompatFetch } : {}),
+    // Codex has a stricter Responses API contract than api.openai.com.
+    // Kimi K2.x and GLM-5 need stream patching for malformed tool calls.
+    ...(providerName === "codex"
+      ? { fetch: codexCompatFetch }
+      : needsToolCallTypeFix(resolvedModelId)
+        ? { fetch: toolCallCompatFetch }
+        : {}),
   });
 
   // ── Context trimming ───────────────────────────────────────────────
@@ -566,7 +571,19 @@ Workflow: read code → create files (batch) → install deps → test → commi
         : provider.chat(resolvedModelId),
       system,
       messages: await convertToModelMessages(trimmedMessages),
-      maxOutputTokens,
+      ...(providerName === "codex" ? {} : { maxOutputTokens }),
+      ...(providerName === "codex"
+        ? {
+            providerOptions: {
+              openai: {
+                store: false,
+                reasoningEffort: "medium",
+                reasoningSummary: "auto",
+                forceReasoning: true,
+              },
+            },
+          }
+        : {}),
       // Retry with exponential backoff for rate limits (DO imposes per-min limits).
       maxRetries: 5,
       // Agent mode: enable tools + multi-step loop. Cap at 15 steps to stay
