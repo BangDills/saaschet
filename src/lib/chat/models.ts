@@ -133,6 +133,22 @@ export const allFreeModels: ModelInfo[] = [
 ];
 
 /**
+ * OpenAI Codex models — require the user to connect their ChatGPT account
+ * via OAuth Device Code flow. Always included in the model list.
+ */
+export const codexModels: ModelInfo[] = [
+  {
+    id: "codex/gpt-5.5",
+    label: "GPT-5.5",
+    vendor: "OpenAI",
+    tag: "ChatGPT subscription",
+    agentCapable: true,
+    provider: "codex",
+    requiresAuth: true,
+  },
+];
+
+/**
  * Curated default model catalog for DigitalOcean Serverless Inference.
  *
  * The full live list is fetched at runtime from /api/models, which proxies
@@ -145,15 +161,7 @@ export const defaultModels: ModelInfo[] = [
   ...allFreeModels,
 
   // ── OpenAI Codex (requires ChatGPT subscription OAuth) ──
-  {
-    id: "codex/gpt-5.5",
-    label: "GPT-5.5",
-    vendor: "OpenAI",
-    tag: "ChatGPT subscription",
-    agentCapable: true,
-    provider: "codex",
-    requiresAuth: true,
-  },
+  ...codexModels,
 
   // ── DigitalOcean Models ──
   {

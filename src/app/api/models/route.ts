@@ -4,6 +4,7 @@ import {
   vendorOrder,
   isAgentCapable,
   allFreeModels,
+  codexModels,
 } from "@/lib/chat/models";
 import type { ModelInfo } from "@/lib/chat/types";
 
@@ -130,8 +131,8 @@ export async function GET() {
       });
     }
 
-    // Merge: free models first, then whitelisted DO models.
-    const merged = [...allFreeModels, ...live];
+    // Merge: codex models + free models + whitelisted DO models.
+    const merged = [...codexModels, ...allFreeModels, ...live];
 
     return NextResponse.json({
       models: merged.sort(sortByVendor),
