@@ -25,8 +25,8 @@ import { createSerenaTools } from "@/lib/serena/tools";
 export type AgentContext = {
   /** "owner/repo" — fixed for the entire turn */
   repoSlug: string;
-  /** GitHub access token from profiles.github_token */
-  githubToken: string;
+  /** GitHub access token from profiles.github_token. Optional for public read-only repo access. */
+  githubToken?: string;
   /** Tavily key; null disables the web_search tool */
   tavilyKey: string | null;
   /** Context7 key; null disables Context7 documentation tools */
@@ -91,7 +91,7 @@ export function createAgentTools(ctx: AgentContext) {
    *  3. **Repo has commits and we already created the work branch
    *     earlier this turn** — fast path, just return.
    */
-  async function ensureWorkBranch(): Promise<{
+  async function ensureWorkBranch(writeToken: string): Promise<{
     branch: string;
     base: string;
     isEmptyRepo: boolean;
@@ -102,7 +102,7 @@ export function createAgentTools(ctx: AgentContext) {
       return { branch: ctx.workBranch, base, isEmptyRepo: false };
     }
 
-    const baseSha = await getBranchSha(owner, name, base, ctx.githubToken);
+    const baseSha = await getBranchSha(owner, name, base, writeToken);
 
     if (baseSha === null) {
       // Empty repo — write directly to the default branch on first
@@ -115,12 +115,12 @@ export function createAgentTools(ctx: AgentContext) {
       return { branch: base, base, isEmptyRepo: true };
     }
 
-    await createBranch(owner, name, ctx.workBranch, baseSha, ctx.githubToken);
+    await createBranch(owner, name, ctx.workBranch, baseSha, writeToken);
     ctx.branchesCreated.add(ctx.workBranch);
     return { branch: ctx.workBranch, base, isEmptyRepo: false };
   }
 
-  return {
+  const readTools = {
     /* ── READ tools ─────────────────────────────────────────────────── */
 
     list_files: tool({
@@ -297,6 +297,16 @@ export function createAgentTools(ctx: AgentContext) {
           allowWriteTools: ctx.serenaAllowWriteTools,
         })
       : {}),
+  };
+
+  if (!ctx.githubToken) {
+    return readTools;
+  }
+
+  const writeToken = ctx.githubToken;
+
+  return {
+    ...readTools,
 
     /* ── WRITE tools (operate on workBranch, never main) ───────────── */
 
@@ -338,7 +348,7 @@ export function createAgentTools(ctx: AgentContext) {
         content: string;
         commit_message: string;
       }) => {
-        const { branch, isEmptyRepo } = await ensureWorkBranch();
+        const { branch, isEmptyRepo } = await ensureWorkBranch(writeToken);
         const result = await putFile(
           owner,
           name,
@@ -346,7 +356,7 @@ export function createAgentTools(ctx: AgentContext) {
           content,
           branch,
           commit_message,
-          ctx.githubToken,
+          writeToken,
         );
         return {
           path,
@@ -426,7 +436,7 @@ export function createAgentTools(ctx: AgentContext) {
             name,
             path,
             baseRef,
-            ctx.githubToken,
+            writeToken,
           );
         } catch (err) {
           return {
@@ -459,7 +469,7 @@ export function createAgentTools(ctx: AgentContext) {
         }
 
         const newContent = original.content.replace(find, replace);
-        const { branch, isEmptyRepo } = await ensureWorkBranch();
+        const { branch, isEmptyRepo } = await ensureWorkBranch(writeToken);
         const result = await putFile(
           owner,
           name,
@@ -467,7 +477,7 @@ export function createAgentTools(ctx: AgentContext) {
           newContent,
           branch,
           commit_message,
-          ctx.githubToken,
+          writeToken,
         );
 
         return {
@@ -529,7 +539,7 @@ export function createAgentTools(ctx: AgentContext) {
           base,
           title,
           body,
-          ctx.githubToken,
+          writeToken,
         );
         return {
           url: pr.url,

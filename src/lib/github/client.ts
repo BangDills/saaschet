@@ -561,7 +561,7 @@ export async function fetchRecursiveTree(
   owner: string,
   name: string,
   ref: string,
-  token: string,
+  token?: string,
   options: { maxDepth?: number; maxEntries?: number; subPath?: string } = {},
 ): Promise<{ entries: GitHubFile[]; truncated: boolean }> {
   const { maxDepth = 3, maxEntries = 300, subPath = "" } = options;

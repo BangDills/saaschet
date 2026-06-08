@@ -463,16 +463,6 @@ export async function POST(req: Request) {
     .maybeSingle();
   const githubToken: string | undefined = profile?.github_token ?? undefined;
 
-  if (wantsAgent && !githubToken) {
-    return NextResponse.json(
-      {
-        error:
-          "Agent Mode requires you to sign in with GitHub so I can read and write to the repo on your behalf.",
-      },
-      { status: 400 },
-    );
-  }
-
   // ── Pre-flight: daily credit check ───────────────────────────────────
   const turnKind: "chat" | "agent" = wantsAgent ? "agent" : "chat";
   try {
@@ -611,7 +601,7 @@ export async function POST(req: Request) {
   const githubTools = wantsAgent
     ? createAgentTools({
         repoSlug: repoSlug!,
-        githubToken: githubToken!,
+        githubToken,
         tavilyKey: process.env.TAVILY_API_KEY ?? null,
         context7Key: process.env.CONTEXT7_API_KEY ?? null,
         serenaUrl: process.env.SERENA_MCP_URL ?? null,
@@ -623,7 +613,12 @@ export async function POST(req: Request) {
       })
     : undefined;
 
-  if (wantsAgent && workBranch) {
+  if (wantsAgent && !githubToken) {
+    system += `\n\n## GitHub Access Mode
+The connected repository is being accessed without GitHub authentication. You may use read-only repository tools for public repositories. You cannot write files, create branches, run sandbox operations, or open pull requests. For private repositories or code changes, ask the user to connect GitHub.`;
+  }
+
+  if (wantsAgent && githubToken && workBranch) {
     system += `\n\n## Recovery & Continuation
 All GitHub write tools operate on the same work branch: \`${workBranch}\`.
 If a model attempt is interrupted by provider rate limits, the next attempt must inspect the current repo/branch state and continue from the work already completed instead of starting over.`;
@@ -633,7 +628,7 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
   let sandboxTools: ReturnType<typeof createSandboxTools> | undefined;
   const daytonaKey = process.env.DAYTONA_API_KEY;
 
-  if (wantsAgent && daytonaKey) {
+  if (wantsAgent && githubToken && daytonaKey) {
     try {
       const daytona = getDaytonaClient();
 
@@ -661,7 +656,7 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
       sandboxTools = createSandboxTools({
         sandbox,
         repoSlug: repoSlug!,
-        githubToken: githubToken!,
+        githubToken,
         repoCloned: false,
       });
 
