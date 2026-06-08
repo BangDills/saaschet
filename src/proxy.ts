@@ -8,12 +8,9 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public assets
-     * - api routes (auth check is done inline where needed)
+     * Match request paths except for static/image/favicon/public asset files.
+     * API routes are intentionally included so Supabase SSR can refresh
+     * session cookies consistently for route handlers too.
      *
      * Feel free to relax further if you need.
      */

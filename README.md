@@ -87,7 +87,7 @@ Copy `.env.example` to `.env.local` and fill in your keys:
 | `SERENA_ALLOW_WRITE_TOOLS` | Optional | Set `true` only to expose Serena write/execute tools; defaults to read-only semantic tools |
 | `GITHUB_TOKEN` | Optional | GitHub PAT for agent mode repo access |
 | `DAYTONA_API_KEY` | Optional | Daytona API key for live sandbox execution |
-| `DAYTONA_SERVER_URL` | Optional | Daytona server URL |
+| `DAYTONA_SERVER_URL` | Optional | Daytona server URL (`DAYTONA_API_URL` is also accepted as a legacy alias) |
 | `DAYTONA_TARGET` | Optional | Daytona target region |
 
 ## 📁 Project Structure

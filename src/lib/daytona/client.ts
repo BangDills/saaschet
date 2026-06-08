@@ -5,6 +5,7 @@ let _client: Daytona | null = null;
 /**
  * Returns a singleton Daytona client.
  * Requires DAYTONA_API_KEY env var.
+ * Uses DAYTONA_SERVER_URL when set, with DAYTONA_API_URL as a legacy alias.
  */
 export function getDaytonaClient(): Daytona {
   if (_client) return _client;
@@ -16,7 +17,10 @@ export function getDaytonaClient(): Daytona {
 
   _client = new Daytona({
     apiKey,
-    apiUrl: process.env.DAYTONA_API_URL || "https://app.daytona.io/api",
+    apiUrl:
+      process.env.DAYTONA_SERVER_URL ||
+      process.env.DAYTONA_API_URL ||
+      "https://app.daytona.io/api",
     target: (process.env.DAYTONA_TARGET as "us" | "eu") || "us",
   });
 

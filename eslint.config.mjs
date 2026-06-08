@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Legacy cPanel entrypoint and accidental nested repo copy are not part of
+    // the Vercel app lint target.
+    "server.js",
+    "saaschet/**",
   ]),
 ]);
 
