@@ -12,6 +12,8 @@ import {
   parseRepoSlug,
 } from "@/lib/github/client";
 import { searchWeb, formatSearchResults } from "@/lib/chat/web-search";
+import { createContext7Tools } from "@/lib/context7/tools";
+import { createSerenaTools } from "@/lib/serena/tools";
 
 /**
  * Agent context — injected at construction time, not at tool-call time.
@@ -27,6 +29,14 @@ export type AgentContext = {
   githubToken: string;
   /** Tavily key; null disables the web_search tool */
   tavilyKey: string | null;
+  /** Context7 key; null disables Context7 documentation tools */
+  context7Key: string | null;
+  /** Serena MCP URL; null disables Serena semantic code tools */
+  serenaUrl: string | null;
+  /** Optional bearer token for a protected Serena MCP bridge */
+  serenaAuthToken: string | null;
+  /** Enable Serena write/execute tools. Default should stay false. */
+  serenaAllowWriteTools: boolean;
   /** Branch name to write to. Created on first write call. */
   workBranch: string;
   /** Tracks branches we've created within this run (idempotent). */
@@ -279,6 +289,15 @@ export function createAgentTools(ctx: AgentContext) {
       },
     }),
 
+    ...createContext7Tools({ context7Key: ctx.context7Key }),
+    ...(ctx.serenaUrl
+      ? createSerenaTools({
+          serverUrl: ctx.serenaUrl,
+          authToken: ctx.serenaAuthToken,
+          allowWriteTools: ctx.serenaAllowWriteTools,
+        })
+      : {}),
+
     /* ── WRITE tools (operate on workBranch, never main) ───────────── */
 
     write_file: tool({
@@ -529,6 +548,10 @@ export const AGENT_TOOL_NAMES = [
   "read_file",
   "search_code",
   "web_search",
+  "context7_search_library",
+  "context7_get_docs",
+  "serena_list_tools",
+  "serena_call_tool",
   "write_file",
   "edit_file",
   "create_pull_request",

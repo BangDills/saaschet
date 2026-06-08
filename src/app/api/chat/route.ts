@@ -4,7 +4,12 @@ import {
   streamText,
   convertToModelMessages,
   stepCountIs,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  APICallError,
+  RetryError,
   type UIMessage,
+  type UIMessageChunk,
 } from "ai";
 import {
   defaultModelId,
@@ -27,6 +32,7 @@ import {
 } from "@/lib/agent/tools";
 import { getDaytonaClient } from "@/lib/daytona/client";
 import { createSandboxTools } from "@/lib/daytona/sandbox-tools";
+import { createContext7Tools } from "@/lib/context7/tools";
 import type { Sandbox } from "@daytona/sdk";
 import {
   assertCanSpend,
@@ -88,7 +94,7 @@ const DEFAULT_SYSTEM = `You are **SaaSchet AI**, an advanced, intelligent assist
 - Track user preferences and adapt your style accordingly.
 - If the user corrects you, learn from it within the conversation.`;
 
-const AGENT_SYSTEM = `You are **SaaSchet AI Agent** — an advanced AI coding assistant with access to GitHub tools and web search. You work autonomously to read, analyze, write, and modify code in the user's repository.
+const AGENT_SYSTEM = `You are **SaaSchet AI Agent** — an advanced AI coding assistant with access to GitHub tools, Serena semantic code tools, Context7 documentation lookup, and web search. You work autonomously to read, analyze, write, and modify code in the user's repository.
 
 ## Identity & Mindset
 - You are a senior-level software engineer and pair programmer.
@@ -101,8 +107,10 @@ const AGENT_SYSTEM = `You are **SaaSchet AI Agent** — an advanced AI coding as
 2. **Read before writing**: ALWAYS \`read_file\` before modifying. Never invent paths or content.
 3. **Prefer surgical edits**: For small changes (rename, fix, add import), use \`edit_file\` instead of \`write_file\`. It's cheaper and safer.
 4. **Use \`write_file\`** only for new files or complete rewrites.
-5. **Search the web** when you need up-to-date info, docs, or unfamiliar APIs.
-6. **Commit logically**: Group related changes under one descriptive commit message (conventional-commit style).
+5. **Use Serena semantic tools** for codebase navigation when available: list Serena tools first, then use symbol overview, find symbol, and find references before large refactors. Serena write/execute tools may be disabled; GitHub write tools remain the primary safe write path.
+6. **Use Context7 for library/framework documentation** when you need current API details, setup steps, migration guides, or version-specific behavior. Call \`context7_search_library\` first unless you already know the exact ID, then \`context7_get_docs\`.
+7. **Search the web** when Context7 is unavailable or the task needs current information outside library docs.
+8. **Commit logically**: Group related changes under one descriptive commit message (conventional-commit style).
 
 ## Branching & PRs
 - Writes go to a NEW feature branch automatically — never to main.
@@ -129,6 +137,8 @@ When the user asks you to build a web page, app, tool, or any project:
 - Add a .gitignore if relevant.
 - **Do NOT put everything in a single file.** Separation of concerns is mandatory.
 - Think like a senior engineer: write code you'd be proud to show in a code review.
+- Do not stop after describing what you are about to do. For action requests, actually use the available tools to read, write/edit files, and open a PR when appropriate.
+- If you have not called any repo/sandbox tool yet, the task is not done. Continue with tool execution instead of ending with a plan or preface.
 
 ## Communication
 - After finishing, give a clear summary: what you did, why, and the PR URL.
@@ -141,6 +151,14 @@ When the user asks you to build a web page, app, tool, or any project:
 - Don't re-read files you've already seen unless the user asks for a fresh look.
 - Reference your earlier findings when making decisions.
 - If the user provides feedback, adapt your approach accordingly.`;
+
+const DEFAULT_MAX_RETRIES = 0;
+const MAX_ALLOWED_RETRIES = 2;
+const DEFAULT_LIMIT_RECOVERY_DELAY_MS = 20_000;
+const MAX_LIMIT_RECOVERY_DELAY_MS = 60_000;
+const DEFAULT_LIMIT_RECOVERY_RETRIES = 1;
+const MAX_LIMIT_RECOVERY_RETRIES = 2;
+const MAX_AGENT_STALL_RECOVERIES = 2;
 
 type ChatRequestBody = {
   messages: UIMessage[];
@@ -174,6 +192,208 @@ function lastUserText(messages: UIMessage[]): string {
   return "";
 }
 
+function chatMaxRetries(): number {
+  const raw = process.env.AI_CHAT_MAX_RETRIES;
+  if (!raw) return DEFAULT_MAX_RETRIES;
+
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 0) return DEFAULT_MAX_RETRIES;
+
+  return Math.min(parsed, MAX_ALLOWED_RETRIES);
+}
+
+function envInteger(
+  key: string,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const raw = process.env[key];
+  if (!raw) return fallback;
+
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed)) return fallback;
+
+  return Math.min(Math.max(parsed, min), max);
+}
+
+function limitRecoveryDelayMs(): number {
+  return envInteger(
+    "AI_AGENT_LIMIT_RECOVERY_DELAY_MS",
+    DEFAULT_LIMIT_RECOVERY_DELAY_MS,
+    0,
+    MAX_LIMIT_RECOVERY_DELAY_MS,
+  );
+}
+
+function limitRecoveryRetries(): number {
+  return envInteger(
+    "AI_AGENT_LIMIT_RECOVERY_RETRIES",
+    DEFAULT_LIMIT_RECOVERY_RETRIES,
+    0,
+    MAX_LIMIT_RECOVERY_RETRIES,
+  );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function findApiCallError(err: unknown, seen = new Set<unknown>()): APICallError | null {
+  if (!err || seen.has(err)) return null;
+  seen.add(err);
+
+  if (APICallError.isInstance(err)) return err;
+
+  if (RetryError.isInstance(err)) {
+    const fromLast = findApiCallError(err.lastError, seen);
+    if (fromLast) return fromLast;
+
+    for (const retryErr of err.errors) {
+      const found = findApiCallError(retryErr, seen);
+      if (found) return found;
+    }
+  }
+
+  if (typeof err === "object" && "cause" in err) {
+    return findApiCallError((err as { cause?: unknown }).cause, seen);
+  }
+
+  return null;
+}
+
+function retryAfterSeconds(headers: Record<string, string> | undefined): number | null {
+  if (!headers) return null;
+
+  const retryAfterMs = headers["retry-after-ms"];
+  if (retryAfterMs) {
+    const ms = Number(retryAfterMs);
+    if (Number.isFinite(ms) && ms > 0) return Math.ceil(ms / 1000);
+  }
+
+  const retryAfter = headers["retry-after"];
+  if (!retryAfter) return null;
+
+  const seconds = Number(retryAfter);
+  if (Number.isFinite(seconds) && seconds > 0) return Math.ceil(seconds);
+
+  const dateMs = Date.parse(retryAfter);
+  if (!Number.isNaN(dateMs)) {
+    return Math.max(1, Math.ceil((dateMs - Date.now()) / 1000));
+  }
+
+  return null;
+}
+
+function formatInferenceError(err: unknown): { message: string; status: number; code: string } {
+  const apiErr = findApiCallError(err);
+  const rawMessage = err instanceof Error ? err.message : "Unknown inference error";
+  const lowerMessage = rawMessage.toLowerCase();
+  const statusCode = apiErr?.statusCode;
+
+  if (
+    statusCode === 429 ||
+    lowerMessage.includes("rate limit") ||
+    lowerMessage.includes("quota") ||
+    lowerMessage.includes("limit exceeded")
+  ) {
+    const wait = retryAfterSeconds(apiErr?.responseHeaders);
+    return {
+      message: wait
+        ? `Model provider rate limit reached. Please wait about ${wait} seconds, then try again.`
+        : "Model provider rate limit reached. Please wait a moment, then try again.",
+      status: 429,
+      code: "provider_rate_limited",
+    };
+  }
+
+  if (statusCode === 401 || statusCode === 403) {
+    return {
+      message: "Model provider rejected the API credentials. Check the selected model's API key or reconnect the account.",
+      status: statusCode,
+      code: "provider_auth_failed",
+    };
+  }
+
+  if (statusCode && statusCode >= 500) {
+    return {
+      message: "Model provider is temporarily unavailable. Please try again shortly.",
+      status: 502,
+      code: "provider_unavailable",
+    };
+  }
+
+  return {
+    message: `Inference failed: ${rawMessage}`,
+    status: 502,
+    code: "inference_failed",
+  };
+}
+
+function isRateLimitFailure(err: unknown): boolean {
+  return formatInferenceError(err).code === "provider_rate_limited";
+}
+
+function isRateLimitMessage(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("rate limit") ||
+    lower.includes("rate-limit") ||
+    lower.includes("quota") ||
+    lower.includes("limit reached") ||
+    lower.includes("limit exceeded")
+  );
+}
+
+function writeRecoveryNote(
+  writer: { write: (part: UIMessageChunk) => void },
+  text: string,
+) {
+  const id = `recovery-${crypto.randomUUID()}`;
+  writer.write({ type: "text-start", id });
+  writer.write({ type: "text-delta", id, delta: text });
+  writer.write({ type: "text-end", id });
+}
+
+function looksLikeActionRequest(text: string): boolean {
+  const lower = text.toLowerCase();
+  return [
+    "buat",
+    "bikin",
+    "ubah",
+    "edit",
+    "fix",
+    "perbaiki",
+    "pasang",
+    "tambah",
+    "implement",
+    "create",
+    "build",
+    "update",
+    "refactor",
+    "generate",
+    "deploy",
+  ].some((word) => lower.includes(word));
+}
+
+function looksLikeStalledAgentText(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return true;
+  if (trimmed.endsWith(":")) return true;
+
+  const lower = trimmed.toLowerCase();
+  return [
+    "sekarang saya akan",
+    "sekarang buat",
+    "akan saya",
+    "i will",
+    "i'll",
+    "next,",
+    "now i",
+    "let me",
+  ].some((phrase) => lower.includes(phrase));
+}
+
 export async function POST(req: Request) {
   // ── Auth ─────────────────────────────────────────────────────────────
   const supabase = await createClient();
@@ -186,6 +406,7 @@ export async function POST(req: Request) {
       { status: 401 },
     );
   }
+  const userId = user.id;
 
   // ── Inference key check ──────────────────────────────────────────────
   // Keys are resolved dynamically per-provider below.
@@ -238,7 +459,7 @@ export async function POST(req: Request) {
   const { data: profile } = await supabase
     .from("profiles")
     .select("github_token, openai_access_token, openai_refresh_token, openai_token_expires")
-    .eq("id", user.id)
+    .eq("id", userId)
     .maybeSingle();
   const githubToken: string | undefined = profile?.github_token ?? undefined;
 
@@ -255,7 +476,7 @@ export async function POST(req: Request) {
   // ── Pre-flight: daily credit check ───────────────────────────────────
   const turnKind: "chat" | "agent" = wantsAgent ? "agent" : "chat";
   try {
-    await assertCanSpend(user.id, turnKind);
+    await assertCanSpend(userId, turnKind);
   } catch (err) {
     if (err instanceof OutOfCreditsError) {
       return NextResponse.json(
@@ -280,7 +501,7 @@ export async function POST(req: Request) {
   if (!existingConv) {
     const { error: insertErr } = await supabase.from("conversations").insert({
       id: conversationId,
-      user_id: user.id,
+      user_id: userId,
       title: deriveTitle(userText),
       model_id: modelId,
       github_repo: repoSlug,
@@ -323,7 +544,7 @@ export async function POST(req: Request) {
     const { data: recentConvs } = await supabase
       .from("conversations")
       .select("id, title, updated_at")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .neq("id", conversationId)
       .order("updated_at", { ascending: false })
       .limit(10);
@@ -385,16 +606,28 @@ export async function POST(req: Request) {
 
   // ── Build agent tools (only when wantsAgent) ─────────────────────────
   let sandbox: Sandbox | null = null;
+  const workBranch = wantsAgent ? generateWorkBranchName() : null;
 
   const githubTools = wantsAgent
     ? createAgentTools({
         repoSlug: repoSlug!,
         githubToken: githubToken!,
         tavilyKey: process.env.TAVILY_API_KEY ?? null,
-        workBranch: generateWorkBranchName(),
+        context7Key: process.env.CONTEXT7_API_KEY ?? null,
+        serenaUrl: process.env.SERENA_MCP_URL ?? null,
+        serenaAuthToken: process.env.SERENA_MCP_TOKEN ?? null,
+        serenaAllowWriteTools:
+          process.env.SERENA_ALLOW_WRITE_TOOLS === "true",
+        workBranch: workBranch!,
         branchesCreated: new Set(),
       })
     : undefined;
+
+  if (wantsAgent && workBranch) {
+    system += `\n\n## Recovery & Continuation
+All GitHub write tools operate on the same work branch: \`${workBranch}\`.
+If a model attempt is interrupted by provider rate limits, the next attempt must inspect the current repo/branch state and continue from the work already completed instead of starting over.`;
+  }
 
   // Optionally add Daytona sandbox tools (code execution, terminal)
   let sandboxTools: ReturnType<typeof createSandboxTools> | undefined;
@@ -455,18 +688,30 @@ Workflow: read code → create files (batch) → install deps → test → commi
     }
   }
 
-  // Merge all tools
+  const context7Tools =
+    !wantsAgent && isAgentCapable(modelId)
+      ? createContext7Tools({
+          context7Key: process.env.CONTEXT7_API_KEY ?? null,
+        })
+      : undefined;
+
+  if (context7Tools) {
+    system += `\n\n## Context7 Documentation Lookup
+You have Context7 tools available for current library/framework documentation.
+When the user asks about library APIs, setup, migrations, or version-specific behavior, use \`context7_search_library\` then \`context7_get_docs\` before answering.`;
+  }
+
+  // Merge all tools. Agent Mode includes GitHub tools, Context7, and optional
+  // sandbox tools. Chat mode can still use Context7 without a connected repo.
   const tools = githubTools
     ? { ...githubTools, ...(sandboxTools || {}) }
-    : undefined;
+    : context7Tools;
 
   // ── Stream the model response ────────────────────────────────────────
   // Route to the correct provider based on model prefix.
   const providerName = resolveProvider(modelId);
-  const resolvedModelId = stripProviderPrefix(modelId);
 
   let resolvedKey: string | undefined;
-  let resolvedBaseURL: string;
 
   if (providerName === "codex") {
     // ── Codex: use the user's own ChatGPT OAuth token ──
@@ -500,7 +745,7 @@ Workflow: read code → create files (batch) → install deps → test → commi
             openai_refresh_token: newTokens.refresh_token,
             openai_token_expires: expiresAt(newTokens.expires_in),
           })
-          .eq("id", user.id);
+          .eq("id", userId);
       } catch (err) {
         console.error("[chat] Codex token refresh failed:", err);
         return NextResponse.json(
@@ -515,14 +760,10 @@ Workflow: read code → create files (batch) → install deps → test → commi
     }
 
     resolvedKey = accessToken;
-    resolvedBaseURL = PROVIDER_BASE_URLS[providerName];
   } else {
     // ── Standard provider: use server-side env key ──
     const envKey = PROVIDER_ENV_KEYS[providerName];
     resolvedKey = process.env[envKey];
-    resolvedBaseURL =
-      process.env[`${envKey.replace("_API_KEY", "_BASE_URL")}`] ||
-      PROVIDER_BASE_URLS[providerName];
 
     if (!resolvedKey) {
       return NextResponse.json(
@@ -532,17 +773,74 @@ Workflow: read code → create files (batch) → install deps → test → commi
     }
   }
 
-  const provider = createOpenAI({
-    baseURL: resolvedBaseURL,
-    apiKey: resolvedKey,
-    // Codex has a stricter Responses API contract than api.openai.com.
-    // Kimi K2.x and GLM-5 need stream patching for malformed tool calls.
-    ...(providerName === "codex"
-      ? { fetch: codexCompatFetch }
-      : needsToolCallTypeFix(resolvedModelId)
-        ? { fetch: toolCallCompatFetch }
-        : {}),
-  });
+  function canUseModel(candidateModelId: string): boolean {
+    const candidateProvider = resolveProvider(candidateModelId);
+    if (candidateProvider === "codex") {
+      return candidateModelId === modelId && !!resolvedKey;
+    }
+
+    const envKey = PROVIDER_ENV_KEYS[candidateProvider];
+    return !!process.env[envKey];
+  }
+
+  function agentAttemptModelIds(): string[] {
+    if (!tools) return [modelId];
+
+    const candidates = [
+      modelId,
+      "opencode/deepseek-v4-flash-free",
+      "deepseek-4-flash",
+      "deepseek-v4-pro",
+      "kimi-k2.6",
+      "kimi-k2.5",
+      "glm-5",
+    ];
+
+    return Array.from(new Set(candidates)).filter(
+      (candidate) => isAgentCapable(candidate) && canUseModel(candidate),
+    );
+  }
+
+  function createProviderForModel(candidateModelId: string) {
+    const candidateProvider = resolveProvider(candidateModelId);
+    const candidateResolvedModelId = stripProviderPrefix(candidateModelId);
+
+    let candidateKey: string | undefined;
+    let candidateBaseURL: string;
+
+    if (candidateProvider === "codex") {
+      candidateKey = resolvedKey;
+      candidateBaseURL = PROVIDER_BASE_URLS[candidateProvider];
+    } else {
+      const envKey = PROVIDER_ENV_KEYS[candidateProvider];
+      candidateKey = process.env[envKey];
+      candidateBaseURL =
+        process.env[`${envKey.replace("_API_KEY", "_BASE_URL")}`] ||
+        PROVIDER_BASE_URLS[candidateProvider];
+    }
+
+    if (!candidateKey) {
+      throw new Error(`No API key configured for ${candidateProvider}`);
+    }
+
+    const candidateOpenAI = createOpenAI({
+      baseURL: candidateBaseURL,
+      apiKey: candidateKey,
+      // Codex has a stricter Responses API contract than api.openai.com.
+      // Kimi K2.x and GLM-5 need stream patching for malformed tool calls.
+      ...(candidateProvider === "codex"
+        ? { fetch: codexCompatFetch }
+        : needsToolCallTypeFix(candidateResolvedModelId)
+          ? { fetch: toolCallCompatFetch }
+          : {}),
+    });
+
+    return {
+      providerName: candidateProvider,
+      resolvedModelId: candidateResolvedModelId,
+      provider: candidateOpenAI,
+    };
+  }
 
   // ── Context trimming ───────────────────────────────────────────────
   // Long conversations slow down inference dramatically. Keep only
@@ -560,93 +858,260 @@ Workflow: read code → create files (batch) → install deps → test → commi
   }
 
   try {
+    const modelMessages = await convertToModelMessages(trimmedMessages);
     // Agent tasks generate large tool call arguments (e.g. full file content
     // in write_file). 32k gives enough room for reasoning + multi-file writes.
     // GLM-5 and DeepSeek V4 Pro also use reasoning tokens that eat into budget.
     const maxOutputTokens = tools ? 32768 : 8192;
+    let sandboxCleaned = false;
+    let finishedSuccessfully = false;
+    let totalToolCount = 0;
+    let lastAttemptToolCount = 0;
+    let lastAttemptText = "";
+    let lastFinishReason = "";
+    let finalModelId = modelId;
 
-    const result = streamText({
-      model: providerName === "codex"
-        ? provider.responses(resolvedModelId)
-        : provider.chat(resolvedModelId),
-      system,
-      messages: await convertToModelMessages(trimmedMessages),
-      ...(providerName === "codex" ? {} : { maxOutputTokens }),
-      ...(providerName === "codex"
-        ? {
-            providerOptions: {
-              openai: {
-                store: false,
-                reasoningEffort: "medium",
-                reasoningSummary: "auto",
-                forceReasoning: true,
-              },
-            },
-          }
-        : {}),
-      // Retry with exponential backoff for rate limits (DO imposes per-min limits).
-      maxRetries: 5,
-      // Agent mode: enable tools + multi-step loop. Cap at 15 steps to stay
-      // within rate limits while still handling multi-file tasks.
-      ...(tools
-        ? {
-            tools,
-            stopWhen: stepCountIs(15),
-            toolCallStreaming: true,
-          }
-        : {}),
-      onFinish: async (event) => {
-        const { text, steps } = event;
-        const { error: assistantErr } = await supabase.from("messages").insert({
-          conversation_id: conversationId,
-          role: "assistant",
-          content: text,
+    async function markConversationIdle() {
+      await supabase
+        .from("conversations")
+        .update({ status: "idle", updated_at: new Date().toISOString() })
+        .eq("id", conversationId);
+    }
+
+    async function cleanupSandbox(reason: string) {
+      if (!sandbox || sandboxCleaned) return;
+      sandboxCleaned = true;
+
+      try {
+        await sandbox.delete();
+        console.log(`[daytona] Sandbox ${sandbox.id} deleted ${reason}`);
+      } catch (err) {
+        console.warn("[daytona] Sandbox cleanup failed:", err);
+      }
+    }
+
+    async function finalizeSuccessfulTurn() {
+      if (finishedSuccessfully) return;
+      finishedSuccessfully = true;
+
+      await markConversationIdle();
+
+      try {
+        await recordSpend({
+          userId,
+          conversationId,
+          kind: turnKind,
+          toolCount: totalToolCount,
+          modelId: finalModelId,
         });
-        if (assistantErr) {
-          console.error(
-            "[chat] failed to persist assistant message:",
-            assistantErr,
+      } catch (err) {
+        console.error("[credits] recordSpend failed:", err);
+      }
+
+      await cleanupSandbox("after completion");
+    }
+
+    function shouldRecoverStalledAgentAttempt(): boolean {
+      if (!wantsAgent || !tools) return false;
+      if (!looksLikeActionRequest(userText)) return false;
+      if (lastAttemptToolCount > 0) return false;
+      if (lastFinishReason === "length") return true;
+      return looksLikeStalledAgentText(lastAttemptText);
+    }
+
+    function startAttempt(candidateModelId: string, attemptIndex: number) {
+      const candidate = createProviderForModel(candidateModelId);
+      const recoveryInstruction = wantsAgent
+        ? "Inspect the current repo/branch and sandbox state first, reuse completed work, avoid duplicate commits or PRs, and finish the user's request."
+        : "Continue the same user request. If documentation lookup was needed, use the available Context7 tool results or call the Context7 tools again as needed.";
+      const recoverySystem =
+        attemptIndex === 0
+          ? system
+          : `${system}\n\n## Current Recovery Attempt
+The previous model attempt was interrupted by provider rate limits before it could finish. Continue the same task now with model \`${candidateModelId}\`.
+${recoveryInstruction}`;
+
+      return streamText({
+        model:
+          candidate.providerName === "codex"
+            ? candidate.provider.responses(candidate.resolvedModelId)
+            : candidate.provider.chat(candidate.resolvedModelId),
+        system: recoverySystem,
+        messages: modelMessages,
+        ...(candidate.providerName === "codex" ? {} : { maxOutputTokens }),
+        ...(candidate.providerName === "codex"
+          ? {
+              providerOptions: {
+                openai: {
+                  store: false,
+                  reasoningEffort: "medium",
+                  reasoningSummary: "auto",
+                  forceReasoning: true,
+                },
+              },
+            }
+          : {}),
+        // Keep retries conservative. Provider 429/quota errors are retryable to
+        // the SDK, but repeating them can quickly turn one user action into many
+        // failed attempts. Override with AI_CHAT_MAX_RETRIES only if needed.
+        maxRetries: chatMaxRetries(),
+        // Agent mode: enable tools + multi-step loop. Cap at 15 steps to stay
+        // within rate limits while still handling multi-file tasks.
+        ...(tools
+          ? {
+              tools,
+              stopWhen: stepCountIs(15),
+              toolCallStreaming: true,
+            }
+          : {}),
+        onFinish: async (event) => {
+          const { text, steps, finishReason } = event;
+          lastAttemptText = text;
+          lastFinishReason = finishReason ?? "";
+          lastAttemptToolCount = (steps ?? []).reduce(
+            (sum, step) => sum + (step.toolCalls?.length ?? 0),
+            0,
+          );
+          totalToolCount += lastAttemptToolCount;
+          finalModelId = candidateModelId;
+
+          const { error: assistantErr } = await supabase.from("messages").insert({
+            conversation_id: conversationId,
+            role: "assistant",
+            content: text,
+          });
+          if (assistantErr) {
+            console.error(
+              "[chat] failed to persist assistant message:",
+              assistantErr,
+            );
+          }
+        },
+      });
+    }
+
+    async function pipeAttemptToWriter(
+      writer: { write: (part: UIMessageChunk) => void },
+      candidateModelId: string,
+      attemptIndex: number,
+    ): Promise<"completed" | "rate_limited"> {
+      const result = startAttempt(candidateModelId, attemptIndex);
+      const stream = result.toUIMessageStream({
+        onError: (error) => formatInferenceError(error).message,
+      });
+      const reader = stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) return "completed";
+
+          if (value.type === "error" && isRateLimitMessage(value.errorText)) {
+            return "rate_limited";
+          }
+
+          writer.write(value);
+        }
+      } catch (err) {
+        if (isRateLimitFailure(err)) return "rate_limited";
+        throw err;
+      } finally {
+        reader.releaseLock();
+      }
+    }
+
+    const stream = createUIMessageStream({
+      execute: async ({ writer }) => {
+        const attempts = agentAttemptModelIds();
+        let lastRateLimit = false;
+        let recoveryRetriesUsed = 0;
+        let stallRecoveriesUsed = 0;
+        let i = 0;
+        let totalAttempts = 0;
+
+        while (i < attempts.length) {
+          const attemptModelId = attempts[i];
+          const result = await pipeAttemptToWriter(
+            writer,
+            attemptModelId,
+            totalAttempts,
+          );
+          totalAttempts++;
+
+          if (result === "completed") {
+            if (shouldRecoverStalledAgentAttempt()) {
+              if (stallRecoveriesUsed < MAX_AGENT_STALL_RECOVERIES) {
+                stallRecoveriesUsed++;
+                writeRecoveryNote(
+                  writer,
+                  `\n\nAgent attempt ended before using tools or making repo progress. Restarting the same task and continuing with tool execution...\n\n`,
+                );
+                continue;
+              }
+
+              await markConversationIdle();
+              await cleanupSandbox("after stalled agent attempts");
+              throw new Error(
+                "Agent stopped before using repo tools or making progress. Please try again or switch to another agent-capable model.",
+              );
+            }
+
+            await finalizeSuccessfulTurn();
+            return;
+          }
+
+          lastRateLimit = true;
+          const nextModel = attempts[i + 1];
+          if (nextModel) {
+            writeRecoveryNote(
+              writer,
+              `\n\nModel provider limit reached on \`${attemptModelId}\`. Switching to \`${nextModel}\` and continuing the same task...\n\n`,
+            );
+            i++;
+            continue;
+          }
+
+          const delayMs = limitRecoveryDelayMs();
+          if (recoveryRetriesUsed < limitRecoveryRetries()) {
+            recoveryRetriesUsed++;
+            writeRecoveryNote(
+              writer,
+              `\n\nModel provider limit reached on \`${attemptModelId}\`. Waiting ${Math.ceil(delayMs / 1000)} seconds, then restarting this attempt to continue the same task...\n\n`,
+            );
+            await sleep(delayMs);
+            continue;
+          }
+
+          break;
+        }
+
+        if (lastRateLimit) {
+          await markConversationIdle();
+          await cleanupSandbox("after rate-limit exhaustion");
+          throw new Error(
+            "Model provider rate limit reached and no configured fallback model could continue the agent run.",
           );
         }
-        await supabase
-          .from("conversations")
-          .update({ status: "idle", updated_at: new Date().toISOString() })
-          .eq("id", conversationId);
-
-        // Tally tool calls across all steps and record the credit spend.
-        const toolCount = (steps ?? []).reduce(
-          (sum, step) => sum + (step.toolCalls?.length ?? 0),
-          0,
-        );
-        try {
-          await recordSpend({
-            userId: user.id,
-            conversationId,
-            kind: turnKind,
-            toolCount,
-            modelId,
-          });
-        } catch (err) {
-          console.error("[credits] recordSpend failed:", err);
-        }
-
-        // Clean up sandbox after response is complete
-        if (sandbox) {
-          try {
-            await sandbox.delete();
-            console.log(`[daytona] Sandbox ${sandbox.id} deleted`);
-          } catch (err) {
-            console.warn("[daytona] Sandbox cleanup failed:", err);
-          }
-        }
       },
+      onError: (error) => formatInferenceError(error).message,
     });
 
-    return result.toUIMessageStreamResponse({
+    return createUIMessageStreamResponse({
+      stream,
       headers: {
         "X-Accel-Buffering": "no",
         "Cache-Control": "no-cache, no-transform",
         "X-Conversation-Id": conversationId,
+      },
+      consumeSseStream: async ({ stream: sseStream }) => {
+        try {
+          await new Response(sseStream).text();
+        } finally {
+          if (!finishedSuccessfully) {
+            await markConversationIdle();
+            await cleanupSandbox("after stream end");
+          }
+        }
       },
     });
   } catch (err) {
@@ -657,11 +1122,10 @@ Workflow: read code → create files (batch) → install deps → test → commi
       .eq("id", conversationId)
       .then(() => {}, () => {});
 
-    const message =
-      err instanceof Error ? err.message : "Unknown inference error";
+    const formattedError = formatInferenceError(err);
     return NextResponse.json(
-      { error: `Inference failed: ${message}` },
-      { status: 502 },
+      { error: formattedError.message, code: formattedError.code },
+      { status: formattedError.status },
     );
   }
 }

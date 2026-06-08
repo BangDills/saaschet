@@ -12,6 +12,8 @@ Modern AI SaaS platform built with **Next.js 16**, **React 19**, **Tailwind CSS 
 - **Live sandbox** — Daytona-powered sandboxes (8 CPU, 8GB RAM) for running code
 - **Batch file writes** — write multiple files in a single tool call
 - **Web search** — Tavily-powered in-chat web search toggle
+- **Context7 docs** — up-to-date library/framework documentation tools in chat and Agent Mode
+- **Serena semantic tools** — optional MCP-powered symbol/references lookup for Agent Mode
 - **Streaming** — real-time tool call streaming with context trimming
 - **Kimi compat** — automatic SSE stream patching for Kimi K2.x tool calling
 
@@ -41,6 +43,8 @@ Modern AI SaaS platform built with **Next.js 16**, **React 19**, **Tailwind CSS 
 | Sandbox | Daytona SDK (ephemeral containers) |
 | Auth & DB | Supabase (Postgres + Auth + RLS) |
 | Web Search | Tavily AI |
+| Docs Lookup | Context7 API |
+| Code Intelligence | Serena MCP |
 | Icons | lucide-react |
 | Charts | Recharts |
 | Theming | next-themes |
@@ -77,6 +81,10 @@ Copy `.env.example` to `.env.local` and fill in your keys:
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Supabase service role key (server-side only) |
 | `TAVILY_API_KEY` | Optional | Tavily API key for web search ([tavily.com](https://tavily.com)) |
+| `CONTEXT7_API_KEY` | Optional | Context7 API key for up-to-date library docs in chat and Agent Mode ([context7.com](https://context7.com)) |
+| `SERENA_MCP_URL` | Optional | Serena MCP HTTP/SSE endpoint for semantic code tools in Agent Mode ([github.com/oraios/serena](https://github.com/oraios/serena)) |
+| `SERENA_MCP_TOKEN` | Optional | Bearer token for a protected Serena MCP bridge |
+| `SERENA_ALLOW_WRITE_TOOLS` | Optional | Set `true` only to expose Serena write/execute tools; defaults to read-only semantic tools |
 | `GITHUB_TOKEN` | Optional | GitHub PAT for agent mode repo access |
 | `DAYTONA_API_KEY` | Optional | Daytona API key for live sandbox execution |
 | `DAYTONA_SERVER_URL` | Optional | Daytona server URL |
@@ -117,6 +125,7 @@ src/
   lib/
     chat/                 # Models config, types, web search, kimi-compat
     agent/                # Agent tools (GitHub read/write/edit/search)
+    context7/             # Context7 documentation lookup client
     github/               # GitHub API client
     daytona/              # Sandbox tools (run_command, write_file, etc.)
     credits/              # Credits system

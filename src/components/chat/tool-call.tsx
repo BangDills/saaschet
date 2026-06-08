@@ -19,6 +19,8 @@ import {
   Wrench,
   CheckCircle2,
   XCircle,
+  BookOpen,
+  Network,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -76,6 +78,30 @@ const TOOL_META: Record<string, ToolMeta> = {
     running: "Searching the web…",
     done: "Searched the web",
     category: "search",
+  },
+  context7_search_library: {
+    Icon: BookOpen,
+    running: "Searching Context7…",
+    done: "Searched Context7",
+    category: "search",
+  },
+  context7_get_docs: {
+    Icon: BookOpen,
+    running: "Reading docs…",
+    done: "Read docs",
+    category: "read",
+  },
+  serena_list_tools: {
+    Icon: Network,
+    running: "Checking Serena…",
+    done: "Checked Serena",
+    category: "search",
+  },
+  serena_call_tool: {
+    Icon: Network,
+    running: "Using Serena…",
+    done: "Used Serena",
+    category: "read",
   },
   write_file: {
     Icon: FileCode,
@@ -195,6 +221,12 @@ function summarizeInput(toolName: string, input: unknown): string {
     case "search_code":
     case "web_search":
       return typeof obj.query === "string" ? `"${obj.query}"` : "";
+    case "context7_search_library":
+      return typeof obj.libraryName === "string" ? obj.libraryName : "";
+    case "context7_get_docs":
+      return typeof obj.libraryId === "string" ? obj.libraryId : "";
+    case "serena_call_tool":
+      return typeof obj.toolName === "string" ? obj.toolName : "";
     case "run_command":
       return typeof obj.command === "string" ? `$ ${obj.command}` : "";
     case "execute_code":
@@ -224,6 +256,20 @@ function summarizeOutput(toolName: string, output: unknown): string {
       return "";
     case "search_code":
       return typeof obj.count === "number" ? `${obj.count} matches` : "";
+    case "context7_search_library":
+      return typeof obj.count === "number" ? `${obj.count} libraries` : "";
+    case "context7_get_docs":
+      if (typeof obj.length === "number") {
+        return `${obj.length.toLocaleString()} chars${obj.truncated ? " (truncated)" : ""}`;
+      }
+      return "";
+    case "serena_list_tools":
+      return typeof obj.count === "number" ? `${obj.count} tools` : "";
+    case "serena_call_tool":
+      if (typeof obj.length === "number") {
+        return `${obj.length.toLocaleString()} chars${obj.truncated ? " (truncated)" : ""}`;
+      }
+      return "";
     case "write_file":
     case "sandbox_write_file":
       if (typeof obj.commit_sha === "string") {
