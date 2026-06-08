@@ -208,8 +208,9 @@ export function createAgentTools(ctx: AgentContext) {
     read_file: tool({
       description:
         "Read the contents of a single text file from the connected repository. " +
-        "Returns up to ~60KB of text. Use list_files first to discover paths.",
-      inputSchema: schema<{ path: string }>({
+        "Returns up to 60,000 characters by default. Use list_files first to discover paths. " +
+        "For large files, use offset and limit to page through the file; if truncated is true, call again with offset=next_offset.",
+      inputSchema: schema<{ path: string; offset?: number; limit?: number }>({
         type: "object",
         properties: {
           path: {
@@ -217,11 +218,31 @@ export function createAgentTools(ctx: AgentContext) {
             description:
               'File path relative to repo root, e.g. "src/app/page.tsx".',
           },
+          offset: {
+            type: "integer",
+            description:
+              "Character offset to start reading from. Use next_offset from a truncated result to continue.",
+            minimum: 0,
+          },
+          limit: {
+            type: "integer",
+            description: "Maximum characters to return. Defaults to 60000.",
+            minimum: 1,
+            maximum: 60000,
+          },
         },
         required: ["path"],
         additionalProperties: false,
       }),
-      execute: async ({ path }: { path: string }) => {
+      execute: async ({
+        path,
+        offset = 0,
+        limit = 60_000,
+      }: {
+        path: string;
+        offset?: number;
+        limit?: number;
+      }) => {
         const branch = await getDefaultBranch();
         const file = await fetchFileContent(
           owner,
@@ -229,11 +250,16 @@ export function createAgentTools(ctx: AgentContext) {
           path,
           branch,
           ctx.githubToken,
+          { offset, limit },
         );
         return {
           path,
+          offset: file.offset,
+          limit: file.limit,
           truncated: file.truncated,
+          next_offset: file.nextOffset,
           length: file.content.length,
+          total_length: file.totalLength,
           content: file.content,
         };
       },
@@ -448,7 +474,7 @@ export function createAgentTools(ctx: AgentContext) {
         }
         if (original.truncated) {
           return {
-            error: `${path} is too large to safely edit (>60KB). Use write_file with the full new content if you really need to change it.`,
+            error: `${path} is too large to safely edit (>60,000 chars). read_file can page through it with offset/limit, but edit_file requires the complete file to avoid corrupting unseen content. Use write_file with the full new content if you really need to change it.`,
           };
         }
 

@@ -269,7 +269,16 @@ export async function fetchFileContent(
   filePath: string,
   ref: string,
   token?: string,
-): Promise<{ content: string; truncated: boolean; sha: string }> {
+  options: { offset?: number; limit?: number } = {},
+): Promise<{
+  content: string;
+  truncated: boolean;
+  sha: string;
+  offset: number;
+  limit: number;
+  totalLength: number;
+  nextOffset: number | null;
+}> {
   const res = await ghFetch(
     `${GH_API}/repos/${owner}/${name}/contents/${encodeURI(filePath)}?ref=${encodeURIComponent(ref)}`,
     token,
@@ -294,11 +303,26 @@ export async function fetchFileContent(
     json.encoding === "base64"
       ? Buffer.from(json.content, "base64").toString("utf-8")
       : json.content;
+
   const MAX = 60_000;
-  if (decoded.length > MAX) {
-    return { content: decoded.slice(0, MAX), truncated: true, sha: json.sha };
-  }
-  return { content: decoded, truncated: false, sha: json.sha };
+  const offset = Math.max(0, Math.floor(options.offset ?? 0));
+  const limit = Math.min(
+    MAX,
+    Math.max(1, Math.floor(options.limit ?? MAX)),
+  );
+  const end = Math.min(offset + limit, decoded.length);
+  const content = decoded.slice(offset, end);
+  const truncated = end < decoded.length;
+
+  return {
+    content,
+    truncated,
+    sha: json.sha,
+    offset,
+    limit,
+    totalLength: decoded.length,
+    nextOffset: truncated ? end : null,
+  };
 }
 
 /**
