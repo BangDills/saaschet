@@ -8,6 +8,7 @@ import {
   getBranchSha,
   createBranch,
   putFile,
+  putFiles,
   createPullRequest,
   parseRepoSlug,
 } from "@/lib/github/client";
@@ -336,6 +337,78 @@ export function createAgentTools(ctx: AgentContext) {
 
     /* ── WRITE tools (operate on workBranch, never main) ───────────── */
 
+    write_files: tool({
+      description:
+        "Create or overwrite multiple files in one commit on a feature branch in the connected " +
+        "repository. STRONGLY PREFERRED over repeated write_file calls when creating or rewriting 2+ files. " +
+        "The branch is created automatically off the default branch the first time you write. " +
+        "Always read existing files first before overwriting them.",
+      inputSchema: schema<{
+        files: Array<{ path: string; content: string }>;
+        commit_message: string;
+      }>({
+        type: "object",
+        properties: {
+          files: {
+            type: "array",
+            description: "List of files to create or overwrite in a single commit.",
+            minItems: 1,
+            maxItems: 50,
+            items: {
+              type: "object",
+              properties: {
+                path: {
+                  type: "string",
+                  description: "File path relative to repo root.",
+                },
+                content: {
+                  type: "string",
+                  description: "Full new contents of the file.",
+                },
+              },
+              required: ["path", "content"],
+              additionalProperties: false,
+            },
+          },
+          commit_message: {
+            type: "string",
+            description: "Short commit message, conventional-commit style.",
+          },
+        },
+        required: ["files", "commit_message"],
+        additionalProperties: false,
+      }),
+      execute: async ({
+        files,
+        commit_message,
+      }: {
+        files: Array<{ path: string; content: string }>;
+        commit_message: string;
+      }) => {
+        const { branch, isEmptyRepo } = await ensureWorkBranch(writeToken);
+        const result = await putFiles(
+          owner,
+          name,
+          files,
+          branch,
+          commit_message,
+          writeToken,
+        );
+        return {
+          branch,
+          commit_sha: result.commitSha,
+          files_written: result.filesWritten,
+          paths: files.map((f) => f.path),
+          method: result.fallback,
+          ...(isEmptyRepo
+            ? {
+                note: "Repo was empty — committed directly to the default branch as the bootstrap commit. No pull request is needed; the work is already on the main branch.",
+              }
+            : {}),
+        };
+      },
+    }),
+
     write_file: tool({
       description:
         "Create or overwrite a file on a feature branch in the connected " +
@@ -588,6 +661,7 @@ export const AGENT_TOOL_NAMES = [
   "context7_get_docs",
   "serena_list_tools",
   "serena_call_tool",
+  "write_files",
   "write_file",
   "edit_file",
   "create_pull_request",

@@ -537,6 +537,215 @@ export async function createPullRequest(
   return { url: json.html_url, number: json.number };
 }
 
+export type GitHubBatchFile = {
+  path: string;
+  content: string;
+};
+
+export type PutFilesResult = {
+  commitSha: string;
+  filesWritten: number;
+  fallback: "git-tree" | "contents-api";
+};
+
+/**
+ * Get the top-level tree SHA for a given commit.
+ */
+export async function getCommitTreeSha(
+  owner: string,
+  name: string,
+  commitSha: string,
+  token: string,
+): Promise<string> {
+  const res = await fetch(
+    `${GH_API}/repos/${owner}/${name}/git/commits/${commitSha}`,
+    { headers: authHeaders(token), cache: "no-store" },
+  );
+  if (!res.ok) {
+    throw new Error(
+      `Get commit ${commitSha} failed: ${res.status} ${await res
+        .text()
+        .then((t) => t.slice(0, 200))}`,
+    );
+  }
+  const json = (await res.json()) as { tree: { sha: string } };
+  return json.tree.sha;
+}
+
+/**
+ * Create a new Git tree containing direct content entries.
+ */
+export async function createTreeWithContent(
+  owner: string,
+  name: string,
+  baseTreeSha: string,
+  files: GitHubBatchFile[],
+  token: string,
+): Promise<{ sha: string }> {
+  const res = await fetch(`${GH_API}/repos/${owner}/${name}/git/trees`, {
+    method: "POST",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      base_tree: baseTreeSha,
+      tree: files.map((f) => ({
+        path: f.path.replace(/^\/+/, ""), // Normalize leading slashes
+        mode: "100644",
+        type: "blob",
+        content: f.content,
+      })),
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Create tree failed: ${res.status} ${await res
+        .text()
+        .then((t) => t.slice(0, 200))}`,
+    );
+  }
+  const json = (await res.json()) as { sha: string };
+  return { sha: json.sha };
+}
+
+/**
+ * Create a commit with the new tree and parent commit.
+ */
+export async function createCommit(
+  owner: string,
+  name: string,
+  message: string,
+  treeSha: string,
+  parentSha: string,
+  token: string,
+): Promise<{ sha: string }> {
+  const res = await fetch(`${GH_API}/repos/${owner}/${name}/git/commits`, {
+    method: "POST",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message,
+      tree: treeSha,
+      parents: [parentSha],
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Create commit failed: ${res.status} ${await res
+        .text()
+        .then((t) => t.slice(0, 200))}`,
+    );
+  }
+  const json = (await res.json()) as { sha: string };
+  return { sha: json.sha };
+}
+
+/**
+ * Update the branch ref to point to the new commit.
+ */
+export async function updateBranchRef(
+  owner: string,
+  name: string,
+  branch: string,
+  commitSha: string,
+  token: string,
+): Promise<void> {
+  const res = await fetch(
+    `${GH_API}/repos/${owner}/${name}/git/refs/heads/${encodeURIComponent(branch)}`,
+    {
+      method: "PATCH",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sha: commitSha,
+        force: false,
+      }),
+    },
+  );
+  if (!res.ok) {
+    throw new Error(
+      `Update branch ref ${branch} failed: ${res.status} ${await res
+        .text()
+        .then((t) => t.slice(0, 200))}`,
+    );
+  }
+}
+
+/**
+ * Create or overwrite multiple files in a single commit on the given branch.
+ * Falls back to sequential putFile() calls for empty repositories.
+ */
+export async function putFiles(
+  owner: string,
+  name: string,
+  files: GitHubBatchFile[],
+  branch: string,
+  message: string,
+  token: string,
+): Promise<PutFilesResult> {
+  if (files.length === 0) {
+    throw new Error("No files provided for batch write");
+  }
+
+  // Validate path helper logic inline
+  for (const f of files) {
+    if (!f.path || f.path.includes("..") || f.path.startsWith("/")) {
+      throw new Error(`Invalid file path in batch: ${f.path}`);
+    }
+  }
+
+  // Detect duplicate paths in input
+  const paths = files.map((f) => f.path);
+  const duplicates = paths.filter((p, i) => paths.indexOf(p) !== i);
+  if (duplicates.length > 0) {
+    throw new Error(`Duplicate file paths in batch: ${duplicates.join(", ")}`);
+  }
+
+  const parentSha = await getBranchSha(owner, name, branch, token);
+
+  if (parentSha === null) {
+    // Empty repository bootstrap fallback (Contents API sequential commits)
+    let lastCommitSha = "";
+    for (const f of files) {
+      const res = await putFile(
+        owner,
+        name,
+        f.path,
+        f.content,
+        branch,
+        message,
+        token,
+      );
+      lastCommitSha = res.commitSha;
+    }
+    return {
+      commitSha: lastCommitSha,
+      filesWritten: files.length,
+      fallback: "contents-api",
+    };
+  }
+
+  const parentTreeSha = await getCommitTreeSha(owner, name, parentSha, token);
+  const tree = await createTreeWithContent(
+    owner,
+    name,
+    parentTreeSha,
+    files,
+    token,
+  );
+  const commit = await createCommit(
+    owner,
+    name,
+    message,
+    tree.sha,
+    parentSha,
+    token,
+  );
+  await updateBranchRef(owner, name, branch, commit.sha, token);
+
+  return {
+    commitSha: commit.sha,
+    filesWritten: files.length,
+    fallback: "git-tree",
+  };
+}
+
 
 
 /**
