@@ -651,7 +651,7 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
 
       sandbox = await daytona.create(
         {
-          image: process.env.DAYTONA_SANDBOX_IMAGE || "daytonaio/ai-node:22",
+          image: process.env.DAYTONA_SANDBOX_IMAGE || "node:22-slim",
           language: "typescript",
           resources: { cpu, memory, disk },
           envVars: { NODE_ENV: "development" },
