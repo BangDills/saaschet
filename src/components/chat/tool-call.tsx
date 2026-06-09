@@ -21,6 +21,8 @@ import {
   XCircle,
   BookOpen,
   Network,
+  Copy,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -238,6 +240,39 @@ function summarizeInput(toolName: string, input: unknown): string {
   }
 }
 
+type ReadFileOutputMeta = {
+  truncated: boolean;
+  nextOffset: number | null;
+  offset: number;
+  limit: number;
+  length: number;
+  totalLength: number;
+};
+
+function getReadFileOutputMeta(output: unknown): ReadFileOutputMeta | null {
+  if (!output || typeof output !== "object") return null;
+  const obj = output as Record<string, unknown>;
+
+  // Must have truncated and length at minimum
+  if (typeof obj.truncated !== "boolean" || typeof obj.length !== "number") {
+    return null;
+  }
+
+  const offset = typeof obj.offset === "number" ? obj.offset : 0;
+  const limit = typeof obj.limit === "number" ? obj.limit : 60_000;
+  const totalLength = typeof obj.total_length === "number" ? obj.total_length : obj.length;
+  const nextOffset = typeof obj.next_offset === "number" ? obj.next_offset : null;
+
+  return {
+    truncated: obj.truncated,
+    nextOffset,
+    offset,
+    limit,
+    length: obj.length,
+    totalLength,
+  };
+}
+
 function summarizeOutput(toolName: string, output: unknown): string {
   if (!output || typeof output !== "object") return "";
   const obj = output as Record<string, unknown>;
@@ -248,7 +283,23 @@ function summarizeOutput(toolName: string, output: unknown): string {
     case "list_files":
     case "sandbox_list_files":
       return typeof obj.count === "number" ? `${obj.count} entries` : "";
-    case "read_file":
+    case "read_file": {
+      const meta = getReadFileOutputMeta(output);
+      if (meta) {
+        if (meta.truncated) {
+          const suffix = meta.nextOffset !== null ? `, next page from ${meta.nextOffset.toLocaleString()}` : "";
+          if (meta.totalLength > meta.length) {
+            return `${meta.length.toLocaleString()} of ${meta.totalLength.toLocaleString()} chars${suffix}`;
+          }
+          return `${meta.length.toLocaleString()} chars (truncated)${suffix}`;
+        }
+        return `${meta.length.toLocaleString()} chars`;
+      }
+      if (typeof obj.length === "number") {
+        return `${obj.length.toLocaleString()} chars${obj.truncated ? " (truncated)" : ""}`;
+      }
+      return "";
+    }
     case "sandbox_read_file":
       if (typeof obj.length === "number") {
         return `${obj.length.toLocaleString()} chars${obj.truncated ? " (truncated)" : ""}`;
@@ -318,6 +369,78 @@ export type ToolCallProps = {
   part: ToolCallPart;
 };
 
+function ReadFileTruncationNotice({
+  path,
+  meta,
+}: {
+  path: string | null;
+  meta: ReadFileOutputMeta;
+}) {
+  const [copied, setCopied] = React.useState(false);
+
+  const nextOffset = meta.nextOffset ?? meta.offset + meta.length;
+  const limit = meta.limit ?? 60_000;
+
+  const payload = {
+    path: path || "",
+    offset: nextOffset,
+    limit,
+  };
+
+  const copyText = JSON.stringify(payload, null, 2);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(copyText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.warn("Failed to copy", err);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2.5 text-[11px] text-muted-foreground leading-relaxed">
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <p className="font-medium text-foreground">
+            This file was truncated.
+          </p>
+          <p>
+            Only the first {meta.length.toLocaleString()} characters (from offset {meta.offset.toLocaleString()}) were loaded out of {meta.totalLength.toLocaleString()} total characters.
+          </p>
+          <p className="mt-1">
+            To read the next page, use:
+          </p>
+          <pre className="mt-1.5 overflow-x-auto rounded bg-background p-1.5 font-mono text-[10px] text-foreground">
+            read_file({copyText.replace(/\n\s*/g, " ")})
+          </pre>
+        </div>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className={cn(
+            "flex shrink-0 items-center gap-1 rounded border border-border px-2 py-1 transition-colors hover:bg-accent hover:text-accent-foreground",
+            copied && "border-emerald-500/30 bg-emerald-500/5 text-emerald-600 dark:text-emerald-300",
+          )}
+        >
+          {copied ? (
+            <>
+              <Check className="size-3" />
+              <span>Copied!</span>
+            </>
+          ) : (
+            <>
+              <Copy className="size-3" />
+              <span>Copy params</span>
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ToolCallImpl({ part }: ToolCallProps) {
   const [open, setOpen] = React.useState(false);
   const toolName = getToolName(part);
@@ -337,6 +460,11 @@ function ToolCallImpl({ part }: ToolCallProps) {
 
   const accentColor = CATEGORY_COLORS[meta.category];
   const accentBg = CATEGORY_BG[meta.category];
+
+  const readFileMeta =
+    isDone && toolName === "read_file"
+      ? getReadFileOutputMeta(part.output)
+      : null;
 
   return (
     <div
@@ -434,6 +562,9 @@ function ToolCallImpl({ part }: ToolCallProps) {
         <div className="space-y-2 border-t border-border/40 px-3 py-2.5 text-xs">
           {part.input !== undefined && (
             <DetailSection label="Input" value={part.input} />
+          )}
+          {readFileMeta?.truncated && (
+            <ReadFileTruncationNotice path={filePath} meta={readFileMeta} />
           )}
           {isError && part.errorText && (
             <DetailSection label="Error" value={part.errorText} isError />
