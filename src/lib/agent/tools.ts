@@ -9,6 +9,7 @@ import {
   createBranch,
   putFile,
   putFiles,
+  deleteFile,
   createPullRequest,
   parseRepoSlug,
 } from "@/lib/github/client";
@@ -595,10 +596,105 @@ export function createAgentTools(ctx: AgentContext) {
       },
     }),
 
+    delete_file: tool({
+      description:
+        "Delete a single existing file from the connected repository on the agent's feature branch. " +
+        "The branch is created automatically off the default branch the first time you write or delete. " +
+        "Only deletes regular files; directories are rejected. Missing files are treated as already deleted.",
+      inputSchema: schema<{
+        path: string;
+        commit_message: string;
+      }>({
+        type: "object",
+        properties: {
+          path: {
+            type: "string",
+            description: "File path relative to repo root.",
+          },
+          commit_message: {
+            type: "string",
+            description: "Short commit message, conventional-commit style.",
+          },
+        },
+        required: ["path", "commit_message"],
+        additionalProperties: false,
+      }),
+      execute: async ({
+        path,
+        commit_message,
+      }: {
+        path: string;
+        commit_message: string;
+      }) => {
+        // Preflight check: read ref branch if already created, otherwise default branch
+        const baseRef = ctx.branchesCreated.has(ctx.workBranch)
+          ? ctx.workBranch
+          : await getDefaultBranch();
+
+        try {
+          const original = await fetchFileContent(
+            owner,
+            name,
+            path,
+            baseRef,
+            writeToken,
+            { offset: 0, limit: 1 },
+          );
+          if (original.truncated && original.content === "") {
+            // Unlikely to happen with limit 1, but keep type-safe check
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes("404") || msg.includes("409")) {
+            return {
+              path,
+              deleted: false,
+              commit_sha: null,
+              note: "File did not exist; no deletion commit was created.",
+            };
+          }
+          if (msg.includes("not a regular file")) {
+            return {
+              path,
+              error: `Cannot delete ${path}: it is not a regular file. delete_file only deletes files, not directories.`,
+            };
+          }
+          throw err;
+        }
+
+        const { branch, isEmptyRepo } = await ensureWorkBranch(writeToken);
+        const result = await deleteFile(
+          owner,
+          name,
+          path,
+          branch,
+          commit_message,
+          writeToken,
+        );
+
+        return {
+          path,
+          branch,
+          deleted: result.deleted,
+          commit_sha: result.commitSha,
+          ...(result.reason === "missing"
+            ? {
+                note: "File did not exist on the work branch; no deletion commit was created.",
+              }
+            : {}),
+          ...(isEmptyRepo
+            ? {
+                note: "Repo was empty — there was no file to delete.",
+              }
+            : {}),
+        };
+      },
+    }),
+
     create_pull_request: tool({
       description:
         "Open a pull request from the agent's working branch into the " +
-        "default branch. Call this AFTER all desired write_file/edit_file " +
+        "default branch. Call this AFTER all desired write_file/write_files/edit_file/delete_file " +
         "calls are done. Returns the PR URL and number.",
       inputSchema: schema<{ title: string; body: string }>({
         type: "object",

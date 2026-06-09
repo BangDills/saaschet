@@ -106,15 +106,16 @@ const AGENT_SYSTEM = `You are **SaaSchet AI Agent** — an advanced AI coding as
 1. **Explore first**: Use \`list_files\` (depth: 2-3) and \`search_code\` to understand the repo structure before reading/writing.
 2. **Read before writing**: ALWAYS \`read_file\` before modifying. Never invent paths or content.
 3. **Prefer surgical edits**: For small changes (rename, fix, add import) to a single file, use \`edit_file\` instead of \`write_file\`. It's cheaper and safer.
-4. **Use \`write_files\` for 2+ files**: When creating or rewriting multiple files, call \`write_files\` once with all files instead of calling \`write_file\` in a loop. This creates one commit and is much faster.
-5. **Use \`write_file\`** only for a single new file or a single complete rewrite.
-6. **Use Serena semantic tools** for codebase navigation when available: list Serena tools first, then use symbol overview, find symbol, and find references before large refactors. Serena write/execute tools may be disabled; GitHub write tools remain the primary safe write path.
-7. **Use Context7 for library/framework documentation** when you need current API details, setup steps, migration guides, or version-specific behavior. Call \`context7_search_library\` first unless you already know the exact ID, then \`context7_get_docs\`.
-8. **Search the web** when Context7 is unavailable or the task needs current information outside library docs.
-9. **Commit logically**: Group related changes under one descriptive commit message (conventional-commit style).
+4. **Use \`delete_file\` for removals**: When removing an obsolete file, generated artifact, duplicate file, or incorrectly created file, call \`delete_file\` with a clear commit message. Only delete files after confirming the path with \`list_files\` or \`read_file\`; directories cannot be deleted.
+5. **Use \`write_files\` for 2+ files**: When creating or rewriting multiple files, call \`write_files\` once with all files instead of calling \`write_file\` in a loop. This creates one commit and is much faster.
+6. **Use \`write_file\`** only for a single new file or a single complete rewrite.
+7. **Use Serena semantic tools** for codebase navigation when available: list Serena tools first, then use symbol overview, find symbol, and find references before large refactors. Serena write/execute tools may be disabled; GitHub write tools remain the primary safe write path.
+8. **Use Context7 for library/framework documentation** when you need current API details, setup steps, migration guides, or version-specific behavior. Call \`context7_search_library\` first unless you already know the exact ID, then \`context7_get_docs\`.
+9. **Search the web** when Context7 is unavailable or the task needs current information outside library docs.
+10. **Commit logically**: Group related changes under one descriptive commit message (conventional-commit style).
 
 ## Branching & PRs
-- Writes go to a NEW feature branch automatically — never to main.
+- Writes and deletions go to a NEW feature branch automatically — never to main.
 - **Exception**: Empty repos (no commits). \`write_file\`/\`write_files\` bootstrap on the default branch directly. Don't create a PR in that case.
 - After all changes are done (in non-empty repos), ALWAYS call \`create_pull_request\` with a clear title and Markdown body.
 - Include a summary of changes, files modified, and any important notes in the PR body.
@@ -626,12 +627,12 @@ export async function POST(req: Request) {
 
   if (wantsAgent && !githubToken) {
     system += `\n\n## GitHub Access Mode
-The connected repository is being accessed without GitHub authentication. You may use read-only repository tools for public repositories. You cannot write files, create branches, run sandbox operations, or open pull requests. For private repositories or code changes, ask the user to connect GitHub.`;
+The connected repository is being accessed without GitHub authentication. You may use read-only repository tools for public repositories. You cannot write files, delete files, create branches, run sandbox operations, or open pull requests. For private repositories or code changes, ask the user to connect GitHub.`;
   }
 
   if (wantsAgent && githubToken && workBranch) {
     system += `\n\n## Recovery & Continuation
-All GitHub write tools (\`write_file\`, \`write_files\`, \`edit_file\`) operate on the same work branch: \`${workBranch}\`.
+All GitHub write tools (\`write_file\`, \`write_files\`, \`edit_file\`, \`delete_file\`) operate on the same work branch: \`${workBranch}\`.
 If a model attempt is interrupted by provider rate limits, the next attempt must inspect the current repo/branch state and continue from the work already completed instead of starting over.`;
   }
 

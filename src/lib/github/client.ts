@@ -746,6 +746,71 @@ export async function putFiles(
   };
 }
 
+/**
+ * Delete a single file from the given branch.
+ * Returns { deleted: false } if the file did not exist.
+ */
+export async function deleteFile(
+  owner: string,
+  name: string,
+  filePath: string,
+  branch: string,
+  message: string,
+  token: string,
+): Promise<{ commitSha: string | null; deleted: boolean; reason?: "missing" }> {
+  // Validate path
+  if (!filePath || filePath.includes("..") || filePath.startsWith("/") || filePath.endsWith("/")) {
+    throw new Error(`Invalid file path: ${filePath}`);
+  }
+
+  // Look up file SHA on target branch
+  const lookup = await fetch(
+    `${GH_API}/repos/${owner}/${name}/contents/${encodeURI(filePath)}?ref=${encodeURIComponent(branch)}`,
+    { headers: authHeaders(token), cache: "no-store" },
+  );
+
+  if (lookup.status === 404 || lookup.status === 409) {
+    return { commitSha: null, deleted: false, reason: "missing" };
+  }
+
+  if (!lookup.ok) {
+    throw new Error(
+      `File lookup for delete failed: ${lookup.status} ${await lookup
+        .text()
+        .then((t) => t.slice(0, 200))}`,
+    );
+  }
+
+  const json = (await lookup.json()) as { sha?: string; type?: string };
+  if (Array.isArray(json) || json.type !== "file" || !json.sha) {
+    throw new Error(`Path ${filePath} is not a regular file and cannot be deleted`);
+  }
+
+  const res = await fetch(
+    `${GH_API}/repos/${owner}/${name}/contents/${encodeURI(filePath)}`,
+    {
+      method: "DELETE",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        sha: json.sha,
+        branch,
+      }),
+    },
+  );
+
+  if (!res.ok) {
+    throw new Error(
+      `Delete file ${filePath} failed: ${res.status} ${await res
+        .text()
+        .then((t) => t.slice(0, 200))}`,
+    );
+  }
+
+  const resJson = (await res.json()) as { commit: { sha: string } };
+  return { commitSha: resJson.commit.sha, deleted: true };
+}
+
 
 
 /**
