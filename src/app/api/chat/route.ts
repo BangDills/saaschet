@@ -691,6 +691,8 @@ The user's repo is automatically cloned when you first use a sandbox tool.
 Workflow: read code → create files (batch) → install deps → test → commit via GitHub.`;
     } catch (err) {
       console.warn("[daytona] Sandbox creation failed, proceeding without:", err);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      system += `\n\n## Daytona Sandbox Initialization Error\nDaytona sandbox failed to initialize: "${errorMsg}". If the user asks to run a command or execute code, explain to them that the sandbox failed to initialize with this reason.`;
     }
   }
 
