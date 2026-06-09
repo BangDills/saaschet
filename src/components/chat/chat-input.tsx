@@ -1,7 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { ArrowUp, Globe, ImagePlus, Sparkles, Square } from "lucide-react";
+import {
+  ArrowUp,
+  CheckCircle2,
+  Globe,
+  ImagePlus,
+  Lock,
+  Sparkles,
+  Square,
+} from "lucide-react";
 import { ModelSelector } from "./model-selector";
 import { RepoSelector } from "./repo-selector";
 import type { ModelInfo } from "@/lib/chat/types";
@@ -29,6 +37,10 @@ export type ChatInputProps = {
   variant?: "default" | "centered";
   /** Whether user has connected their OpenAI account. */
   openaiConnected?: boolean;
+  /** GitHub Agent access mode for the connected repo. */
+  githubAccessMode?: "unknown" | "read_only" | "full";
+  /** Connected GitHub username, if available. */
+  githubUsername?: string | null;
   /** Callback to open the OpenAI connect dialog. */
   onConnectOpenAI?: () => void;
 };
@@ -58,6 +70,8 @@ export function ChatInput({
   onRepoChange,
   agentMode,
   openaiConnected,
+  githubAccessMode = "unknown",
+  githubUsername,
   onConnectOpenAI,
 }: ChatInputProps) {
   const [value, setValue] = React.useState("");
@@ -162,11 +176,18 @@ export function ChatInput({
         {agentMode && (
           <div
             className="flex items-center gap-1 rounded-full bg-violet-500/15 px-2.5 py-1 text-xs font-medium text-violet-400"
-            title="Agent Mode is active — the model can read, edit, and open PRs in the connected repo"
+            title="Agent Mode is active for the connected repo"
           >
             <Sparkles className="size-3.5" />
             Agent
           </div>
+        )}
+
+        {agentMode && repo && githubAccessMode !== "unknown" && (
+          <AgentAccessBadge
+            mode={githubAccessMode}
+            username={githubUsername}
+          />
         )}
 
         <ToolbarToggle
@@ -200,6 +221,36 @@ export function ChatInput({
       </div>
 
 
+    </div>
+  );
+}
+
+function AgentAccessBadge({
+  mode,
+  username,
+}: {
+  mode: "read_only" | "full";
+  username?: string | null;
+}) {
+  const isFull = mode === "full";
+  const title = isFull
+    ? username
+      ? `Connected as ${username}. Agent write tools, branches, and PRs are enabled. GitHub may still reject writes if this account lacks repo permissions.`
+      : "GitHub is connected. Agent write tools, branches, and PRs are enabled. GitHub may still reject writes if this account lacks repo permissions."
+    : "Read-only Agent access for public repos. Connect GitHub to enable edits, branches, sandbox operations, and PRs.";
+
+  return (
+    <div
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+        isFull
+          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300"
+          : "bg-amber-500/15 text-amber-600 dark:text-amber-300",
+      )}
+      title={title}
+    >
+      {isFull ? <CheckCircle2 className="size-3.5" /> : <Lock className="size-3.5" />}
+      {isFull ? "Full access" : "Read-only"}
     </div>
   );
 }

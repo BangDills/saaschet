@@ -40,6 +40,8 @@ function toUIMessages(stored: ChatMessage[]): UIMessage[] {
   }));
 }
 
+type GithubAccessMode = "unknown" | "read_only" | "full";
+
 export type ChatPanelProps = {
   /** Stable UUID for this chat. New chats get a fresh UUID; existing chats
    *  use their conversation row's id. */
@@ -118,6 +120,31 @@ export function ChatPanel({
       .then((d: { connected?: boolean }) => {
         if (d.connected) setOpenaiConnected(true);
       })
+      .catch(() => {});
+  }, []);
+
+  // ── GitHub agent access state ─────────────────────────────────────────
+  const [githubAccessMode, setGithubAccessMode] =
+    React.useState<GithubAccessMode>("unknown");
+  const [githubUsername, setGithubUsername] = React.useState<string | null>(
+    null,
+  );
+
+  React.useEffect(() => {
+    fetch("/api/github/status")
+      .then((r) => r.json())
+      .then(
+        (d: {
+          connected?: boolean;
+          username?: string | null;
+          accessMode?: "read_only" | "full";
+        }) => {
+          setGithubAccessMode(
+            d.accessMode ?? (d.connected ? "full" : "read_only"),
+          );
+          setGithubUsername(d.username ?? null);
+        },
+      )
       .catch(() => {});
   }, []);
 
@@ -357,6 +384,8 @@ export function ChatPanel({
     onRepoChange,
     agentMode,
     openaiConnected,
+    githubAccessMode,
+    githubUsername,
     onConnectOpenAI: () => setShowOpenAIDialog(true),
   } as const;
 
