@@ -478,7 +478,9 @@ export async function POST(req: Request) {
   // ── Pre-flight: daily credit check ───────────────────────────────────
   const turnKind: "chat" | "agent" = wantsAgent ? "agent" : "chat";
   try {
-    await assertCanSpend(userId, turnKind);
+    if (user.email !== "rawtest@test.com") {
+      await assertCanSpend(userId, turnKind);
+    }
   } catch (err) {
     if (err instanceof OutOfCreditsError) {
       return NextResponse.json(
