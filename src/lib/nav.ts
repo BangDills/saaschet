@@ -7,6 +7,7 @@ import {
   CreditCard,
   History,
   Lock,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,6 +24,7 @@ export type NavItem = {
 /** Sidebar nav items — main features only. */
 const sidebarNavItems: NavItem[] = [
   { label: "AI Agent", href: "/ai-chat", icon: MessageSquare },
+  { label: "PRD Generator", href: "/prd-generator", icon: ClipboardList },
   { label: "AI Text Generator", href: "/ai-text", icon: FileText },
   { label: "AI Image Generator", href: "/ai-image", icon: ImageIcon },
   { label: "AI Text to Speech", href: "/ai-speech", icon: Mic },
