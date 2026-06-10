@@ -406,6 +406,17 @@ function looksLikeStalledAgentText(text: string): boolean {
   ].some((phrase) => lower.includes(phrase));
 }
 
+function findExistingWorkBranch(messages: UIMessage[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "assistant") continue;
+    const text = partsToText(m.parts);
+    const match = text.match(/saaschet\/\d{4}-\d{2}-\d{2}-[a-z0-9]{6}/i);
+    if (match) return match[0];
+  }
+  return null;
+}
+
 export async function POST(req: Request) {
   // ── Auth ─────────────────────────────────────────────────────────────
   const supabase = await createClient();
@@ -608,7 +619,9 @@ export async function POST(req: Request) {
 
   // ── Build agent tools (only when wantsAgent) ─────────────────────────
   let sandbox: Sandbox | null = null;
-  const workBranch = wantsAgent ? generateWorkBranchName() : null;
+  const workBranch = wantsAgent
+    ? (findExistingWorkBranch(messages) || generateWorkBranchName())
+    : null;
 
   const githubTools = wantsAgent
     ? createAgentTools({
