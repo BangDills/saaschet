@@ -317,6 +317,14 @@ export function ChatPanel({
    * can watch tool calls execute (read_file, write_file, etc.). Tool
    * panels are individually memoized so this is cheap.
    */
+  const handleToolActionPrompt = React.useCallback(
+    (text: string) => {
+      if (!text.trim() || isStreaming) return;
+      sendMessage({ text });
+    },
+    [isStreaming, sendMessage],
+  );
+
   const visibleMessages = React.useMemo(() => {
     if (!isStreaming || agentMode) return messages;
     const last = messages[messages.length - 1];
@@ -407,6 +415,7 @@ export function ChatPanel({
                       role="assistant"
                       parts={toBubbleParts(m.parts)}
                       streaming={isStreamingThis}
+                      onToolActionPrompt={handleToolActionPrompt}
                     />
                   );
                 }

@@ -21,10 +21,16 @@ export type MessageBubbleProps = {
   content?: string;
   /** when true, shows a subtle pulsing cursor at the end (streaming) */
   streaming?: boolean;
+  /** Callback to submit a tool action prompt. */
+  onToolActionPrompt?: (text: string) => void;
 };
 
 /** Walk parts and render in order; keep tool calls inline between text. */
-function renderParts(parts: AnyPart[], streaming?: boolean) {
+function renderParts(
+  parts: AnyPart[],
+  streaming?: boolean,
+  onToolActionPrompt?: (text: string) => void,
+) {
   return parts.map((p, idx) => {
     if (p.type === "text") {
       // Apply reasoning-tag splitting on assistant text parts.
@@ -52,7 +58,13 @@ function renderParts(parts: AnyPart[], streaming?: boolean) {
       );
     }
     // Tool call (static or dynamic)
-    return <ToolCall key={p.toolCallId ?? `tc-${idx}`} part={p} />;
+    return (
+      <ToolCall
+        key={p.toolCallId ?? `tc-${idx}`}
+        part={p}
+        onActionPrompt={onToolActionPrompt}
+      />
+    );
   });
 }
 
@@ -61,6 +73,7 @@ function MessageBubbleImpl({
   parts,
   content,
   streaming,
+  onToolActionPrompt,
 }: MessageBubbleProps) {
   if (role === "system") return null;
   const isUser = role === "user";
@@ -89,7 +102,7 @@ function MessageBubbleImpl({
           </p>
         ) : parts && parts.length > 0 ? (
           <>
-            {renderParts(parts, streaming)}
+            {renderParts(parts, streaming, onToolActionPrompt)}
             {streaming && (
               <span
                 aria-hidden
@@ -134,6 +147,7 @@ export const MessageBubble = React.memo(MessageBubbleImpl, (prev, next) => {
   if (prev.role !== next.role) return false;
   if (prev.streaming !== next.streaming) return false;
   if (prev.content !== next.content) return false;
+  if (prev.onToolActionPrompt !== next.onToolActionPrompt) return false;
   // Compare parts shallowly via JSON for tool state changes.
   if ((prev.parts ? prev.parts.length : 0) !== (next.parts ? next.parts.length : 0)) {
     return false;

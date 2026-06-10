@@ -367,14 +367,17 @@ function prettyJson(value: unknown): string {
 
 export type ToolCallProps = {
   part: ToolCallPart;
+  onActionPrompt?: (text: string) => void;
 };
 
 function ReadFileTruncationNotice({
   path,
   meta,
+  onActionPrompt,
 }: {
   path: string | null;
   meta: ReadFileOutputMeta;
+  onActionPrompt?: (text: string) => void;
 }) {
   const [copied, setCopied] = React.useState(false);
 
@@ -399,6 +402,12 @@ function ReadFileTruncationNotice({
     }
   };
 
+  const handleReadNext = () => {
+    if (!onActionPrompt || !path) return;
+    const promptText = `Please read the next page of this file using read_file with these parameters: ${JSON.stringify(payload)}`;
+    onActionPrompt(promptText);
+  };
+
   return (
     <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2.5 text-[11px] text-muted-foreground leading-relaxed">
       <div className="flex items-start justify-between gap-4">
@@ -416,32 +425,44 @@ function ReadFileTruncationNotice({
             read_file({copyText.replace(/\n\s*/g, " ")})
           </pre>
         </div>
-        <button
-          type="button"
-          onClick={handleCopy}
-          className={cn(
-            "flex shrink-0 items-center gap-1 rounded border border-border px-2 py-1 transition-colors hover:bg-accent hover:text-accent-foreground",
-            copied && "border-emerald-500/30 bg-emerald-500/5 text-emerald-600 dark:text-emerald-300",
+        <div className="flex shrink-0 flex-col gap-1.5 sm:flex-row">
+          {onActionPrompt && path && (
+            <button
+              type="button"
+              onClick={handleReadNext}
+              className="flex items-center gap-1 rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-sky-700 transition-colors hover:bg-sky-500/15 dark:text-sky-300"
+            >
+              <ChevronRight className="size-3" />
+              <span>Read next page</span>
+            </button>
           )}
-        >
-          {copied ? (
-            <>
-              <Check className="size-3" />
-              <span>Copied!</span>
-            </>
-          ) : (
-            <>
-              <Copy className="size-3" />
-              <span>Copy params</span>
-            </>
-          )}
-        </button>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className={cn(
+              "flex items-center gap-1 rounded border border-border px-2 py-1 transition-colors hover:bg-accent hover:text-accent-foreground",
+              copied && "border-emerald-500/30 bg-emerald-500/5 text-emerald-600 dark:text-emerald-300",
+            )}
+          >
+            {copied ? (
+              <>
+                <Check className="size-3" />
+                <span>Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="size-3" />
+                <span>Copy params</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-function ToolCallImpl({ part }: ToolCallProps) {
+function ToolCallImpl({ part, onActionPrompt }: ToolCallProps) {
   const [open, setOpen] = React.useState(false);
   const toolName = getToolName(part);
   const meta = TOOL_META[toolName] ?? FALLBACK_META;
@@ -564,7 +585,11 @@ function ToolCallImpl({ part }: ToolCallProps) {
             <DetailSection label="Input" value={part.input} />
           )}
           {readFileMeta?.truncated && (
-            <ReadFileTruncationNotice path={filePath} meta={readFileMeta} />
+            <ReadFileTruncationNotice
+              path={filePath}
+              meta={readFileMeta}
+              onActionPrompt={onActionPrompt}
+            />
           )}
           {isError && part.errorText && (
             <DetailSection label="Error" value={part.errorText} isError />
@@ -610,6 +635,8 @@ export const ToolCall = React.memo(ToolCallImpl, (prev, next) => {
     prev.part.toolCallId === next.part.toolCallId &&
     prev.part.state === next.part.state &&
     prev.part.errorText === next.part.errorText &&
+    prev.onActionPrompt === next.onActionPrompt &&
+    JSON.stringify(prev.part.input) === JSON.stringify(next.part.input) &&
     JSON.stringify(prev.part.output) === JSON.stringify(next.part.output)
   );
 });
