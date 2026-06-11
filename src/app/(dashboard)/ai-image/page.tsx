@@ -15,8 +15,8 @@ import { Card } from "@/components/ui/card";
 import { fireCreditsRefresh } from "@/components/dashboard/credits-meter";
 
 const IMAGE_MODELS = [
-  { id: "black-forest-labs/flux-schnell", name: "Flux Schnell", provider: "DigitalOcean" },
-  { id: "stabilityai/stable-diffusion-xl", name: "Stable Diffusion XL", provider: "DigitalOcean" },
+  { id: "stable-diffusion-3.5-large", name: "Stable Diffusion 3.5 Large", provider: "DigitalOcean" },
+  { id: "openai-gpt-image-2", name: "DALL-E 3 (GPT-Image 2)", provider: "OpenAI" },
 ];
 
 const DIMENSION_PRESETS = [

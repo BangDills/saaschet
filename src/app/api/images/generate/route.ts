@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { prompt, model = "black-forest-labs/flux-schnell", size = "1024x1024" } = body;
+  const { prompt, model = "stable-diffusion-3.5-large", size = "1024x1024" } = body;
 
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
     return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
