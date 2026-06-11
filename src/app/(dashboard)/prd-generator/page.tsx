@@ -129,7 +129,7 @@ export default function PRDGeneratorPage() {
     if (!lastMsg || lastMsg.role !== "assistant") return "";
     if (!lastMsg.parts) return "";
     return lastMsg.parts
-      .map((p: any) => (p.type === "text" ? p.text : ""))
+      .map((p: { type: string; text?: string }) => (p.type === "text" ? p.text : ""))
       .filter(Boolean)
       .join("");
   }, [messages]);

@@ -17,11 +17,11 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-type DailyPoint = { date: string; chat: number; agent: number };
+type DailyPoint = { date: string; chat: number; agent: number; image: number };
 type ModelUsage = { modelId: string; count: number; totalCost: number };
 type RecentItem = {
   id: string;
-  kind: "chat" | "agent";
+  kind: "chat" | "agent" | "image";
   cost: number;
   modelId: string | null;
   toolCount: number;
@@ -30,7 +30,7 @@ type RecentItem = {
 };
 
 type LedgerRow = {
-  kind: "chat" | "agent";
+  kind: "chat" | "agent" | "image";
   cost: number;
   model_id: string | null;
   created_at: string;
@@ -76,13 +76,14 @@ async function loadDashboard(userId: string) {
     const d = new Date(since);
     d.setUTCDate(since.getUTCDate() + i);
     const key = d.toISOString().slice(0, 10);
-    dayMap.set(key, { date: key, chat: 0, agent: 0 });
+    dayMap.set(key, { date: key, chat: 0, agent: 0, image: 0 });
   }
   for (const r of rows) {
     const key = r.created_at.slice(0, 10);
     const point = dayMap.get(key);
     if (!point) continue;
     if (r.kind === "agent") point.agent += r.cost;
+    else if (r.kind === "image") point.image += r.cost;
     else point.chat += r.cost;
   }
   const daily = Array.from(dayMap.values());
@@ -137,6 +138,7 @@ async function loadDashboard(userId: string) {
     date: todayKey,
     chat: 0,
     agent: 0,
+    image: 0,
   };
 
   const totalCreditsLast30 = rows.reduce((sum, r) => sum + r.cost, 0);
@@ -149,6 +151,7 @@ async function loadDashboard(userId: string) {
       messages: msgCount ?? 0,
       todayChat: today.chat,
       todayAgent: today.agent,
+      todayImage: today.image,
       totalCreditsLast30,
       totalAgentTurnsLast30,
     },
@@ -180,7 +183,7 @@ export default async function MainDashboardPage() {
 
   const data = await loadDashboard(user.id);
   const { credits, totals, daily, byModel, recent } = data;
-  const todayTotal = totals.todayChat + totals.todayAgent;
+  const todayTotal = totals.todayChat + totals.todayAgent + totals.todayImage;
 
   return (
     <div className="space-y-6">

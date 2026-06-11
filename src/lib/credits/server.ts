@@ -18,6 +18,7 @@ export const COST_CHAT_BASE = 1;
 export const COST_AGENT_BASE = 3;
 export const COST_AGENT_PER_TOOL = 1;
 export const COST_AGENT_TOOL_CAP = 10;
+export const COST_IMAGE_BASE = 5;
 export const DEFAULT_DAILY_LIMIT = 50;
 
 /** Free / Pro tier definition. Stays in code, mirrored by the SQL function
@@ -107,7 +108,10 @@ export async function getCreditSnapshot(
  * gate. Tool count is unknown for agent runs at this point, so we charge
  * the base only and let `recordSpend` catch up at the end.
  */
-export function estimatePreflightCost(kind: "chat" | "agent"): number {
+export function estimatePreflightCost(
+  kind: "chat" | "agent" | "image",
+): number {
+  if (kind === "image") return COST_IMAGE_BASE;
   return kind === "chat" ? COST_CHAT_BASE : COST_AGENT_BASE;
 }
 
@@ -115,9 +119,10 @@ export function estimatePreflightCost(kind: "chat" | "agent"): number {
  * Compute the actual cost based on observed tool calls.
  */
 export function computeFinalCost(
-  kind: "chat" | "agent",
+  kind: "chat" | "agent" | "image",
   toolCount: number,
 ): number {
+  if (kind === "image") return COST_IMAGE_BASE;
   if (kind === "chat") return COST_CHAT_BASE;
   const tools = Math.min(Math.max(0, toolCount), COST_AGENT_TOOL_CAP);
   return COST_AGENT_BASE + tools * COST_AGENT_PER_TOOL;
@@ -143,7 +148,7 @@ export class OutOfCreditsError extends Error {
 
 export async function assertCanSpend(
   userId: string,
-  kind: "chat" | "agent",
+  kind: "chat" | "agent" | "image",
 ): Promise<{ snapshot: CreditSnapshot; estimated: number }> {
   const snapshot = await getCreditSnapshot(userId);
   const estimated = estimatePreflightCost(kind);
@@ -162,7 +167,7 @@ export async function assertCanSpend(
 export async function recordSpend(opts: {
   userId: string;
   conversationId: string | null;
-  kind: "chat" | "agent";
+  kind: "chat" | "agent" | "image";
   toolCount: number;
   modelId: string;
 }): Promise<{ cost: number }> {

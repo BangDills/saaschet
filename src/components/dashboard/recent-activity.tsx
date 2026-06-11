@@ -5,12 +5,13 @@ import {
   GitPullRequest,
   MessageSquare,
   Sparkles,
+  Image as ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type RecentItem = {
   id: string;
-  kind: "chat" | "agent";
+  kind: "chat" | "agent" | "image";
   cost: number;
   modelId: string | null;
   toolCount: number;
@@ -59,11 +60,18 @@ export function RecentActivity({ items }: { items: RecentItem[] }) {
   return (
     <ul className="divide-y divide-border">
       {items.map((item) => {
-        const Icon = item.kind === "agent" ? Bot : MessageSquare;
+        const Icon =
+          item.kind === "agent"
+            ? Bot
+            : item.kind === "image"
+              ? ImageIcon
+              : MessageSquare;
         const tone =
           item.kind === "agent"
             ? "text-violet-500"
-            : "text-muted-foreground";
+            : item.kind === "image"
+              ? "text-emerald-500"
+              : "text-muted-foreground";
         return (
           <li
             key={item.id}
@@ -79,7 +87,8 @@ export function RecentActivity({ items }: { items: RecentItem[] }) {
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium">
-                {item.conversationTitle ?? "Untitled chat"}
+                {item.conversationTitle ??
+                  (item.kind === "image" ? "Image Generation" : "Untitled chat")}
               </p>
               <p className="truncate text-xs text-muted-foreground">
                 {shortModel(item.modelId)}

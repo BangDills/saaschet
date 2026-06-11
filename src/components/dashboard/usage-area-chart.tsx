@@ -9,7 +9,7 @@ import {
   XAxis,
 } from "recharts";
 
-export type DailyPoint = { date: string; chat: number; agent: number };
+export type DailyPoint = { date: string; chat: number; agent: number; image: number };
 
 type TooltipPayloadItem = {
   name?: string;
@@ -76,6 +76,10 @@ export function UsageAreaChart({ data }: { data: DailyPoint[] }) {
             <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.35} />
             <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0.02} />
           </linearGradient>
+          <linearGradient id="fillImage" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="var(--chart-3)" stopOpacity={0.35} />
+            <stop offset="95%" stopColor="var(--chart-3)" stopOpacity={0.02} />
+          </linearGradient>
         </defs>
         <CartesianGrid
           vertical={false}
@@ -106,6 +110,14 @@ export function UsageAreaChart({ data }: { data: DailyPoint[] }) {
           stroke="var(--chart-1)"
           strokeWidth={2}
           fill="url(#fillAgent)"
+        />
+        <Area
+          type="monotone"
+          dataKey="image"
+          stackId="1"
+          stroke="var(--chart-3)"
+          strokeWidth={2}
+          fill="url(#fillImage)"
         />
       </AreaChart>
     </ResponsiveContainer>

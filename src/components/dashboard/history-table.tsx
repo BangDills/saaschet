@@ -1,14 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Bot, MessageSquare, ExternalLink } from "lucide-react";
+import { Bot, MessageSquare, ExternalLink, Image as ImageIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export type HistoryRow = {
   id: string;
-  kind: "chat" | "agent";
+  kind: "chat" | "agent" | "image";
   cost: number;
   modelId: string | null;
   toolCount: number;
@@ -21,22 +21,26 @@ type DateRange = "7d" | "30d" | "all";
 
 const PAGE_SIZE = 10;
 
-function KindBadge({ kind }: { kind: "chat" | "agent" }) {
+function KindBadge({ kind }: { kind: "chat" | "agent" | "image" }) {
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold",
         kind === "agent"
           ? "bg-violet-500/15 text-violet-600 dark:text-violet-300"
-          : "bg-sky-500/15 text-sky-600 dark:text-sky-300",
+          : kind === "image"
+            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300"
+            : "bg-sky-500/15 text-sky-600 dark:text-sky-300",
       )}
     >
       {kind === "agent" ? (
         <Bot className="size-3" />
+      ) : kind === "image" ? (
+        <ImageIcon className="size-3" />
       ) : (
         <MessageSquare className="size-3" />
       )}
-      {kind === "agent" ? "Agent" : "Chat"}
+      {kind === "agent" ? "Agent" : kind === "image" ? "Image" : "Chat"}
     </span>
   );
 }

@@ -16,11 +16,11 @@ export const dynamic = "force-dynamic";
  * RPC, because Supabase + RLS handles per-user filtering for free.
  */
 
-type DailyPoint = { date: string; chat: number; agent: number };
+type DailyPoint = { date: string; chat: number; agent: number; image: number };
 type ModelUsage = { modelId: string; count: number; totalCost: number };
 type RecentItem = {
   id: string;
-  kind: "chat" | "agent";
+  kind: "chat" | "agent" | "image";
   cost: number;
   modelId: string | null;
   toolCount: number;
@@ -85,13 +85,14 @@ export async function GET() {
     const d = new Date(since);
     d.setUTCDate(since.getUTCDate() + i);
     const key = d.toISOString().slice(0, 10);
-    dayMap.set(key, { date: key, chat: 0, agent: 0 });
+    dayMap.set(key, { date: key, chat: 0, agent: 0, image: 0 });
   }
   for (const r of rows) {
     const key = (r.created_at as string).slice(0, 10);
     const point = dayMap.get(key);
     if (!point) continue;
     if (r.kind === "agent") point.agent += r.cost;
+    else if (r.kind === "image") point.image += r.cost;
     else point.chat += r.cost;
   }
   const daily: DailyPoint[] = Array.from(dayMap.values());
@@ -112,7 +113,7 @@ export async function GET() {
   // ── Recent activity (top 8) ─────────────────────────────────────────
   const recent: RecentItem[] = rows.slice(0, 8).map((r) => ({
     id: String(r.created_at),
-    kind: r.kind as "chat" | "agent",
+    kind: r.kind as "chat" | "agent" | "image",
     cost: r.cost as number,
     modelId: (r.model_id as string | null) ?? null,
     toolCount: (r.tool_count as number) ?? 0,
@@ -147,6 +148,7 @@ export async function GET() {
     date: todayKey,
     chat: 0,
     agent: 0,
+    image: 0,
   };
 
   return NextResponse.json({
@@ -164,6 +166,7 @@ export async function GET() {
       turns: ledgerCount ?? 0,
       todayChat: today.chat,
       todayAgent: today.agent,
+      todayImage: today.image,
     },
     daily,
     byModel,
