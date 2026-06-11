@@ -15,8 +15,18 @@ import { Card } from "@/components/ui/card";
 import { fireCreditsRefresh } from "@/components/dashboard/credits-meter";
 
 const IMAGE_MODELS = [
+  // ── DigitalOcean Inference ──
   { id: "stable-diffusion-3.5-large", name: "Stable Diffusion 3.5 Large", provider: "DigitalOcean" },
-  { id: "openai-gpt-image-2", name: "DALL-E 3 (GPT-Image 2)", provider: "OpenAI" },
+  // ── Pollinations.ai (free, no key needed) ──
+  { id: "zimage", name: "Z Image", provider: "Pollinations" },
+  { id: "flux", name: "Flux Schnell", provider: "Pollinations" },
+  { id: "gptimage", name: "GPT Image", provider: "Pollinations" },
+  { id: "seedream", name: "Seedream", provider: "Pollinations" },
+  { id: "kontext", name: "Kontext", provider: "Pollinations" },
+  { id: "wan-image", name: "Wan Image", provider: "Pollinations" },
+  { id: "grok-imagine", name: "Grok Imagine", provider: "Pollinations" },
+  { id: "nova-canvas", name: "Nova Canvas", provider: "Pollinations" },
+  { id: "qwen-image", name: "Qwen Image", provider: "Pollinations" },
 ];
 
 const DIMENSION_PRESETS = [
@@ -44,6 +54,7 @@ export default function Page() {
     setImageUrl(null);
 
     try {
+      const currentModel = IMAGE_MODELS.find((m) => m.id === selectedModel);
       const res = await fetch("/api/images/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -51,6 +62,7 @@ export default function Page() {
           prompt: prompt.trim(),
           model: selectedModel,
           size: selectedSize,
+          provider: currentModel?.provider === "Pollinations" ? "pollinations" : "digitalocean",
         }),
       });
 
@@ -175,10 +187,17 @@ export default function Page() {
               </div>
 
               {/* Price Note */}
-              <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600 dark:text-emerald-300">
-                <Zap className="size-4 shrink-0" />
-                <span>Costs 5 credits per image generation</span>
-              </div>
+              {IMAGE_MODELS.find((m) => m.id === selectedModel)?.provider === "Pollinations" ? (
+                <div className="flex items-center gap-2 rounded-lg bg-sky-500/10 px-3 py-2 text-xs text-sky-600 dark:text-sky-300">
+                  <Zap className="size-4 shrink-0" />
+                  <span>Free via Pollinations.ai — 5 credits still apply for usage tracking</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600 dark:text-emerald-300">
+                  <Zap className="size-4 shrink-0" />
+                  <span>Costs 5 credits per image generation</span>
+                </div>
+              )}
 
               <Button
                 type="submit"
