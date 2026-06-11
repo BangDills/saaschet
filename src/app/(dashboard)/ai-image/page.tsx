@@ -21,8 +21,9 @@ const IMAGE_MODELS = [
 
 const DIMENSION_PRESETS = [
   { id: "1024x1024", name: "1:1 Square (1024x1024)" },
-  { id: "1024x768", name: "4:3 Landscape (1024x768)" },
-  { id: "768x1024", name: "3:4 Portrait (768x1024)" },
+  { id: "1536x1024", name: "3:2 Landscape (1536x1024)" },
+  { id: "1024x1536", name: "2:3 Portrait (1024x1536)" },
+  { id: "1792x1024", name: "7:4 Wide (1792x1024)" },
 ];
 
 export default function Page() {
