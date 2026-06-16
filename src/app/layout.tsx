@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SaaSchet — AI SaaS Dashboard",
+  title: "Celiuz AI — AI SaaS Dashboard",
   description: "Manage your AI credits, users, and generations in one place.",
 };
 

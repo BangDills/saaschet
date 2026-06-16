@@ -2,7 +2,7 @@
  * OpenAI Codex OAuth — Device Code Flow.
  *
  * Allows users to "Sign in with ChatGPT" and use their subscription
- * (Plus/Pro/Enterprise) for GPT-5.5 inference in SaaSchet.
+ * (Plus/Pro/Enterprise) for GPT-5.5 inference in Celiuz AI.
  *
  * Flow:
  * 1. POST /api/accounts/deviceauth/usercode → user_code + device_auth_id

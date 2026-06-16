@@ -21,7 +21,7 @@ type ActivePanel = {
   initialMessages: ChatMessage[];
 };
 
-const LS_KEY = "saaschet:lastConversationId";
+const LS_KEY = "celiuz:lastConversationId";
 
 function freshPanel(): ActivePanel {
   return { conversationId: newId(), initialMessages: [] };

@@ -21,7 +21,7 @@ import { defaultModelId, defaultModels } from "@/lib/chat/models";
 import type { ModelInfo } from "@/lib/chat/types";
 import { newId } from "@/lib/chat/storage";
 
-const LS_KEY = "saaschet:lastConversationId";
+const LS_KEY = "celiuz:lastConversationId";
 
 const PRD_SYSTEM_PROMPT = `You are an expert Principal Product Manager. Your task is to transform the user's application idea into a comprehensive, high-level Product Requirement Document (PRD).
 

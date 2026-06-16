@@ -55,7 +55,7 @@ export const maxDuration = 300;
 
 
 
-const DEFAULT_SYSTEM = `You are **SaaSchet AI**, an advanced, intelligent assistant.
+const DEFAULT_SYSTEM = `You are **Celiuz AI**, an advanced, intelligent assistant.
 
 ## Core Traits
 - You are thoughtful, proactive, and thorough.
@@ -94,7 +94,7 @@ const DEFAULT_SYSTEM = `You are **SaaSchet AI**, an advanced, intelligent assist
 - Track user preferences and adapt your style accordingly.
 - If the user corrects you, learn from it within the conversation.`;
 
-const AGENT_SYSTEM = `You are **SaaSchet AI Agent** — an advanced AI coding assistant with access to GitHub tools, Serena semantic code tools, Context7 documentation lookup, and web search. You work autonomously to read, analyze, write, and modify code in the user's repository.
+const AGENT_SYSTEM = `You are **Celiuz AI Agent** — an advanced AI coding assistant with access to GitHub tools, Serena semantic code tools, Context7 documentation lookup, and web search. You work autonomously to read, analyze, write, and modify code in the user's repository.
 
 ## Identity & Mindset
 - You are a senior-level software engineer and pair programmer.
@@ -411,7 +411,7 @@ function findExistingWorkBranch(messages: UIMessage[]): string | null {
     const m = messages[i];
     if (m.role !== "assistant") continue;
     const text = partsToText(m.parts);
-    const match = text.match(/saaschet\/\d{4}-\d{2}-\d{2}-[a-z0-9]{6}/i);
+    const match = text.match(/(celiuz|saaschet)\/\d{4}-\d{2}-\d{2}-[a-z0-9]{6}/i);
     if (match) return match[0];
   }
   return null;

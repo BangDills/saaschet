@@ -138,7 +138,7 @@ export function Topbar({ initials }: TopbarProps) {
                 href="/ai-chat"
                 className="text-base font-semibold tracking-tight text-foreground hover:text-primary transition-colors"
               >
-                SaaSchet AI Studio
+                Celiuz AI Studio
               </Link>
               <Button
                 variant="ghost"

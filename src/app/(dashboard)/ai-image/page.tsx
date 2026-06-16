@@ -103,7 +103,7 @@ export default function Page() {
     try {
       const a = document.createElement("a");
       a.href = imageUrl;
-      a.download = `SaaSchet-Image-${Date.now()}.png`;
+      a.download = `Celiuz-AI-Image-${Date.now()}.png`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

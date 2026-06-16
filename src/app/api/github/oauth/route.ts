@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  * for repo access. This is SEPARATE from Supabase auth — it only gets
  * a GitHub token and stores it in profiles.github_token.
  *
- * This allows multiple SaaSchet users to connect the same GitHub account.
+ * This allows multiple Celiuz AI users to connect the same GitHub account.
  */
 export async function GET(request: NextRequest) {
   const { origin } = new URL(request.url);

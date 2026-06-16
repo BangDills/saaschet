@@ -38,7 +38,7 @@ const PLANS: {
     tier: "free",
     name: "Free",
     price: "$0",
-    description: "Great for trying out SaaSchet",
+    description: "Great for trying out Celiuz AI",
     limit: 50,
     features: [
       "50 credits per day",

@@ -1,4 +1,4 @@
-# SaaSchet — AI-Powered SaaS Platform
+# Celiuz AI — AI-Powered SaaS Platform
 
 Modern AI SaaS platform built with **Next.js 16**, **React 19**, **Tailwind CSS v4**, and **Vercel AI SDK**. Features an AI coding agent with GitHub integration, live sandbox execution, multi-model support, and a full dashboard with auth.
 
@@ -54,8 +54,8 @@ Modern AI SaaS platform built with **Next.js 16**, **React 19**, **Tailwind CSS 
 
 ```bash
 # 1. Clone
-git clone https://github.com/BangDills/saaschet.git
-cd saaschet
+git clone https://github.com/BangDills/celiuz-ai.git
+cd celiuz-ai
 
 # 2. Install
 npm install

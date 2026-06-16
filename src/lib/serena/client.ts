@@ -23,7 +23,7 @@ function serenaHeaders(authToken: string | null): HeadersInit | undefined {
 
 function serenaClient() {
   return new Client({
-    name: "saaschet-serena-client",
+    name: "celiuz-serena-client",
     version: "0.1.0",
   });
 }

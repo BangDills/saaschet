@@ -15,7 +15,7 @@ const eslintConfig = defineConfig([
     // Legacy cPanel entrypoint and accidental nested repo copy are not part of
     // the Vercel app lint target.
     "server.js",
-    "saaschet/**",
+    "celiuz-ai/**",
   ]),
 ]);
 

@@ -18,8 +18,8 @@ cPanel's "Setup Node.js App" can run `npm install`, but it usually does **not** 
 
 ```bash
 # on your local machine
-git clone https://github.com/cloudmail280/saaschet.git
-cd saaschet
+git clone https://github.com/cloudmail280/celiuz-ai.git
+cd celiuz-ai
 npm install
 npm run build
 ```

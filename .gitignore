@@ -25,7 +25,7 @@
 *.pem
 
 # local accidental nested checkout/copy
-/saaschet/
+/celiuz-ai/
 
 # debug
 npm-debug.log*

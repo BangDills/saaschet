@@ -13,7 +13,7 @@ type CreditSnapshot = {
   totalUsed: number;
 };
 
-const REFRESH_EVENT = "saaschet:credits:refresh";
+const REFRESH_EVENT = "celiuz:credits:refresh";
 
 /** Fire this anywhere in the app to ask the meter to re-fetch. */
 export function fireCreditsRefresh() {
@@ -35,7 +35,7 @@ function fmtResetsIn(resetsAt: number): string {
  * Compact daily-credit progress bar shown in the sidebar.
  *
  * Polls /api/credits on mount and whenever the global
- * `saaschet:credits:refresh` event fires (after each chat finishes).
+ * `celiuz:credits:refresh` event fires (after each chat finishes).
  */
 export function CreditsMeter() {
   const [snap, setSnap] = React.useState<CreditSnapshot | null>(null);
