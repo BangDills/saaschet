@@ -45,7 +45,6 @@ import {
   expiresAt,
 } from "@/lib/openai/codex-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { searchMemories } from "@/lib/chat/memory";
 import { extractAndSaveMemories } from "@/lib/chat/memory-extractor";
 import { getStructuredMemory, formatStructuredMemory } from "@/lib/chat/structured-memory";
 import { extractAndSaveStructuredMemory } from "@/lib/chat/structured-memory-extractor";
@@ -577,17 +576,8 @@ export async function POST(req: Request) {
   }
 
   // ── Retrieve long-term vector memories ───────────────────────────────
-  let vectorMemoryContext = "";
-  if (process.env.DO_INFERENCE_API_KEY && userText) {
-    try {
-      const memories = await searchMemories(userId, userText, 5, 0.7);
-      if (memories.length > 0) {
-        vectorMemoryContext = `\n\n## Long-term Memory (User Preferences & Project Context)\n${memories.map((m) => `- ${m}`).join("\n")}`;
-      }
-    } catch (err) {
-      console.warn("[chat] failed to retrieve vector memories:", err);
-    }
-  }
+  // Disabled: DigitalOcean Serverless Inference embeddings currently return 404 model not found
+  const vectorMemoryContext = "";
 
   // ── Retrieve structured JSONB profile memory ─────────────────────────
   let structuredMemoryContext = "";
@@ -1062,15 +1052,25 @@ ${recoveryInstruction}`;
           }
 
           // Trigger long-term memory extraction asynchronously (non-blocking)
+          // Wrapped inside try-catch to ensure that validation schema failures (e.g. from DigitalOcean API type mismatches)
+          // never crash the parent server process.
           if (process.env.DO_INFERENCE_API_KEY && userText && text) {
-            extractAndSaveMemories(userId, userText, text).catch((err) => {
-              console.error("[chat] failed to run memory extraction:", err);
-            });
+            try {
+              extractAndSaveMemories(userId, userText, text).catch((err) => {
+                console.error("[chat] failed to run memory extraction:", err);
+              });
+            } catch (err) {
+              console.error("[chat] failed to initiate memory extraction:", err);
+            }
 
-            // Also trigger structured profile memory extraction asynchronously
-            extractAndSaveStructuredMemory(userId, userText, text).catch((err) => {
-              console.error("[chat] failed to run structured memory extraction:", err);
-            });
+            try {
+              // Also trigger structured profile memory extraction asynchronously
+              extractAndSaveStructuredMemory(userId, userText, text).catch((err) => {
+                console.error("[chat] failed to run structured memory extraction:", err);
+              });
+            } catch (err) {
+              console.error("[chat] failed to initiate structured memory extraction:", err);
+            }
           }
         },
       });
