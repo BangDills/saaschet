@@ -15,13 +15,19 @@ export function getDaytonaClient(): Daytona {
     throw new Error("DAYTONA_API_KEY is not set");
   }
 
+  const target = (process.env.DAYTONA_TARGET as "us" | "eu") || "us";
+  const defaultApiUrl =
+    target === "eu"
+      ? "https://api.eu.daytona.app"
+      : "https://api.us.daytona.app";
+
   _client = new Daytona({
     apiKey,
     apiUrl:
       process.env.DAYTONA_SERVER_URL ||
       process.env.DAYTONA_API_URL ||
-      "https://app.daytona.io/api",
-    target: (process.env.DAYTONA_TARGET as "us" | "eu") || "us",
+      defaultApiUrl,
+    target,
   });
 
   return _client;
