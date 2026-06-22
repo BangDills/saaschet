@@ -47,6 +47,8 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { searchMemories } from "@/lib/chat/memory";
 import { extractAndSaveMemories } from "@/lib/chat/memory-extractor";
+import { getStructuredMemory, formatStructuredMemory } from "@/lib/chat/structured-memory";
+import { extractAndSaveStructuredMemory } from "@/lib/chat/structured-memory-extractor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -587,11 +589,23 @@ export async function POST(req: Request) {
     }
   }
 
+  // ── Retrieve structured JSONB profile memory ─────────────────────────
+  let structuredMemoryContext = "";
+  if (process.env.DO_INFERENCE_API_KEY) {
+    try {
+      const structuredMemory = await getStructuredMemory(userId);
+      structuredMemoryContext = formatStructuredMemory(structuredMemory);
+    } catch (err) {
+      console.warn("[chat] failed to retrieve structured memory:", err);
+    }
+  }
+
   // ── Build system prompt ──────────────────────────────────────────────
   let system =
     (body.system?.trim() || (wantsAgent ? AGENT_SYSTEM : DEFAULT_SYSTEM)) +
     memoryContext +
-    vectorMemoryContext;
+    vectorMemoryContext +
+    structuredMemoryContext;
 
   // Web search context (chat mode only — agent has the web_search tool).
   if (wantsWebSearch && !wantsAgent) {
@@ -1029,6 +1043,11 @@ ${recoveryInstruction}`;
           if (process.env.DO_INFERENCE_API_KEY && userText && text) {
             extractAndSaveMemories(userId, userText, text).catch((err) => {
               console.error("[chat] failed to run memory extraction:", err);
+            });
+
+            // Also trigger structured profile memory extraction asynchronously
+            extractAndSaveStructuredMemory(userId, userText, text).catch((err) => {
+              console.error("[chat] failed to run structured memory extraction:", err);
             });
           }
         },
