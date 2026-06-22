@@ -342,7 +342,16 @@ export function createSandboxTools(ctx: SandboxContext) {
  */
 async function cloneRepo(ctx: SandboxContext): Promise<void> {
   const [owner, repo] = ctx.repoSlug.split("/");
-  const cloneUrl = `https://x-access-token:${ctx.githubToken}@github.com/${owner}/${repo}.git`;
+
+  // Clean token check: detect if token is empty, undefined, or string literal "undefined"
+  const hasValidToken =
+    ctx.githubToken &&
+    ctx.githubToken.trim() !== "" &&
+    ctx.githubToken !== "undefined";
+
+  const publicCloneUrl = `https://github.com/${owner}/${repo}.git`;
+  const authenticatedCloneUrl = `https://x-access-token:${ctx.githubToken}@github.com/${owner}/${repo}.git`;
+  const primaryCloneUrl = hasValidToken ? authenticatedCloneUrl : publicCloneUrl;
 
   try {
     await ctx.sandbox.process.executeCommand(
@@ -351,12 +360,29 @@ async function cloneRepo(ctx: SandboxContext): Promise<void> {
       undefined,
       10,
     );
-    const cloneResponse = await ctx.sandbox.process.executeCommand(
-      `git clone --depth 50 "${cloneUrl}" workspace/repo`,
+
+    console.log(`[sandbox] Attempting clone for ${ctx.repoSlug} using ${hasValidToken ? "authenticated" : "public"} URL`);
+    let cloneResponse = await ctx.sandbox.process.executeCommand(
+      `git clone --depth 50 "${primaryCloneUrl}" workspace/repo`,
       undefined,
       undefined,
       60,
     );
+
+    // Fallback: If authenticated clone fails, attempt a public clone in case it's a public repository
+    if (cloneResponse.exitCode !== 0 && hasValidToken) {
+      console.log(`[sandbox] Authenticated clone failed. Retrying with public clone URL as fallback.`);
+
+      // Clean up failed clone folder before retrying
+      await ctx.sandbox.process.executeCommand("rm -rf workspace/repo");
+
+      cloneResponse = await ctx.sandbox.process.executeCommand(
+        `git clone --depth 50 "${publicCloneUrl}" workspace/repo`,
+        undefined,
+        undefined,
+        60,
+      );
+    }
 
     if (cloneResponse.exitCode !== 0) {
       const errorMsg = cloneResponse.result || "Unknown git clone error";
@@ -365,19 +391,20 @@ async function cloneRepo(ctx: SandboxContext): Promise<void> {
         lowerMsg.includes("authentication failed") ||
         lowerMsg.includes("unauthorized") ||
         lowerMsg.includes("bad credentials") ||
-        lowerMsg.includes("could not read username")
+        lowerMsg.includes("could not read username") ||
+        lowerMsg.includes("401")
       ) {
         const tokenPrefix = ctx.githubToken ? ctx.githubToken.substring(0, 8) : "none";
         const tokenLength = ctx.githubToken ? ctx.githubToken.length : 0;
         throw new Error(
-          `GitHub authentication failed (Token: ${tokenPrefix}... length: ${tokenLength}). Your access token may have expired or is invalid. Please go to 'Profile Settings' and reconnect your GitHub account to refresh the token.`
+          `GitHub authentication failed (Token prefix: ${tokenPrefix}, length: ${tokenLength}). Your access token may have expired or is invalid. Please go to 'Profile Settings' and reconnect your GitHub account to refresh the token.`
         );
       }
       throw new Error(errorMsg);
     }
 
     ctx.repoCloned = true;
-    console.log(`[sandbox] Cloned ${ctx.repoSlug} into sandbox`);
+    console.log(`[sandbox] Successfully cloned ${ctx.repoSlug} into sandbox`);
   } catch (err) {
     console.error(`[sandbox] Clone failed:`, err);
     throw new Error(
