@@ -78,6 +78,26 @@ export function AuthSettings({
     text: string;
   } | null>(null);
 
+  // ── GitHub Disconnect ──
+  const [githubDisconnectLoading, setGithubDisconnectLoading] = React.useState(false);
+
+  async function handleGithubDisconnect() {
+    if (githubDisconnectLoading) return;
+    setGithubDisconnectLoading(true);
+    try {
+      const res = await fetch("/api/github/disconnect", { method: "POST" });
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        alert("Failed to disconnect GitHub account.");
+      }
+    } catch {
+      alert("Network error. Failed to disconnect GitHub.");
+    } finally {
+      setGithubDisconnectLoading(false);
+    }
+  }
+
   async function handlePasswordChange() {
     if (!newPw || newPw.length < 6) {
       setPwMsg({ type: "error", text: "Password must be at least 6 characters." });
@@ -160,15 +180,46 @@ export function AuthSettings({
                 {providerLabel}
               </p>
             </div>
-            {githubUsername && (
-              <div>
+            {githubUsername ? (
+              <div className="sm:col-span-2 border-t border-border pt-3 mt-1">
                 <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  GitHub
+                  Connected GitHub Account
                 </p>
-                <p className="mt-1 flex items-center gap-2 font-mono text-sm">
-                  <GitFork className="size-4 text-muted-foreground" />@
-                  {githubUsername}
+                <div className="mt-2 flex items-center justify-between gap-4 rounded-lg border border-border/80 bg-muted/30 p-3">
+                  <div className="flex items-center gap-2 font-mono text-sm">
+                    <GitFork className="size-4 text-muted-foreground" />
+                    <span>@{githubUsername}</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGithubDisconnect}
+                    disabled={githubDisconnectLoading}
+                    className="h-8 text-xs font-semibold text-red-500 border-red-200 hover:border-red-500 hover:bg-red-500 hover:text-white dark:border-red-950 dark:hover:bg-red-950 transition-colors"
+                  >
+                    {githubDisconnectLoading ? (
+                      <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                    ) : null}
+                    Disconnect GitHub
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="sm:col-span-2 border-t border-border pt-3 mt-1">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Connected GitHub Account
                 </p>
+                <div className="mt-2 flex items-center justify-between gap-4 rounded-lg border border-dashed border-border p-3">
+                  <span className="text-xs text-muted-foreground">
+                    No GitHub account linked. Link your account to enable Agent Mode operations on private repos.
+                  </span>
+                  <a
+                    href="/auth/login/github?next=/auth"
+                    className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
+                  >
+                    Connect GitHub
+                  </a>
+                </div>
               </div>
             )}
             <div>
