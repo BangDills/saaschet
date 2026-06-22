@@ -1143,7 +1143,12 @@ ${recoveryInstruction}`;
       },
       consumeSseStream: async ({ stream: sseStream }) => {
         try {
-          await new Response(sseStream).text();
+          // sseStream is a ReadableStream<string> (SSE text chunks).
+          // Pipe through TextEncoderStream to convert to Uint8Array before
+          // passing to Response, which requires a byte stream.
+          await new Response(
+            sseStream.pipeThrough(new TextEncoderStream()),
+          ).text();
         } finally {
           if (!finishedSuccessfully) {
             await markConversationIdle();
