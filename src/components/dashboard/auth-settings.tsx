@@ -214,7 +214,7 @@ export function AuthSettings({
                     No GitHub account linked. Link your account to enable Agent Mode operations on private repos.
                   </span>
                   <a
-                    href="/auth/login/github?next=/auth"
+                    href="/api/github/oauth"
                     className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
                   >
                     Connect GitHub

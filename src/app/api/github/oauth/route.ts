@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
     redirect_uri: `${origin}/api/github/callback`,
     scope: "read:user user:email repo",
     state,
+    prompt: "consent",
   });
 
   return NextResponse.redirect(
