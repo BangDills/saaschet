@@ -13,6 +13,8 @@ export type SandboxContext = {
   githubToken: string;
   /** Whether the repo has been cloned into the sandbox already */
   repoCloned: boolean;
+  /** Mutex: in-flight clone promise to prevent concurrent clones */
+  _clonePromise?: Promise<void>;
 };
 
 function schema<T>(s: object) {
@@ -71,9 +73,7 @@ export function createSandboxTools(ctx: SandboxContext) {
         cwd?: string;
         timeout?: number;
       }) => {
-        if (!ctx.repoCloned) {
-          await cloneRepo(ctx);
-        }
+        await ensureCloned(ctx);
         try {
           const response = await ctx.sandbox.process.executeCommand(
             command,
@@ -158,9 +158,7 @@ export function createSandboxTools(ctx: SandboxContext) {
         additionalProperties: false,
       }),
       execute: async ({ path }: { path: string }) => {
-        if (!ctx.repoCloned) {
-          await cloneRepo(ctx);
-        }
+        await ensureCloned(ctx);
         try {
           const response = await ctx.sandbox.process.executeCommand(
             `cat "workspace/repo/${path}"`,
@@ -199,9 +197,7 @@ export function createSandboxTools(ctx: SandboxContext) {
         additionalProperties: false,
       }),
       execute: async ({ path, content }: { path: string; content: string }) => {
-        if (!ctx.repoCloned) {
-          await cloneRepo(ctx);
-        }
+        await ensureCloned(ctx);
         try {
           const fullPath = `workspace/repo/${path}`;
           const dir = fullPath.substring(0, fullPath.lastIndexOf("/"));
@@ -261,9 +257,7 @@ export function createSandboxTools(ctx: SandboxContext) {
       }: {
         files: { path: string; content: string }[];
       }) => {
-        if (!ctx.repoCloned) {
-          await cloneRepo(ctx);
-        }
+        await ensureCloned(ctx);
 
         const results: { path: string; success: boolean; error?: string }[] = [];
 
@@ -316,9 +310,7 @@ export function createSandboxTools(ctx: SandboxContext) {
         additionalProperties: false,
       }),
       execute: async ({ path }: { path?: string }) => {
-        if (!ctx.repoCloned) {
-          await cloneRepo(ctx);
-        }
+        await ensureCloned(ctx);
         try {
           const dir = path
             ? `workspace/repo/${path}`
@@ -335,6 +327,31 @@ export function createSandboxTools(ctx: SandboxContext) {
       },
     }),
   };
+}
+
+/**
+ * Ensure the repo is cloned exactly once — concurrent callers wait on the
+ * same in-flight promise instead of spawning duplicate `git clone` processes.
+ */
+async function ensureCloned(ctx: SandboxContext): Promise<void> {
+  if (ctx.repoCloned) return;
+
+  // If another tool call already started cloning, piggy-back on that promise.
+  if (ctx._clonePromise) {
+    await ctx._clonePromise;
+    return;
+  }
+
+  // We are the first caller — start the clone and store the promise so
+  // concurrent callers can await the same work.
+  ctx._clonePromise = cloneRepo(ctx).finally(() => {
+    // Clear the mutex so that a failed clone can be retried on the next call.
+    if (!ctx.repoCloned) {
+      ctx._clonePromise = undefined;
+    }
+  });
+
+  await ctx._clonePromise;
 }
 
 /**
