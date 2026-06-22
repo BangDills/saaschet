@@ -20,7 +20,6 @@ import {
   isAgentCapable,
 } from "@/lib/chat/models";
 import { codexCompatFetch } from "@/lib/chat/codex-compat";
-import { needsToolCallTypeFix, toolCallCompatFetch } from "@/lib/chat/kimi-compat";
 import { searchWeb, formatSearchResults } from "@/lib/chat/web-search";
 import { deriveTitle } from "@/lib/chat/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -871,12 +870,7 @@ When the user asks about library APIs, setup, migrations, or version-specific be
       baseURL: candidateBaseURL,
       apiKey: candidateKey,
       // Codex has a stricter Responses API contract than api.openai.com.
-      // Kimi K2.x and GLM-5 need stream patching for malformed tool calls.
-      ...(candidateProvider === "codex"
-        ? { fetch: codexCompatFetch }
-        : needsToolCallTypeFix(candidateResolvedModelId)
-          ? { fetch: toolCallCompatFetch }
-          : {}),
+      ...(candidateProvider === "codex" ? { fetch: codexCompatFetch } : {}),
     });
 
     return {
