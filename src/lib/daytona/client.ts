@@ -16,13 +16,21 @@ export function getDaytonaClient(): Daytona {
   }
 
   const target = (process.env.DAYTONA_TARGET as "us" | "eu") || "us";
+  const apiUrl =
+    process.env.DAYTONA_SERVER_URL ||
+    process.env.DAYTONA_API_URL ||
+    "https://app.daytona.io/api";
+
+  // Print diagnostic log safely (only first and last 4 characters)
+  const keyStart = apiKey.substring(0, 4);
+  const keyEnd = apiKey.substring(apiKey.length - 4);
+  console.info(
+    `[daytona-diag] Init Daytona client with URL: "${apiUrl}", Target: "${target}", Key: ${keyStart}...${keyEnd} (Len: ${apiKey.length})`
+  );
 
   _client = new Daytona({
     apiKey,
-    apiUrl:
-      process.env.DAYTONA_SERVER_URL ||
-      process.env.DAYTONA_API_URL ||
-      "https://app.daytona.io/api",
+    apiUrl,
     target,
   });
 
