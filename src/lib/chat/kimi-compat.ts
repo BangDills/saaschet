@@ -17,7 +17,7 @@
  * - GLM-5
  */
 export function needsToolCallTypeFix(modelId: string): boolean {
-  return /^kimi-/i.test(modelId) || /^glm-/i.test(modelId);
+  return /^kimi-/i.test(modelId) || /^glm-/i.test(modelId) || /deepseek/i.test(modelId);
 }
 
 // Keep the old name as an alias for backward compatibility.

@@ -367,8 +367,10 @@ async function cloneRepo(ctx: SandboxContext): Promise<void> {
         lowerMsg.includes("bad credentials") ||
         lowerMsg.includes("could not read username")
       ) {
+        const tokenPrefix = ctx.githubToken ? ctx.githubToken.substring(0, 8) : "none";
+        const tokenLength = ctx.githubToken ? ctx.githubToken.length : 0;
         throw new Error(
-          "GitHub authentication failed. Your access token may have expired or is invalid. Please go to 'Profile Settings' and reconnect your GitHub account to refresh the token."
+          `GitHub authentication failed (Token: ${tokenPrefix}... length: ${tokenLength}). Your access token may have expired or is invalid. Please go to 'Profile Settings' and reconnect your GitHub account to refresh the token.`
         );
       }
       throw new Error(errorMsg);
