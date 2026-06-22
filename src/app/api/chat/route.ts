@@ -687,31 +687,48 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
     try {
       const daytona = getDaytonaClient();
 
-      // Use image-based creation for explicit resource allocation.
-      // Configurable via env vars; clamped with a hard limit to prevent Daytona Cloud resource limits.
-      const rawCpu = Number(process.env.DAYTONA_SANDBOX_CPU) || 1;
-      const rawMemory = Number(process.env.DAYTONA_SANDBOX_MEMORY) || 2;
-      const rawDisk = Number(process.env.DAYTONA_SANDBOX_DISK) || 5;
+      const sandboxImage = process.env.DAYTONA_SANDBOX_IMAGE;
+      let cpu = 1;
+      let memory = 2;
 
-      // Hard Cap: max 1 CPU, 2GB RAM, 5GB Disk per sandbox
-      const cpu = Math.min(rawCpu, 1);
-      const memory = Math.min(rawMemory, 2);
-      const disk = Math.min(rawDisk, 5);
+      if (!sandboxImage) {
+        // Fast, language-based instantiation using cached Daytona container
+        sandbox = await daytona.create(
+          {
+            language: "typescript",
+            envVars: { NODE_ENV: "development" },
+            autoStopInterval: 15,   // auto-stop after 15 min idle
+            autoDeleteInterval: 0,  // ephemeral: delete on stop
+          },
+          { timeout: 90 },
+        );
+        console.log(`[daytona] Fast language-based sandbox created: ${sandbox.id}`);
+      } else {
+        // Image-based creation for custom Docker image and resource allocation.
+        const rawCpu = Number(process.env.DAYTONA_SANDBOX_CPU) || 1;
+        const rawMemory = Number(process.env.DAYTONA_SANDBOX_MEMORY) || 2;
+        const rawDisk = Number(process.env.DAYTONA_SANDBOX_DISK) || 5;
 
-      sandbox = await daytona.create(
-        {
-          image: process.env.DAYTONA_SANDBOX_IMAGE || "node:22-slim",
-          language: "typescript",
-          resources: { cpu, memory, disk },
-          envVars: { NODE_ENV: "development" },
-          autoStopInterval: 15,   // auto-stop after 15 min idle
-          autoDeleteInterval: 0,  // ephemeral: delete on stop
-        },
-        { timeout: 90 },
-      );
-      console.log(
-        `[daytona] Sandbox created: ${sandbox.id} (${cpu} CPU, ${memory}GB RAM, ${disk}GB disk)`,
-      );
+        // Hard Cap to prevent exceeding account limits
+        cpu = Math.min(rawCpu, 1);
+        memory = Math.min(rawMemory, 2);
+        const disk = Math.min(rawDisk, 5);
+
+        sandbox = await daytona.create(
+          {
+            image: sandboxImage,
+            language: "typescript",
+            resources: { cpu, memory, disk },
+            envVars: { NODE_ENV: "development" },
+            autoStopInterval: 15,
+            autoDeleteInterval: 0,
+          },
+          { timeout: 90 },
+        );
+        console.log(
+          `[daytona] Custom image sandbox created: ${sandbox.id} (${cpu} CPU, ${memory}GB RAM, ${disk}GB disk)`,
+        );
+      }
 
       sandboxTools = createSandboxTools({
         sandbox,
