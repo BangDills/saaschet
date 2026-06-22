@@ -350,9 +350,12 @@ async function cloneRepo(ctx: SandboxContext): Promise<void> {
     cleanToken !== "undefined" &&
     cleanToken !== "null";
 
-  const repoUrl = `https://github.com/${owner}/${repo}.git`;
+  const publicCloneUrl = `https://github.com/${owner}/${repo}.git`;
+  const authenticatedCloneUrl = `https://x-access-token:${cleanToken}@github.com/${owner}/${repo}.git`;
+  const primaryCloneUrl = hasValidToken ? authenticatedCloneUrl : publicCloneUrl;
 
   try {
+    // 1. Create workspace directory
     await ctx.sandbox.process.executeCommand(
       "mkdir -p workspace",
       undefined,
@@ -360,54 +363,38 @@ async function cloneRepo(ctx: SandboxContext): Promise<void> {
       10,
     );
 
-    console.log(`[sandbox] Attempting clone for ${ctx.repoSlug} using Daytona Git API (Auth: ${hasValidToken ? "yes" : "no"})`);
+    // 2. IMPORTANT: Unset the Daytona credential helper globally in the sandbox git config
+    // This stops the sandbox from trying to use Daytona's custom bearer auth which causes the
+    // "unauthorized: authentication failed: Bearer token is invalid" error.
+    console.log(`[sandbox] Unsetting global git credential helper in sandbox`);
+    await ctx.sandbox.process.executeCommand("git config --global --unset credential.helper");
 
-    let cloneSuccess = false;
-    let cloneError: Error | null = null;
+    console.log(`[sandbox] Attempting manual shell git clone for ${ctx.repoSlug} (Auth: ${hasValidToken ? "yes" : "no"})`);
 
-    try {
-      if (hasValidToken) {
-        // Use Daytona SDK Git clone API with token for authentication
-        await ctx.sandbox.git.clone(
-          repoUrl,
-          "workspace/repo",
-          undefined, // branch (default)
-          undefined, // commitId
-          "x-access-token",
-          cleanToken
-        );
-      } else {
-        // Clone without authentication for public repository
-        await ctx.sandbox.git.clone(
-          repoUrl,
-          "workspace/repo"
-        );
-      }
-      cloneSuccess = true;
-    } catch (err) {
-      cloneError = err instanceof Error ? err : new Error(String(err));
-      console.log(`[sandbox] Daytona Git API clone failed. Error: ${cloneError.message}`);
+    let cloneResponse = await ctx.sandbox.process.executeCommand(
+      `git clone --depth 50 "${primaryCloneUrl}" workspace/repo`,
+      undefined,
+      undefined,
+      60,
+    );
+
+    // Fallback: If authenticated clone fails, attempt a public clone in case it is a public repository
+    if (cloneResponse.exitCode !== 0 && hasValidToken) {
+      console.log(`[sandbox] Authenticated clone failed. Retrying with public clone URL as fallback.`);
+
+      // Clean up failed clone folder before retrying
+      await ctx.sandbox.process.executeCommand("rm -rf workspace/repo");
+
+      cloneResponse = await ctx.sandbox.process.executeCommand(
+        `git clone --depth 50 "${publicCloneUrl}" workspace/repo`,
+        undefined,
+        undefined,
+        60,
+      );
     }
 
-    // Fallback: If authenticated clone failed, try public clone in case it is a public repository
-    if (!cloneSuccess && hasValidToken) {
-      console.log(`[sandbox] Authenticated clone failed. Retrying with public clone as fallback.`);
-      try {
-        // Clean up failed clone folder before retrying
-        await ctx.sandbox.process.executeCommand("rm -rf workspace/repo");
-
-        await ctx.sandbox.git.clone(
-          repoUrl,
-          "workspace/repo"
-        );
-        cloneSuccess = true;
-      } catch (fallbackErr) {
-        console.error(`[sandbox] Fallback public clone also failed:`, fallbackErr);
-      }
-    }
-
-    if (!cloneSuccess) {
-      const errorMsg = cloneError ? cloneError.message : "Unknown Git API clone error";
+    if (cloneResponse.exitCode !== 0) {
+      const errorMsg = cloneResponse.result || "Unknown git clone error";
       const lowerMsg = errorMsg.toLowerCase();
       if (
         lowerMsg.includes("authentication") ||

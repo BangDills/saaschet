@@ -64,7 +64,9 @@ export async function searchMemories(
 
     return data.map((item: { content: string }) => item.content);
   } catch (err) {
-    console.error("[memory] failed to search memories:", err);
+    // Graceful Fallback: If embedding or database call fails, warning-log it
+    // and return an empty array [] so the main chat flow doesn't crash.
+    console.warn("[memory] semantic search failed gracefully. Continuing chat without vector memories. Error:", err instanceof Error ? err.message : String(err));
     return [];
   }
 }
@@ -104,7 +106,8 @@ export async function saveMemory(userId: string, content: string): Promise<boole
     console.log(`[memory] stored new memory for user ${userId}: "${cleanContent}"`);
     return true;
   } catch (err) {
-    console.error("[memory] failed to save memory:", err);
+    // Graceful Fallback: If embedding generation or DB write fails, log it and return false
+    console.warn("[memory] failed to save memory gracefully. Error:", err instanceof Error ? err.message : String(err));
     return false;
   }
 }
