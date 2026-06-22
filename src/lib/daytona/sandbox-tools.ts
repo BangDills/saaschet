@@ -351,12 +351,29 @@ async function cloneRepo(ctx: SandboxContext): Promise<void> {
       undefined,
       10,
     );
-    await ctx.sandbox.process.executeCommand(
+    const cloneResponse = await ctx.sandbox.process.executeCommand(
       `git clone --depth 50 "${cloneUrl}" workspace/repo`,
       undefined,
       undefined,
       60,
     );
+
+    if (cloneResponse.exitCode !== 0) {
+      const errorMsg = cloneResponse.result || "Unknown git clone error";
+      const lowerMsg = errorMsg.toLowerCase();
+      if (
+        lowerMsg.includes("authentication failed") ||
+        lowerMsg.includes("unauthorized") ||
+        lowerMsg.includes("bad credentials") ||
+        lowerMsg.includes("could not read username")
+      ) {
+        throw new Error(
+          "GitHub authentication failed. Your access token may have expired or is invalid. Please go to 'Profile Settings' and reconnect your GitHub account to refresh the token."
+        );
+      }
+      throw new Error(errorMsg);
+    }
+
     ctx.repoCloned = true;
     console.log(`[sandbox] Cloned ${ctx.repoSlug} into sandbox`);
   } catch (err) {
