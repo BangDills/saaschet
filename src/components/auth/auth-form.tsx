@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GitHubButton } from "./github-button";
@@ -28,6 +29,48 @@ export function AuthForm({ mode, action }: AuthFormProps) {
     action,
     null,
   );
+
+  const searchParams = useSearchParams();
+  const [urlError, setUrlError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    // 1. Read from URL search parameters (queries)
+    const err = searchParams.get("error");
+    const errCode = searchParams.get("error_code");
+    const errDesc = searchParams.get("error_description");
+
+    // 2. Read and parse URL Hash (Supabase sends errors like #error=server_error&error_code=...)
+    let hashErr: string | null = null;
+    let hashErrCode: string | null = null;
+    let hashErrDesc: string | null = null;
+
+    if (typeof window !== "undefined" && window.location.hash) {
+      const hash = window.location.hash.substring(1); // remove '#'
+      const params = new URLSearchParams(hash);
+      hashErr = params.get("error");
+      hashErrCode = params.get("error_code");
+      hashErrDesc = params.get("error_description");
+    }
+
+    const activeError = err || hashErr;
+    const activeErrorCode = errCode || hashErrCode;
+    const activeErrorDesc = errDesc || hashErrDesc;
+
+    if (activeError) {
+      if (activeErrorCode === "identity_already_exists" || (activeErrorDesc && activeErrorDesc.includes("already linked"))) {
+        setTimeout(() => {
+          setUrlError(
+            "Akun GitHub ini sudah terhubung ke akun Celiuz AI lain. Silakan masuk menggunakan akun tersebut atau gunakan akun GitHub yang berbeda."
+          );
+        }, 0);
+      } else {
+        const errorMsg = activeErrorDesc || activeError || "Autentikasi gagal.";
+        setTimeout(() => {
+          setUrlError(errorMsg);
+        }, 0);
+      }
+    }
+  }, [searchParams]);
 
   return (
     <div className="space-y-6">
@@ -81,6 +124,12 @@ export function AuthForm({ mode, action }: AuthFormProps) {
           placeholder={mode === "signup" ? "At least 6 characters" : ""}
           minLength={mode === "signup" ? 6 : undefined}
         />
+
+        {urlError && (
+          <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+            {urlError}
+          </p>
+        )}
 
         {state?.error && (
           <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
