@@ -688,10 +688,15 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
       const daytona = getDaytonaClient();
 
       // Use image-based creation for explicit resource allocation.
-      // Configurable via env vars; defaults: 1 CPU, 2GB RAM, 5GB disk.
-      const cpu = Number(process.env.DAYTONA_SANDBOX_CPU) || 1;
-      const memory = Number(process.env.DAYTONA_SANDBOX_MEMORY) || 2;
-      const disk = Number(process.env.DAYTONA_SANDBOX_DISK) || 5;
+      // Configurable via env vars; clamped with a hard limit to prevent Daytona Cloud resource limits.
+      const rawCpu = Number(process.env.DAYTONA_SANDBOX_CPU) || 1;
+      const rawMemory = Number(process.env.DAYTONA_SANDBOX_MEMORY) || 2;
+      const rawDisk = Number(process.env.DAYTONA_SANDBOX_DISK) || 5;
+
+      // Hard Cap: max 1 CPU, 2GB RAM, 5GB Disk per sandbox
+      const cpu = Math.min(rawCpu, 1);
+      const memory = Math.min(rawMemory, 2);
+      const disk = Math.min(rawDisk, 5);
 
       sandbox = await daytona.create(
         {
