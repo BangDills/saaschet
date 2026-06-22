@@ -45,9 +45,6 @@ import {
   expiresAt,
 } from "@/lib/openai/codex-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { extractAndSaveMemories } from "@/lib/chat/memory-extractor";
-import { getStructuredMemory, formatStructuredMemory } from "@/lib/chat/structured-memory";
-import { extractAndSaveStructuredMemory } from "@/lib/chat/structured-memory-extractor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -575,27 +572,10 @@ export async function POST(req: Request) {
     console.warn("[chat] failed to fetch memory context:", err);
   }
 
-  // ── Retrieve long-term vector memories ───────────────────────────────
-  // Disabled: DigitalOcean Serverless Inference embeddings currently return 404 model not found
-  const vectorMemoryContext = "";
-
-  // ── Retrieve structured JSONB profile memory ─────────────────────────
-  let structuredMemoryContext = "";
-  if (process.env.DO_INFERENCE_API_KEY) {
-    try {
-      const structuredMemory = await getStructuredMemory(userId);
-      structuredMemoryContext = formatStructuredMemory(structuredMemory);
-    } catch (err) {
-      console.warn("[chat] failed to retrieve structured memory:", err);
-    }
-  }
-
   // ── Build system prompt ──────────────────────────────────────────────
   let system =
     (body.system?.trim() || (wantsAgent ? AGENT_SYSTEM : DEFAULT_SYSTEM)) +
-    memoryContext +
-    vectorMemoryContext +
-    structuredMemoryContext;
+    memoryContext;
 
   // Web search context (chat mode only — agent has the web_search tool).
   if (wantsWebSearch && !wantsAgent) {
@@ -1049,28 +1029,6 @@ ${recoveryInstruction}`;
               "[chat] failed to persist assistant message:",
               assistantErr,
             );
-          }
-
-          // Trigger long-term memory extraction asynchronously (non-blocking)
-          // Wrapped inside try-catch to ensure that validation schema failures (e.g. from DigitalOcean API type mismatches)
-          // never crash the parent server process.
-          if (process.env.DO_INFERENCE_API_KEY && userText && text) {
-            try {
-              extractAndSaveMemories(userId, userText, text).catch((err) => {
-                console.error("[chat] failed to run memory extraction:", err);
-              });
-            } catch (err) {
-              console.error("[chat] failed to initiate memory extraction:", err);
-            }
-
-            try {
-              // Also trigger structured profile memory extraction asynchronously
-              extractAndSaveStructuredMemory(userId, userText, text).catch((err) => {
-                console.error("[chat] failed to run structured memory extraction:", err);
-              });
-            } catch (err) {
-              console.error("[chat] failed to initiate structured memory extraction:", err);
-            }
           }
         },
       });
