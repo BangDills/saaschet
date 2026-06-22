@@ -343,14 +343,15 @@ export function createSandboxTools(ctx: SandboxContext) {
 async function cloneRepo(ctx: SandboxContext): Promise<void> {
   const [owner, repo] = ctx.repoSlug.split("/");
 
-  // Clean token check: detect if token is empty, undefined, or string literal "undefined"
+  // Clean token check: detect if token is empty, undefined, or string literal "undefined"/"null"
+  const cleanToken = (ctx.githubToken || "").trim();
   const hasValidToken =
-    ctx.githubToken &&
-    ctx.githubToken.trim() !== "" &&
-    ctx.githubToken !== "undefined";
+    cleanToken !== "" &&
+    cleanToken !== "undefined" &&
+    cleanToken !== "null";
 
   const publicCloneUrl = `https://github.com/${owner}/${repo}.git`;
-  const authenticatedCloneUrl = `https://x-access-token:${ctx.githubToken}@github.com/${owner}/${repo}.git`;
+  const authenticatedCloneUrl = `https://x-access-token:${cleanToken}@github.com/${owner}/${repo}.git`;
   const primaryCloneUrl = hasValidToken ? authenticatedCloneUrl : publicCloneUrl;
 
   try {

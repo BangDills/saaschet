@@ -733,7 +733,7 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
       sandboxTools = createSandboxTools({
         sandbox,
         repoSlug: repoSlug!,
-        githubToken,
+        githubToken: githubToken || process.env.GITHUB_TOKEN || "",
         repoCloned: false,
       });
 
