@@ -48,27 +48,39 @@ export const toolCallCompatFetch: typeof globalThis.fetch = async (
     return response;
   }
 
+  const reader = response.body.getReader();
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
 
-  const transform = new TransformStream<Uint8Array, Uint8Array>({
-    transform(chunk, controller) {
-      const text = decoder.decode(chunk, { stream: true });
-      // Fix: model sends "type":"" in tool_calls — patch to "type":"function"
-      const fixed = text.replace(/"type":""/g, '"type":"function"');
-      controller.enqueue(encoder.encode(fixed));
-    },
-    flush(controller) {
-      // Flush any remaining bytes from the decoder
-      const remaining = decoder.decode();
-      if (remaining) {
-        const fixed = remaining.replace(/"type":""/g, '"type":"function"');
-        controller.enqueue(encoder.encode(fixed));
+  const stream = new ReadableStream({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) {
+          const remaining = decoder.decode();
+          if (remaining) {
+            const fixed = remaining.replace(/"type":""/g, '"type":"function"');
+            // Enqueue as a Node.js Buffer to prevent cross-realm Uint8Array checks in undici
+            controller.enqueue(Buffer.from(encoder.encode(fixed)));
+          }
+          controller.close();
+          return;
+        }
+
+        const text = decoder.decode(value, { stream: true });
+        const fixed = text.replace(/"type":""/g, '"type":"function"');
+        // Enqueue as a Node.js Buffer to prevent cross-realm Uint8Array checks in undici
+        controller.enqueue(Buffer.from(encoder.encode(fixed)));
+      } catch (err) {
+        controller.error(err);
       }
+    },
+    cancel() {
+      reader.releaseLock();
     },
   });
 
-  return new Response(response.body.pipeThrough(transform), {
+  return new Response(stream, {
     status: response.status,
     statusText: response.statusText,
     headers: response.headers,
