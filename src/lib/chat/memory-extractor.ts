@@ -42,11 +42,18 @@ export async function extractAndSaveMemories(
       baseURL: baseUrl,
     });
 
-    const { text } = await generateText({
-      model: doProvider("deepseek-4-flash"),
-      system: MEMORY_EXTRACTION_SYSTEM,
-      prompt,
-    });
+    let text = "";
+    try {
+      const res = await generateText({
+        model: doProvider("deepseek-4-flash"),
+        system: MEMORY_EXTRACTION_SYSTEM,
+        prompt,
+      });
+      text = res.text;
+    } catch (err) {
+      console.warn("[memory-extractor] Failed during generateText. This is likely due to DigitalOcean API response validation mismatch. Skipping memory extraction gracefully. Error:", err instanceof Error ? err.message : String(err));
+      return;
+    }
 
     // Clean JSON markdown blocks if any
     let cleanedText = text.trim();

@@ -59,11 +59,18 @@ Assistant Response: "${assistantMessage}"`;
       baseURL: baseUrl,
     });
 
-    const { text } = await generateText({
-      model: doProvider("deepseek-4-flash"),
-      system: STRUCTURED_EXTRACTION_SYSTEM,
-      prompt,
-    });
+    let text = "";
+    try {
+      const res = await generateText({
+        model: doProvider("deepseek-4-flash"),
+        system: STRUCTURED_EXTRACTION_SYSTEM,
+        prompt,
+      });
+      text = res.text;
+    } catch (err) {
+      console.warn("[structured-memory-extractor] Failed during generateText. This is likely due to DigitalOcean API response validation mismatch. Skipping structured memory extraction gracefully. Error:", err instanceof Error ? err.message : String(err));
+      return;
+    }
 
     // 4. Clean JSON markdown formatting if present
     let cleanedText = text.trim();
