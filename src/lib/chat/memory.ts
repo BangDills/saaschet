@@ -1,35 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createOpenAI } from "@ai-sdk/openai";
-import { embed } from "ai";
-
-/**
- * Generate 1024-dimensional vector embedding for a given text using DigitalOcean Serverless Inference.
- * Uses process.env.DO_INFERENCE_API_KEY.
- */
-export async function getEmbedding(text: string): Promise<number[]> {
-  const apiKey = process.env.DO_INFERENCE_API_KEY;
-  if (!apiKey) {
-    throw new Error("DO_INFERENCE_API_KEY is not set. Embedding generation requires DigitalOcean Inference API access.");
-  }
-
-  const baseUrl = process.env.DO_INFERENCE_BASE_URL ?? "https://inference.do-ai.run/v1";
-
-  const doProvider = createOpenAI({
-    apiKey,
-    baseURL: baseUrl,
-  });
-
-  try {
-    const { embedding } = await embed({
-      model: doProvider.embedding("bge-large-en-v1.5"),
-      value: text.trim().replace(/\n/g, " "),
-    });
-    return embedding;
-  } catch (err) {
-    console.error("[memory] failed to generate embedding:", err);
-    throw err;
-  }
-}
+import { getEmbedding } from "./local-embeddings";
 
 /**
  * Search the user's memories semantically using Supabase pgvector cosine similarity.
@@ -43,7 +13,7 @@ export async function searchMemories(
   if (!query || !query.trim()) return [];
 
   try {
-    // 1. Generate query embedding
+    // 1. Generate query embedding (local, no API key needed)
     const queryEmbedding = await getEmbedding(query);
 
     // 2. Query Supabase using match_memories RPC
@@ -87,7 +57,7 @@ export async function saveMemory(userId: string, content: string): Promise<boole
       return false;
     }
 
-    // 1. Generate embedding
+    // 1. Generate embedding (local)
     const embedding = await getEmbedding(cleanContent);
 
     // 2. Save to user_memories

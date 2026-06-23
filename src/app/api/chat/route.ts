@@ -44,6 +44,10 @@ import {
   expiresAt,
 } from "@/lib/openai/codex-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { searchMemories } from "@/lib/chat/memory";
+import { extractAndSaveMemories } from "@/lib/chat/memory-extractor";
+import { getStructuredMemory, formatStructuredMemory } from "@/lib/chat/structured-memory";
+import { extractAndSaveStructuredMemory } from "@/lib/chat/structured-memory-extractor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -571,10 +575,34 @@ export async function POST(req: Request) {
     console.warn("[chat] failed to fetch memory context:", err);
   }
 
+  // ── Retrieve long-term vector memories ───────────────────────────────
+  let vectorMemoryContext = "";
+  if (userText) {
+    try {
+      const memories = await searchMemories(userId, userText, 5, 0.7);
+      if (memories.length > 0) {
+        vectorMemoryContext = `\n\n## Long-term Memory (User Preferences & Project Context)\n${memories.map((m) => `- ${m}`).join("\n")}`;
+      }
+    } catch (err) {
+      console.warn("[chat] vector memory search failed:", err);
+    }
+  }
+
+  // ── Retrieve structured JSONB profile memory ─────────────────────────
+  let structuredMemoryContext = "";
+  try {
+    const structuredMemory = await getStructuredMemory(userId);
+    structuredMemoryContext = formatStructuredMemory(structuredMemory);
+  } catch (err) {
+    console.warn("[chat] structured memory fetch failed:", err);
+  }
+
   // ── Build system prompt ──────────────────────────────────────────────
   let system =
     (body.system?.trim() || (wantsAgent ? AGENT_SYSTEM : DEFAULT_SYSTEM)) +
-    memoryContext;
+    memoryContext +
+    vectorMemoryContext +
+    structuredMemoryContext;
 
   // Web search context (chat mode only — agent has the web_search tool).
   if (wantsWebSearch && !wantsAgent) {
@@ -1023,6 +1051,29 @@ ${recoveryInstruction}`;
               "[chat] failed to persist assistant message:",
               assistantErr,
             );
+          }
+
+          // ── Async memory extraction (non-blocking, fire-and-forget) ──
+          // Vector memory extraction (uses local Transformers.js embeddings)
+          if (userText && text) {
+            try {
+              extractAndSaveMemories(userId, userText, text).catch((err) => {
+                console.error("[chat] memory extraction failed:", err);
+              });
+            } catch (err) {
+              console.error("[chat] memory extraction initiation failed:", err);
+            }
+          }
+
+          // Structured JSONB profile extraction (uses DO LLM if available)
+          if (process.env.DO_INFERENCE_API_KEY && userText && text) {
+            try {
+              extractAndSaveStructuredMemory(userId, userText, text).catch((err) => {
+                console.error("[chat] structured memory extraction failed:", err);
+              });
+            } catch (err) {
+              console.error("[chat] structured memory extraction initiation failed:", err);
+            }
           }
         },
       });
