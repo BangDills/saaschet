@@ -2,7 +2,8 @@ import { pipeline, type FeatureExtractionPipeline } from "@huggingface/transform
 
 /**
  * Local embedding generation using Supabase/gte-small (384 dimensions).
- * Runs entirely in-process via ONNX Runtime — no external API needed.
+ * Runs entirely in-process via ONNX Runtime WASM backend — no native
+ * binaries required, works on any platform (Vercel, Docker, VPS, etc.).
  *
  * The model (~30MB) is downloaded once on first use and cached on disk.
  * A singleton pipeline is shared across all requests.
@@ -19,8 +20,13 @@ async function getPipeline(): Promise<FeatureExtractionPipeline> {
   if (_pipe) return _pipe;
   if (_loading) return _loading;
 
-  console.log("[local-embeddings] Loading Supabase/gte-small model...");
-  _loading = pipeline("feature-extraction", "Supabase/gte-small")
+  console.log("[local-embeddings] Loading Supabase/gte-small model (WASM backend)...");
+  _loading = pipeline("feature-extraction", "Supabase/gte-small", {
+    // Use WASM backend — pure JavaScript, no native .so/.dylib needed.
+    // This avoids the "libonnxruntime.so.1: cannot open shared object file"
+    // error on platforms where onnxruntime-node native binaries are missing.
+    device: "wasm",
+  })
     .then((p) => {
       _pipe = p;
       console.log("[local-embeddings] Model loaded successfully");
