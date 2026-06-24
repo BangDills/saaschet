@@ -34,6 +34,10 @@ export async function extractAndSaveStructuredMemory(
   assistantMessage: string,
 ): Promise<void> {
   const apiKey = process.env.DO_INFERENCE_API_KEY;
+  const opencodeKey = process.env.OPENCODE_API_KEY;
+
+  console.log(`[structured-memory-extractor] Env check: DO_INFERENCE_API_KEY exists: ${!!apiKey}, OPENCODE_API_KEY exists: ${!!opencodeKey}`);
+
   if (!apiKey) {
     console.warn("[structured-memory-extractor] DO_INFERENCE_API_KEY is not set. Skipping metadata extraction.");
     return;
@@ -71,14 +75,35 @@ Assistant Response: "${assistantMessage}"`;
       });
       text = await res.text;
     } catch (err) {
-      console.warn("[structured-memory-extractor] Failed during streamText. This is likely due to DigitalOcean API response validation mismatch. Skipping structured memory extraction gracefully. Error:", err instanceof Error ? err.message : String(err));
-      return;
+      console.warn("[structured-memory-extractor] DigitalOcean call failed:", err instanceof Error ? err.message : String(err));
+    }
+
+    // Fallback to OpenCode if DigitalOcean returned empty or failed, and OpenCode key is available
+    if ((!text || text.trim().length === 0) && opencodeKey) {
+      console.log("[structured-memory-extractor] DigitalOcean returned empty or failed. Falling back to OpenCode...");
+      try {
+        const opencodeProvider = createOpenAI({
+          apiKey: opencodeKey,
+          baseURL: "https://opencode.ai/zen/v1",
+        });
+        const res = await streamText({
+          model: opencodeProvider("deepseek-v4-flash-free"),
+          system: STRUCTURED_EXTRACTION_SYSTEM,
+          prompt,
+          onError: ({ error }) => {
+            console.error("[structured-memory-extractor] OpenCode streamText error details:", error);
+          },
+        });
+        text = await res.text;
+      } catch (err) {
+        console.error("[structured-memory-extractor] OpenCode fallback failed:", err instanceof Error ? err.message : String(err));
+      }
     }
 
     // 4. Robustly extract the JSON object using regex (bypasses reasoning tags, markdown blocks, etc.)
-    const jsonMatch = text.match(/\{\s*([\s\S]*)\s*\}/);
+    const jsonMatch = text ? text.match(/\{\s*([\s\S]*)\s*\}/) : null;
     if (!jsonMatch) {
-      console.error("[structured-memory-extractor] Failed to locate JSON object in response. Response length:", text.length, "Response content:", JSON.stringify(text));
+      console.error("[structured-memory-extractor] Failed to locate JSON object in response. Response length:", text?.length ?? 0, "Response content:", JSON.stringify(text));
       return;
     }
 
