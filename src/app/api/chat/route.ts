@@ -542,10 +542,23 @@ export async function POST(req: Request) {
   }
 
   // ── Insert user message ──────────────────────────────────────────────
+  const lastUserMsg = messages[messages.length - 1];
+  let dbContent = userText;
+  if (lastUserMsg && Array.isArray(lastUserMsg.parts)) {
+    const fileParts = lastUserMsg.parts.filter((p) => p.type === "file");
+    if (fileParts.length > 0) {
+      const imageMarkdown = fileParts
+        .filter((fp) => fp.mediaType?.startsWith("image/"))
+        .map((fp) => `\n![${fp.filename || "Uploaded image"}](${fp.url})`)
+        .join("");
+      dbContent = (userText + imageMarkdown).trim();
+    }
+  }
+
   const { error: userMsgErr } = await supabase.from("messages").insert({
     conversation_id: conversationId,
     role: "user",
-    content: userText,
+    content: dbContent,
   });
   if (userMsgErr) {
     return NextResponse.json(
@@ -923,8 +936,66 @@ When the user asks about library APIs, setup, migrations, or version-specific be
     system += `\n\nNote: ${dropped} older messages were trimmed from context to keep response fast. Focus on the most recent messages.`;
   }
 
+  // Extract base64 images from last message, and strip/placeholder them from previous messages to avoid token bloat.
+  const processedMessages = trimmedMessages.map((m, idx) => {
+    const isLast = idx === trimmedMessages.length - 1;
+    if (m.role !== "user") return m;
+
+    let textContent = "";
+    const fileParts: UIMessage["parts"] = [];
+
+    // 1. Gather text content and existing file parts
+    if (Array.isArray(m.parts)) {
+      m.parts.forEach((p) => {
+        if (p.type === "text") {
+          textContent += p.text;
+        } else if (p.type === "file") {
+          if (isLast) {
+            fileParts.push(p);
+          } else {
+            textContent += "\n[Image Attachment]";
+          }
+        }
+      });
+    } else {
+      textContent = (m as any).content || "";
+    }
+
+    // 2. Parse any markdown images embedded in the text (e.g. from restored Supabase content)
+    const mdImageRegex = /!\[(.*?)\]\((data:(image\/.*?);base64,(.*?))\)/g;
+    const cleanText = textContent.replace(mdImageRegex, (fullMatch, filename, dataUrl, mediaType) => {
+      if (isLast) {
+        if (!fileParts.some((fp) => fp.type === "file" && fp.url === dataUrl)) {
+          fileParts.push({
+            type: "file" as const,
+            mediaType,
+            url: dataUrl,
+            filename: filename || undefined,
+          });
+        }
+        return "";
+      }
+      return "[Image Attachment]";
+    });
+
+    // 3. Reconstruct newParts array
+    const newParts: UIMessage["parts"] = [];
+    if (cleanText.trim() || fileParts.length === 0) {
+      newParts.push({
+        type: "text",
+        text: cleanText.trim(),
+      });
+    }
+    newParts.push(...fileParts);
+
+    return {
+      ...m,
+      parts: newParts,
+    };
+  });
+
   try {
-    const modelMessages = await convertToModelMessages(trimmedMessages);
+    const modelMessages = await convertToModelMessages(processedMessages);
     // Agent tasks generate large tool call arguments (e.g. full file content
     // in write_file). 32k gives enough room for reasoning + multi-file writes.
     // GLM-5 and DeepSeek V4 Pro also use reasoning tokens that eat into budget.

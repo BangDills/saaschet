@@ -182,6 +182,13 @@ const CodeBlock = React.memo(
  * ────────────────────────────────────────────────────────────────────── */
 
 const MD_COMPONENTS: Components = {
+  img: ({ src, alt }: { src?: any; alt?: string }) => (
+    <img
+      src={typeof src === "string" ? src : undefined}
+      alt={alt}
+      className="max-h-60 rounded-lg object-contain my-2 border border-border bg-muted"
+    />
+  ),
   p: ({ children }: { children?: React.ReactNode }) => (
     <p className="mb-3 last:mb-0">{children}</p>
   ),

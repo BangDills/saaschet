@@ -9,6 +9,7 @@ import {
   Lock,
   Sparkles,
   Square,
+  X,
 } from "lucide-react";
 import { ModelSelector } from "./model-selector";
 import { RepoSelector } from "./repo-selector";
@@ -16,7 +17,7 @@ import type { ModelInfo } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
 export type ChatInputProps = {
-  onSubmit: (text: string) => void;
+  onSubmit: (text: string, file?: { mediaType: string; base64: string; name: string } | null) => void;
   onStop?: () => void;
   disabled?: boolean;
   isStreaming?: boolean;
@@ -75,8 +76,42 @@ export function ChatInput({
   onConnectOpenAI,
 }: ChatInputProps) {
   const [value, setValue] = React.useState("");
+  const [selectedImage, setSelectedImage] = React.useState<{
+    url: string;
+    base64: string;
+    mediaType: string;
+    name: string;
+  } | null>(null);
+
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const activeModel = React.useMemo(() => {
+    return models.find((m) => m.id === modelId);
+  }, [models, modelId]);
+
+  const isMultimodal = !!activeModel?.multimodal;
+
+  const clearImage = React.useCallback(() => {
+    if (selectedImage) {
+      URL.revokeObjectURL(selectedImage.url);
+      setSelectedImage(null);
+    }
+  }, [selectedImage]);
+
+  React.useEffect(() => {
+    return () => {
+      if (selectedImage) {
+        URL.revokeObjectURL(selectedImage.url);
+      }
+    };
+  }, [selectedImage]);
+
+  React.useEffect(() => {
+    if (!isMultimodal && selectedImage) {
+      clearImage();
+    }
+  }, [isMultimodal, selectedImage, clearImage]);
 
   const adjust = React.useCallback(() => {
     const el = textareaRef.current;
@@ -91,9 +126,19 @@ export function ChatInput({
 
   function send() {
     const text = value.trim();
-    if (!text || disabled) return;
-    onSubmit(text);
+    if ((!text && !selectedImage) || disabled) return;
+    onSubmit(
+      text,
+      selectedImage
+        ? {
+            mediaType: selectedImage.mediaType,
+            base64: selectedImage.base64,
+            name: selectedImage.name,
+          }
+        : null,
+    );
     setValue("");
+    clearImage();
     requestAnimationFrame(adjust);
   }
 
@@ -109,16 +154,53 @@ export function ChatInput({
   }
 
   function handleImageChosen(e: React.ChangeEvent<HTMLInputElement>) {
-    // Multimodal vision support is planned — for now, clear the picker silently.
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image file.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      setSelectedImage({
+        url: URL.createObjectURL(file),
+        base64,
+        mediaType: file.type,
+        name: file.name,
+      });
+    };
+    reader.readAsDataURL(file);
     e.target.value = "";
   }
 
-  const canSend = value.trim().length > 0 && !disabled;
+  const canSend = (value.trim().length > 0 || selectedImage !== null) && !disabled;
 
   return (
     <div className="mx-auto w-full max-w-3xl">
       {/* Main input box */}
       <div className="relative rounded-2xl border border-border bg-card shadow-sm transition-shadow focus-within:shadow-md">
+        {selectedImage && (
+          <div className="relative inline-block m-3 ml-4">
+            <div className="relative size-16 overflow-hidden rounded-lg border border-border bg-muted">
+              <img
+                src={selectedImage.url}
+                alt="Upload preview"
+                className="size-full object-cover"
+              />
+              <button
+                type="button"
+                onClick={clearImage}
+                className="absolute right-0.5 top-0.5 flex size-4 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black/90 transition-colors cursor-pointer"
+                aria-label="Remove image"
+              >
+                <X className="size-2.5" />
+              </button>
+            </div>
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           value={value}
@@ -203,7 +285,11 @@ export function ChatInput({
           <Globe className="size-4" />
         </ToolbarToggle>
 
-        <ToolbarButton title="Attach image (coming soon)" disabled onClick={handleImagePick}>
+        <ToolbarButton
+          title={isMultimodal ? "Attach image" : "Selected model does not support vision/images"}
+          disabled={!isMultimodal || disabled}
+          onClick={handleImagePick}
+        >
           <ImagePlus className="size-4" />
         </ToolbarButton>
 

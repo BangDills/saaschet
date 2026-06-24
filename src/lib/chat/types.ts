@@ -45,4 +45,6 @@ export type ModelInfo = {
   free?: boolean;
   /** True when this model requires the user to connect their own account. */
   requiresAuth?: boolean;
+  /** True when this model supports multimodal/vision input. */
+  multimodal?: boolean;
 };

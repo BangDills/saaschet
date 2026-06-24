@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 /** A subset of the AI SDK's UIMessagePart that the bubble cares about. */
 export type AnyPart =
   | { type: "text"; text: string }
+  | { type: "file"; mediaType: string; url: string; filename?: string }
   | ({ type: `tool-${string}` | "dynamic-tool" } & ToolCallPart);
 
 export type MessageBubbleProps = {
@@ -57,6 +58,16 @@ function renderParts(
         </React.Fragment>
       );
     }
+    if (p.type === "file") {
+      if (p.mediaType?.startsWith("image/")) {
+        return (
+          <div key={`f-${idx}`} className="mt-2 max-w-xs overflow-hidden rounded-lg border border-border bg-muted">
+            <img src={p.url} alt={p.filename || "Image attachment"} className="max-h-60 object-contain" />
+          </div>
+        );
+      }
+      return null;
+    }
     // Tool call (static or dynamic)
     return (
       <ToolCall
@@ -93,13 +104,29 @@ function MessageBubbleImpl({
         )}
       >
         {isUser ? (
-          <p className="whitespace-pre-wrap text-[15px] leading-relaxed">
-            {content ??
-              parts
-                ?.map((p) => (p.type === "text" ? p.text : ""))
-                .join("") ??
-              ""}
-          </p>
+          <div className="flex flex-col gap-2">
+            <Markdown className="text-secondary-foreground">
+              {content ??
+                parts
+                  ?.map((p) => (p.type === "text" ? p.text : ""))
+                  .join("") ??
+                ""}
+            </Markdown>
+            {parts && parts.length > 0 && (
+              <div className="flex flex-col gap-2 mt-1">
+                {parts.map((p, idx) => {
+                  if (p.type === "file" && p.mediaType?.startsWith("image/")) {
+                    return (
+                      <div key={idx} className="max-w-xs overflow-hidden rounded-lg border border-border">
+                        <img src={p.url} alt={p.filename || "Uploaded image"} className="max-h-60 object-contain" />
+                      </div>
+                    );
+                  }
+                  return null;
+                })}
+              </div>
+            )}
+          </div>
         ) : parts && parts.length > 0 ? (
           <>
             {renderParts(parts, streaming, onToolActionPrompt)}

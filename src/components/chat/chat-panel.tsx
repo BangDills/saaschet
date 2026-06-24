@@ -26,6 +26,7 @@ function toBubbleParts(parts: UIMessage["parts"] | undefined): AnyPart[] {
     .filter(
       (p) =>
         p.type === "text" ||
+        p.type === "file" ||
         p.type === "dynamic-tool" ||
         (typeof p.type === "string" && p.type.startsWith("tool-")),
     )
@@ -371,9 +372,27 @@ export function ChatPanel({
     });
   }, [visibleMessages.length, isStreaming]);
 
-  function handleSubmit(text: string) {
-    if (!text.trim() || isStreaming) return;
-    sendMessage({ text });
+  function handleSubmit(
+    text: string,
+    file?: { mediaType: string; base64: string; name: string } | null,
+  ) {
+    if ((!text.trim() && !file) || isStreaming) return;
+
+    if (file) {
+      sendMessage({
+        text,
+        files: [
+          {
+            type: "file",
+            mediaType: file.mediaType,
+            url: file.base64,
+            filename: file.name,
+          },
+        ],
+      });
+    } else {
+      sendMessage({ text });
+    }
   }
 
   // The input pill at the bottom (or center for hero) is the same in both
@@ -423,6 +442,7 @@ export function ChatPanel({
                   <MessageBubble
                     key={m.id}
                     role={m.role as ChatMessage["role"]}
+                    parts={m.parts as AnyPart[]}
                     content={partsToText(m.parts)}
                   />
                 );

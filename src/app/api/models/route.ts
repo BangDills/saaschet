@@ -3,6 +3,7 @@ import {
   defaultModels,
   vendorOrder,
   isAgentCapable,
+  isMultimodal,
   allFreeModels,
   codexModels,
 } from "@/lib/chat/models";
@@ -124,6 +125,7 @@ export async function GET() {
           label: prettyLabel(m.id),
           vendor,
           agentCapable: isAgentCapable(m.id),
+          multimodal: isMultimodal(m.id),
         } satisfies ModelInfo;
       });
 

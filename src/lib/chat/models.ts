@@ -73,6 +73,23 @@ export function isAgentCapable(modelId: string): boolean {
   return agentCapableModels.has(modelId);
 }
 
+/**
+ * Model IDs that support vision/multimodal input.
+ */
+export const multimodalModels = new Set([
+  "codex/gpt-5.5",
+  "kimi-k2.6",
+  "kimi-k2.5",
+  "glm-5.2",
+  "glm-5",
+  "nemotron-3-nano-omni",
+]);
+
+/** Check if a model supports vision/multimodal input. */
+export function isMultimodal(modelId: string): boolean {
+  return multimodalModels.has(modelId);
+}
+
 /* ─────────────────────────────────────────────────────────────────────────
  * Multi-provider routing helpers
  *
@@ -151,6 +168,7 @@ export const codexModels: ModelInfo[] = [
     agentCapable: true,
     provider: "codex",
     requiresAuth: true,
+    multimodal: true,
   },
 ];
 
@@ -196,6 +214,7 @@ export const defaultModels: ModelInfo[] = [
     label: "Nemotron 3 Nano Omni",
     vendor: "Nvidia",
     tag: "Lightweight Omni",
+    multimodal: true,
   },
   {
     id: "nemotron-3-ultra-550b",
@@ -210,6 +229,7 @@ export const defaultModels: ModelInfo[] = [
     vendor: "Kimi",
     tag: "Strong coder",
     agentCapable: true,
+    multimodal: true,
   },
   {
     id: "kimi-k2.5",
@@ -217,6 +237,7 @@ export const defaultModels: ModelInfo[] = [
     vendor: "Kimi",
     tag: "MoE · 1T params",
     agentCapable: true,
+    multimodal: true,
   },
   {
     id: "glm-5.2",
@@ -224,6 +245,7 @@ export const defaultModels: ModelInfo[] = [
     vendor: "GLM",
     tag: "Latest version",
     agentCapable: true,
+    multimodal: true,
   },
   {
     id: "glm-5",
@@ -231,6 +253,7 @@ export const defaultModels: ModelInfo[] = [
     vendor: "GLM",
     tag: "Versatile",
     agentCapable: true,
+    multimodal: true,
   },
 ];
 
