@@ -25,6 +25,18 @@ Example Output:
 }`;
 
 /**
+ * Strips markdown code blocks and truncates text to avoid sending excessively large payloads
+ * (e.g. file edits, terminal output logs) to the memory extraction LLM.
+ */
+function cleanAndTruncate(text: string, maxLen: number = 2000): string {
+  let cleaned = text.replace(/```[\s\S]*?```/g, "[Code Block / Log Output]");
+  if (cleaned.length > maxLen) {
+    cleaned = cleaned.slice(0, maxLen) + "... [truncated]";
+  }
+  return cleaned;
+}
+
+/**
  * Reads user's current structured profile, invokes LLM to extract updates from the latest turn,
  * and saves the updated JSON profile back to the database.
  */
@@ -50,12 +62,14 @@ export async function extractAndSaveStructuredMemory(
     const currentMemory = await getStructuredMemory(userId);
 
     // 2. Prepare prompt
+    const cleanUser = cleanAndTruncate(userMessage);
+    const cleanAssistant = cleanAndTruncate(assistantMessage);
     const prompt = `Current Profile:
 ${JSON.stringify(currentMemory, null, 2)}
 
 Latest Message Exchange:
-User Message: "${userMessage}"
-Assistant Response: "${assistantMessage}"`;
+User Message: "${cleanUser}"
+Assistant Response: "${cleanAssistant}"`;
 
     // 3. Invoke LLM (DeepSeek-4-Flash)
     const doProvider = createOpenAI({

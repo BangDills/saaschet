@@ -19,6 +19,18 @@ Example Output:
 ]`;
 
 /**
+ * Strips markdown code blocks and truncates text to avoid sending excessively large payloads
+ * (e.g. file edits, terminal output logs) to the memory extraction LLM.
+ */
+function cleanAndTruncate(text: string, maxLen: number = 2000): string {
+  let cleaned = text.replace(/```[\s\S]*?```/g, "[Code Block / Log Output]");
+  if (cleaned.length > maxLen) {
+    cleaned = cleaned.slice(0, maxLen) + "... [truncated]";
+  }
+  return cleaned;
+}
+
+/**
  * Extracts key facts and preferences from the latest chat turn and stores them.
  * This runs asynchronously to avoid blocking the main chat response.
  */
@@ -38,7 +50,10 @@ export async function extractAndSaveMemories(
   }
 
   const baseUrl = process.env.DO_INFERENCE_BASE_URL ?? "https://inference.do-ai.run/v1";
-  const prompt = `User Message: "${userMessage}"\n\nAssistant Response: "${assistantMessage}"`;
+  
+  const cleanUser = cleanAndTruncate(userMessage);
+  const cleanAssistant = cleanAndTruncate(assistantMessage);
+  const prompt = `User Message: "${cleanUser}"\n\nAssistant Response: "${cleanAssistant}"`;
 
   try {
     const doProvider = createOpenAI({
