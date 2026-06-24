@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, LogOut } from "lucide-react";
-import { navItems, profileMenuItems } from "@/lib/nav";
+import { navItems, profileMenuItems, getNavItems, type UserRole } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "./theme-toggle";
@@ -21,14 +21,17 @@ function useCurrentTitle() {
 
 export type TopbarProps = {
   initials: string;
+  role?: UserRole;
 };
 
-export function Topbar({ initials }: TopbarProps) {
+export function Topbar({ initials, role = "user" }: TopbarProps) {
   const title = useCurrentTitle();
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
   const [profileOpen, setProfileOpen] = React.useState(false);
   const profileRef = React.useRef<HTMLDivElement>(null);
+  
+  const items = getNavItems(role);
 
   // Close menus on route change — legitimate sync with router state.
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -150,7 +153,7 @@ export function Topbar({ initials }: TopbarProps) {
               </Button>
             </div>
             <nav className="flex flex-col gap-0.5 px-3 py-2">
-              {navItems.map((item) => {
+              {items.map((item) => {
                 const active =
                   item.href === "/"
                     ? pathname === "/"

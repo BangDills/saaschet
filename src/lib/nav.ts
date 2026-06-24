@@ -8,6 +8,8 @@ import {
   History,
   Lock,
   ClipboardList,
+  LayoutDashboard,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,6 +25,8 @@ export type NavItem = {
 
 /** Sidebar nav items — main features only. */
 const sidebarNavItems: NavItem[] = [
+  { label: "Admin Dashboard", href: "/", icon: LayoutDashboard, adminOnly: true },
+  { label: "Manage Users", href: "/users", icon: Users, adminOnly: true },
   { label: "AI Agent", href: "/ai-chat", icon: MessageSquare },
   { label: "PRD Generator", href: "/prd-generator", icon: ClipboardList },
   { label: "AI Text Generator", href: "/ai-text", icon: FileText },
