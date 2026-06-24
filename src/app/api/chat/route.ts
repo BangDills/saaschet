@@ -307,6 +307,18 @@ function formatInferenceError(err: unknown): { message: string; status: number; 
   const statusCode = apiErr?.statusCode;
 
   if (
+    lowerMessage.includes("does not support image input") ||
+    lowerMessage.includes("does not support images") ||
+    lowerMessage.includes("image input")
+  ) {
+    return {
+      message: "Maaf Model tersebut tidak support Vision hehe",
+      status: 400,
+      code: "vision_not_supported",
+    };
+  }
+
+  if (
     statusCode === 429 ||
     lowerMessage.includes("rate limit") ||
     lowerMessage.includes("quota") ||
