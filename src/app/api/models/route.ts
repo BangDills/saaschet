@@ -80,8 +80,12 @@ export async function GET() {
   const ALLOWED_DO_MODELS = new Set([
     "deepseek-v4-pro",
     "deepseek-4-flash",
+    "nvidia-nemotron-3-super-120b",
+    "nemotron-3-nano-omni",
+    "nemotron-3-ultra-550b",
     "kimi-k2.6",
     "kimi-k2.5",
+    "glm-5.2",
     "glm-5",
   ]);
 

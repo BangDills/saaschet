@@ -6,6 +6,7 @@ import type { ModelInfo } from "./types";
 export const vendorOrder = [
   "OpenAI",
   "DeepSeek",
+  "Nvidia",
   "Kimi",
   "GLM",
 ] as const;
@@ -59,7 +60,12 @@ export const agentCapableModels = new Set([
   "kimi-k2.5",
 
   // GLM — DO categorizes as tool-calling capable
+  "glm-5.2",
   "glm-5",
+
+  // Nvidia
+  "nvidia-nemotron-3-super-120b",
+  "nemotron-3-ultra-550b",
 ]);
 
 /** Check if a model is suitable for agent mode (tool calling). */
@@ -179,6 +185,26 @@ export const defaultModels: ModelInfo[] = [
     agentCapable: true,
   },
   {
+    id: "nvidia-nemotron-3-super-120b",
+    label: "Nvidia Nemotron 3 Super 120B",
+    vendor: "Nvidia",
+    tag: "Public Preview",
+    agentCapable: true,
+  },
+  {
+    id: "nemotron-3-nano-omni",
+    label: "Nemotron 3 Nano Omni",
+    vendor: "Nvidia",
+    tag: "Lightweight Omni",
+  },
+  {
+    id: "nemotron-3-ultra-550b",
+    label: "Nemotron 3 Ultra 550B",
+    vendor: "Nvidia",
+    tag: "Ultra 550B parameters",
+    agentCapable: true,
+  },
+  {
     id: "kimi-k2.6",
     label: "Kimi K2.6",
     vendor: "Kimi",
@@ -193,10 +219,18 @@ export const defaultModels: ModelInfo[] = [
     agentCapable: true,
   },
   {
+    id: "glm-5.2",
+    label: "GLM 5.2",
+    vendor: "GLM",
+    tag: "Latest version",
+    agentCapable: true,
+  },
+  {
     id: "glm-5",
     label: "GLM 5",
     vendor: "GLM",
     tag: "Versatile",
+    agentCapable: true,
   },
 ];
 
