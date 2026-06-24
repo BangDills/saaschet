@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getEmbedding } from "./local-embeddings";
+import { getEmbedding } from "./jina-embeddings";
 
 /**
  * Search the user's memories semantically using Supabase pgvector cosine similarity.

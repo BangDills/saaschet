@@ -16,7 +16,6 @@
     "@ai-sdk/openai": "^3.0.67",
     "@ai-sdk/react": "^3.0.195",
     "@daytona/sdk": "^0.183.0",
-    "@huggingface/transformers": "^4.2.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.2",
