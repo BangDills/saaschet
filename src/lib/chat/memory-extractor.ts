@@ -48,6 +48,9 @@ export async function extractAndSaveMemories(
         model: doProvider("deepseek-4-flash"),
         system: MEMORY_EXTRACTION_SYSTEM,
         prompt,
+        onError: ({ error }) => {
+          console.error("[memory-extractor] streamText error details:", error);
+        },
       });
       text = await res.text;
     } catch (err) {
@@ -58,7 +61,7 @@ export async function extractAndSaveMemories(
     // Robustly extract the JSON array using regex (bypasses reasoning tags, markdown blocks, etc.)
     const jsonMatch = text.match(/\[\s*([\s\S]*)\s*\]/);
     if (!jsonMatch) {
-      console.error("[memory-extractor] Failed to locate JSON array in response:", text);
+      console.error("[memory-extractor] Failed to locate JSON array in response. Response length:", text.length, "Response content:", JSON.stringify(text));
       return;
     }
 

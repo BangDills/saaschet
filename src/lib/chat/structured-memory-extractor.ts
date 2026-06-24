@@ -65,6 +65,9 @@ Assistant Response: "${assistantMessage}"`;
         model: doProvider("deepseek-4-flash"),
         system: STRUCTURED_EXTRACTION_SYSTEM,
         prompt,
+        onError: ({ error }) => {
+          console.error("[structured-memory-extractor] streamText error details:", error);
+        },
       });
       text = await res.text;
     } catch (err) {
@@ -75,7 +78,7 @@ Assistant Response: "${assistantMessage}"`;
     // 4. Robustly extract the JSON object using regex (bypasses reasoning tags, markdown blocks, etc.)
     const jsonMatch = text.match(/\{\s*([\s\S]*)\s*\}/);
     if (!jsonMatch) {
-      console.error("[structured-memory-extractor] Failed to locate JSON object in response:", text);
+      console.error("[structured-memory-extractor] Failed to locate JSON object in response. Response length:", text.length, "Response content:", JSON.stringify(text));
       return;
     }
 
