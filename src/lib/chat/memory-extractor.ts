@@ -55,24 +55,18 @@ export async function extractAndSaveMemories(
       return;
     }
 
-    // Clean JSON markdown blocks if any
-    let cleanedText = text.trim();
-    if (cleanedText.startsWith("```json")) {
-      cleanedText = cleanedText.slice(7);
+    // Robustly extract the JSON array using regex (bypasses reasoning tags, markdown blocks, etc.)
+    const jsonMatch = text.match(/\[\s*([\s\S]*)\s*\]/);
+    if (!jsonMatch) {
+      console.error("[memory-extractor] Failed to locate JSON array in response:", text);
+      return;
     }
-    if (cleanedText.startsWith("```")) {
-      cleanedText = cleanedText.slice(3);
-    }
-    if (cleanedText.endsWith("```")) {
-      cleanedText = cleanedText.slice(0, -3);
-    }
-    cleanedText = cleanedText.trim();
 
     let facts: string[] = [];
     try {
-      facts = JSON.parse(cleanedText);
-    } catch {
-      console.error("[memory-extractor] Failed to parse facts JSON:", text);
+      facts = JSON.parse(jsonMatch[0]);
+    } catch (err) {
+      console.error("[memory-extractor] Failed to parse facts JSON:", jsonMatch[0], "Error:", err);
       return;
     }
 

@@ -72,25 +72,19 @@ Assistant Response: "${assistantMessage}"`;
       return;
     }
 
-    // 4. Clean JSON markdown formatting if present
-    let cleanedText = text.trim();
-    if (cleanedText.startsWith("```json")) {
-      cleanedText = cleanedText.slice(7);
+    // 4. Robustly extract the JSON object using regex (bypasses reasoning tags, markdown blocks, etc.)
+    const jsonMatch = text.match(/\{\s*([\s\S]*)\s*\}/);
+    if (!jsonMatch) {
+      console.error("[structured-memory-extractor] Failed to locate JSON object in response:", text);
+      return;
     }
-    if (cleanedText.startsWith("```")) {
-      cleanedText = cleanedText.slice(3);
-    }
-    if (cleanedText.endsWith("```")) {
-      cleanedText = cleanedText.slice(0, -3);
-    }
-    cleanedText = cleanedText.trim();
 
     // 5. Parse and save
     let updatedMemory: Record<string, unknown> = {};
     try {
-      updatedMemory = JSON.parse(cleanedText) as Record<string, unknown>;
-    } catch {
-      console.error("[structured-memory-extractor] Failed to parse updated JSON profile:", text);
+      updatedMemory = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+    } catch (err) {
+      console.error("[structured-memory-extractor] Failed to parse updated JSON profile:", jsonMatch[0], "Error:", err);
       return;
     }
 
