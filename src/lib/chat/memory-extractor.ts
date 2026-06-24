@@ -1,4 +1,4 @@
-import { generateText } from "ai";
+import { streamText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { saveMemory } from "./memory";
 
@@ -44,14 +44,14 @@ export async function extractAndSaveMemories(
 
     let text = "";
     try {
-      const res = await generateText({
+      const res = await streamText({
         model: doProvider("deepseek-4-flash"),
         system: MEMORY_EXTRACTION_SYSTEM,
         prompt,
       });
-      text = res.text;
+      text = await res.text;
     } catch (err) {
-      console.warn("[memory-extractor] Failed during generateText. This is likely due to DigitalOcean API response validation mismatch. Skipping memory extraction gracefully. Error:", err instanceof Error ? err.message : String(err));
+      console.warn("[memory-extractor] Failed during streamText. This is likely due to DigitalOcean API response validation mismatch. Skipping memory extraction gracefully. Error:", err instanceof Error ? err.message : String(err));
       return;
     }
 
