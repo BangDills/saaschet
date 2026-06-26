@@ -158,13 +158,28 @@ async function generateViaAlibaba(
       task_id?: string;
       task_status?: string;
       results?: Array<{ url?: string }>;
+      choices?: Array<{
+        message?: {
+          content?: string | Array<{ image?: string; text?: string; type?: string }>;
+        };
+      }>;
     };
     code?: string;
     message?: string;
   };
 
   // If synchronous response returned the image URL immediately, use it
-  const immediateUrl = taskData.output?.results?.[0]?.url;
+  let immediateUrl = taskData.output?.results?.[0]?.url;
+  if (!immediateUrl && taskData.output?.choices?.[0]?.message?.content) {
+    const content = taskData.output.choices[0].message.content;
+    if (Array.isArray(content)) {
+      const imgObj = content.find((item: any) => item && typeof item === "object" && "image" in item);
+      if (imgObj && typeof imgObj.image === "string") {
+        immediateUrl = imgObj.image;
+      }
+    }
+  }
+
   if (immediateUrl) {
     const imgRes = await fetch(immediateUrl);
     if (!imgRes.ok) {
@@ -200,6 +215,11 @@ async function generateViaAlibaba(
       output?: {
         task_status: string;
         results?: Array<{ url?: string }>;
+        choices?: Array<{
+          message?: {
+            content?: string | Array<{ image?: string; text?: string; type?: string }>;
+          };
+        }>;
       };
       code?: string;
       message?: string;
@@ -207,7 +227,17 @@ async function generateViaAlibaba(
 
     const status = pollData.output?.task_status;
     if (status === "SUCCEEDED") {
-      const imgUrl = pollData.output?.results?.[0]?.url;
+      let imgUrl = pollData.output?.results?.[0]?.url;
+      if (!imgUrl && pollData.output?.choices?.[0]?.message?.content) {
+        const content = pollData.output.choices[0].message.content;
+        if (Array.isArray(content)) {
+          const imgObj = content.find((item: any) => item && typeof item === "object" && "image" in item);
+          if (imgObj && typeof imgObj.image === "string") {
+            imgUrl = imgObj.image;
+          }
+        }
+      }
+
       if (!imgUrl) {
         throw new Error("Alibaba task succeeded but returned no image URL");
       }
