@@ -77,7 +77,6 @@ async function generateViaAlibaba(
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
-      "X-DashScope-Async": "enable",
     },
     body: JSON.stringify({
       model: model,
@@ -100,14 +99,27 @@ async function generateViaAlibaba(
     output?: {
       task_id?: string;
       task_status?: string;
+      results?: Array<{ url?: string }>;
     };
     code?: string;
     message?: string;
   };
 
+  // If synchronous response returned the image URL immediately, use it
+  const immediateUrl = taskData.output?.results?.[0]?.url;
+  if (immediateUrl) {
+    const imgRes = await fetch(immediateUrl);
+    if (!imgRes.ok) {
+      throw new Error(`Failed to fetch image from URL: ${imgRes.status}`);
+    }
+    const arrayBuffer = await imgRes.arrayBuffer();
+    const b64 = Buffer.from(arrayBuffer).toString("base64");
+    return `data:image/png;base64,${b64}`;
+  }
+
   const taskId = taskData.output?.task_id;
   if (!taskId) {
-    throw new Error(`Alibaba returned no task ID: ${taskData.message || JSON.stringify(taskData)}`);
+    throw new Error(`Alibaba returned no task ID or image URL: ${taskData.message || JSON.stringify(taskData)}`);
   }
 
   const maxRetries = 25;
