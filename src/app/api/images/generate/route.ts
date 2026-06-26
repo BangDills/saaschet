@@ -72,9 +72,7 @@ async function generateViaAlibaba(
 
   const sizeParam = size.replace("x", "*");
 
-  const endpointPath = model === "wanx-v1"
-    ? "services/aigc/text2image/image-synthesis"
-    : "services/aigc/multimodal-generation/generation";
+  const endpointPath = "services/aigc/multimodal-generation/generation";
 
   const requestBody: any = {
     model: model,
@@ -82,14 +80,7 @@ async function generateViaAlibaba(
       size: sizeParam,
       n: 1,
     },
-  };
-
-  if (model === "wanx-v1") {
-    requestBody.input = {
-      prompt: prompt.trim(),
-    };
-  } else {
-    requestBody.input = {
+    input: {
       messages: [
         {
           role: "user",
@@ -101,8 +92,8 @@ async function generateViaAlibaba(
           ],
         },
       ],
-    };
-  }
+    },
+  };
 
   // Helper function to make the API call
   async function makePostCall(asyncEnabled: boolean) {
