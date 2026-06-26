@@ -88,22 +88,16 @@ async function generateViaAlibaba(
     requestBody.input = {
       prompt: prompt.trim(),
     };
-  } else if (model === "z-image-turbo") {
-    requestBody.input = {
-      messages: [
-        {
-          role: "user",
-          content: prompt.trim(),
-        },
-      ],
-    };
   } else {
     requestBody.input = {
       messages: [
         {
           role: "user",
           content: [
-            { text: prompt.trim() },
+            {
+              type: "text",
+              text: prompt.trim(),
+            },
           ],
         },
       ],
