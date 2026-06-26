@@ -15,6 +15,13 @@ import { Card } from "@/components/ui/card";
 import { fireCreditsRefresh } from "@/components/dashboard/credits-meter";
 
 const IMAGE_MODELS = [
+  // ── Alibaba Cloud Model Studio (MaaS) ──
+  { id: "wan2.7-image-pro", name: "Wan 2.7 Image Pro", provider: "Alibaba" },
+  { id: "wan2.7-image", name: "Wan 2.7 Image", provider: "Alibaba" },
+  { id: "wanx-v1", name: "Tongyi Wanxiang V1", provider: "Alibaba" },
+  { id: "qwen-image-2.0-pro", name: "Qwen Image 2.0 Pro", provider: "Alibaba" },
+  { id: "z-image-turbo", name: "Z Image Turbo", provider: "Alibaba" },
+
   // ── Pollinations.ai (free, no key needed) ──
   { id: "zimage", name: "Z Image", provider: "Pollinations" },
   { id: "flux", name: "Flux Schnell", provider: "Pollinations" },
@@ -60,7 +67,7 @@ export default function Page() {
           prompt: prompt.trim(),
           model: selectedModel,
           size: selectedSize,
-          provider: currentModel?.provider === "Pollinations" ? "pollinations" : "digitalocean",
+          provider: currentModel?.provider === "Pollinations" ? "pollinations" : "alibaba",
         }),
       });
 

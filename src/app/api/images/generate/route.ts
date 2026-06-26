@@ -56,56 +56,107 @@ async function generateViaPollinations(
   return `data:${contentType};base64,${b64}`;
 }
 
-/* ── DigitalOcean Inference (existing) ──────────────────────────────── */
-async function generateViaDigitalOcean(
+/* ── Alibaba Cloud Inference ────────────────────────────────────────── */
+async function generateViaAlibaba(
   prompt: string,
   model: string,
   size: string,
 ): Promise<string> {
-  const apiKey = process.env.DO_INFERENCE_API_KEY;
+  const apiKey = process.env.ALIBABA_API_KEY || process.env.DO_INFERENCE_API_KEY;
   if (!apiKey) {
-    throw new Error("DO_INFERENCE_API_KEY is not set. Add it to your environment variables.");
+    throw new Error("ALIBABA_API_KEY is not set. Add it to your environment variables.");
   }
 
-  const doBaseUrl = process.env.DO_INFERENCE_BASE_URL ?? "https://inference.do-ai.run/v1";
+  const baseUrl = process.env.ALIBABA_BASE_URL || "https://ws-7i0g4fvbloleocpm.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1";
+  const nativeBaseUrl = baseUrl.replace(/\/compatible-mode\/v1\/?$/, "/api/v1");
 
-  const response = await fetch(`${doBaseUrl}/images/generations`, {
+  const sizeParam = size.replace("x", "*");
+
+  const response = await fetch(`${nativeBaseUrl}/services/aigc/text2image/image-synthesis`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
+      "X-DashScope-Async": "enable",
     },
     body: JSON.stringify({
-      prompt: prompt.trim(),
-      model,
-      size,
-      n: 1,
-      response_format: "b64_json",
+      model: model,
+      input: {
+        prompt: prompt.trim(),
+      },
+      parameters: {
+        size: sizeParam,
+        n: 1,
+      },
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text().then((t) => t.slice(0, 300));
-    throw new Error(`Upstream generation failed: ${errorText}`);
+    throw new Error(`Alibaba task creation failed: ${errorText}`);
   }
 
-  const resData = (await response.json()) as {
-    data?: Array<{ b64_json?: string; url?: string }>;
+  const taskData = (await response.json()) as {
+    output?: {
+      task_id?: string;
+      task_status?: string;
+    };
+    code?: string;
+    message?: string;
   };
 
-  if (resData.data?.[0]?.b64_json) {
-    return `data:image/png;base64,${resData.data[0].b64_json}`;
-  } else if (resData.data?.[0]?.url) {
-    const imgRes = await fetch(resData.data[0].url);
-    if (!imgRes.ok) {
-      throw new Error(`Failed to fetch image from URL: ${imgRes.status}`);
-    }
-    const arrayBuffer = await imgRes.arrayBuffer();
-    const b64 = Buffer.from(arrayBuffer).toString("base64");
-    return `data:image/png;base64,${b64}`;
+  const taskId = taskData.output?.task_id;
+  if (!taskId) {
+    throw new Error(`Alibaba returned no task ID: ${taskData.message || JSON.stringify(taskData)}`);
   }
 
-  throw new Error("Invalid image response payload from provider");
+  const maxRetries = 25;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    const pollRes = await fetch(`${nativeBaseUrl}/tasks/${taskId}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    });
+
+    if (!pollRes.ok) {
+      const pollErrorText = await pollRes.text().then((t) => t.slice(0, 300));
+      throw new Error(`Alibaba polling failed: ${pollErrorText}`);
+    }
+
+    const pollData = (await pollRes.json()) as {
+      output?: {
+        task_status: string;
+        results?: Array<{ url?: string }>;
+      };
+      code?: string;
+      message?: string;
+    };
+
+    const status = pollData.output?.task_status;
+    if (status === "SUCCEEDED") {
+      const imgUrl = pollData.output?.results?.[0]?.url;
+      if (!imgUrl) {
+        throw new Error("Alibaba task succeeded but returned no image URL");
+      }
+
+      const imgRes = await fetch(imgUrl);
+      if (!imgRes.ok) {
+        throw new Error(`Failed to fetch image from URL: ${imgRes.status}`);
+      }
+      const arrayBuffer = await imgRes.arrayBuffer();
+      const b64 = Buffer.from(arrayBuffer).toString("base64");
+      return `data:image/png;base64,${b64}`;
+    }
+
+    if (status === "FAILED" || status === "CANCELED") {
+      throw new Error(`Alibaba task failed with status: ${status}. ${pollData.message || ""}`);
+    }
+  }
+
+  throw new Error("Alibaba image generation timed out after 25 seconds");
 }
 
 /* ── Main handler ───────────────────────────────────────────────────── */
@@ -131,7 +182,7 @@ export async function POST(req: Request) {
 
   const {
     prompt,
-    model = "stable-diffusion-3.5-large",
+    model = "wan2.7-image-pro",
     size = "1024x1024",
     provider,
   } = body;
@@ -164,7 +215,7 @@ export async function POST(req: Request) {
     if (isPollinations(provider, model)) {
       imageDataUrl = await generateViaPollinations(prompt.trim(), model, size);
     } else {
-      imageDataUrl = await generateViaDigitalOcean(prompt.trim(), model, size);
+      imageDataUrl = await generateViaAlibaba(prompt.trim(), model, size);
     }
 
     // ── Record credits spend ────────────────────────────────────────────
