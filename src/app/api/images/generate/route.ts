@@ -99,22 +99,56 @@ async function generateViaAlibaba(
     };
   }
 
-  const response = await fetch(`${nativeBaseUrl}/${endpointPath}`, {
-    method: "POST",
-    headers: {
+  // Helper function to make the API call
+  async function makePostCall(asyncEnabled: boolean) {
+    const headers: Record<string, string> = {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
-      "X-DashScope-Async": "enable",
-    },
-    body: JSON.stringify(requestBody),
-  });
+    };
+    if (asyncEnabled) {
+      headers["X-DashScope-Async"] = "enable";
+    }
 
-  if (!response.ok) {
-    const errorText = await response.text().then((t) => t.slice(0, 300));
-    throw new Error(`Alibaba task creation failed: ${errorText}`);
+    const response = await fetch(`${nativeBaseUrl}/${endpointPath}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(requestBody),
+    });
+
+    const isJson = response.headers.get("content-type")?.includes("application/json");
+    const text = await response.text();
+    let json: any = {};
+    if (isJson) {
+      try {
+        json = JSON.parse(text);
+      } catch {}
+    }
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      text,
+      json,
+    };
   }
 
-  const taskData = (await response.json()) as {
+  // Try calling synchronously first (without async header)
+  let callResult = await makePostCall(false);
+
+  // If synchronous call is not supported, retry with async header enabled
+  if (!callResult.ok) {
+    const errMsg = callResult.json?.message || callResult.text || "";
+    if (errMsg.includes("does not support synchronous calls")) {
+      console.log(`[image] Model ${model} requires async invocation. Retrying with X-DashScope-Async enabled...`);
+      callResult = await makePostCall(true);
+    }
+  }
+
+  if (!callResult.ok) {
+    throw new Error(`Alibaba task creation failed: ${callResult.text}`);
+  }
+
+  const taskData = callResult.json as {
     output?: {
       task_id?: string;
       task_status?: string;
