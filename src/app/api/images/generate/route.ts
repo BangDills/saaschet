@@ -76,22 +76,39 @@ async function generateViaAlibaba(
     ? "services/aigc/text2image/image-synthesis"
     : "services/aigc/multimodal-generation/generation";
 
+  const requestBody: any = {
+    model: model,
+    parameters: {
+      size: sizeParam,
+      n: 1,
+    },
+  };
+
+  if (model === "wanx-v1") {
+    requestBody.input = {
+      prompt: prompt.trim(),
+    };
+  } else {
+    requestBody.input = {
+      messages: [
+        {
+          role: "user",
+          content: [
+            { text: prompt.trim() },
+          ],
+        },
+      ],
+    };
+  }
+
   const response = await fetch(`${nativeBaseUrl}/${endpointPath}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
+      "X-DashScope-Async": "enable",
     },
-    body: JSON.stringify({
-      model: model,
-      input: {
-        prompt: prompt.trim(),
-      },
-      parameters: {
-        size: sizeParam,
-        n: 1,
-      },
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
