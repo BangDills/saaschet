@@ -14,8 +14,8 @@ export const dynamic = "force-dynamic";
 // Cache the model list for an hour at the edge.
 export const revalidate = 3600;
 
-const DO_BASE_URL =
-  process.env.DO_INFERENCE_BASE_URL ?? "https://inference.do-ai.run/v1";
+const ALIBABA_BASE_URL =
+  process.env.ALIBABA_BASE_URL ?? "https://ws-7i0g4fvbloleocpm.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1";
 
 type DOModelEntry = {
   id: string;
@@ -75,19 +75,14 @@ function sortByVendor(a: ModelInfo, b: ModelInfo): number {
 }
 
 export async function GET() {
-  const apiKey = process.env.DO_INFERENCE_API_KEY;
+  const apiKey = process.env.ALIBABA_API_KEY || process.env.DO_INFERENCE_API_KEY;
 
-  // Only these DO model IDs are shown in the selector.
-  const ALLOWED_DO_MODELS = new Set([
-    "deepseek-v4-pro",
-    "deepseek-4-flash",
-    "nvidia-nemotron-3-super-120b",
-    "nemotron-3-nano-omni",
-    "nemotron-3-ultra-550b",
-    "kimi-k2.6",
-    "kimi-k2.5",
+  // Only these Alibaba model IDs are shown in the selector.
+  const ALLOWED_ALIBABA_MODELS = new Set([
     "glm-5.2",
-    "glm-5",
+    "qwen-3.7-max",
+    "qwen-3.7-plus",
+    "kimi-2.7-code",
   ]);
 
   // No key configured → return curated list.
@@ -99,7 +94,7 @@ export async function GET() {
   }
 
   try {
-    const res = await fetch(`${DO_BASE_URL}/models`, {
+    const res = await fetch(`${ALIBABA_BASE_URL}/models`, {
       headers: { Authorization: `Bearer ${apiKey}` },
       next: { revalidate: 3600 },
     });
@@ -117,7 +112,7 @@ export async function GET() {
 
     // Filter to ONLY whitelisted models.
     const live: ModelInfo[] = items
-      .filter((m) => ALLOWED_DO_MODELS.has(m.id))
+      .filter((m) => ALLOWED_ALIBABA_MODELS.has(m.id))
       .map((m) => {
         const vendor = vendorFromId(m.id);
         return {
@@ -137,7 +132,7 @@ export async function GET() {
       });
     }
 
-    // Merge: codex models + free models + whitelisted DO models.
+    // Merge: codex models + free models + whitelisted Alibaba models.
     const merged = [...codexModels, ...allFreeModels, ...live];
 
     return NextResponse.json({
@@ -148,7 +143,7 @@ export async function GET() {
     return NextResponse.json({
       models: [...defaultModels].sort(sortByVendor),
       source: "fallback",
-      warning: "Failed to reach inference.do-ai.run",
+      warning: "Failed to reach Alibaba MaaS API",
     });
   }
 }

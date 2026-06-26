@@ -39,24 +39,24 @@ export async function extractAndSaveMemories(
   userMessage: string,
   assistantMessage: string,
 ): Promise<void> {
-  const apiKey = process.env.DO_INFERENCE_API_KEY;
+  const apiKey = process.env.ALIBABA_API_KEY || process.env.DO_INFERENCE_API_KEY;
   const opencodeKey = process.env.OPENCODE_API_KEY;
   
-  console.log(`[memory-extractor] Env check: DO_INFERENCE_API_KEY exists: ${!!apiKey}, OPENCODE_API_KEY exists: ${!!opencodeKey}`);
+  console.log(`[memory-extractor] Env check: ALIBABA_API_KEY/DO_INFERENCE_API_KEY exists: ${!!apiKey}, OPENCODE_API_KEY exists: ${!!opencodeKey}`);
 
   if (!apiKey) {
-    console.warn("[memory-extractor] DO_INFERENCE_API_KEY is not set. Skipping memory extraction.");
+    console.warn("[memory-extractor] ALIBABA_API_KEY or DO_INFERENCE_API_KEY is not set. Skipping memory extraction.");
     return;
   }
 
-  const baseUrl = process.env.DO_INFERENCE_BASE_URL ?? "https://inference.do-ai.run/v1";
+  const baseUrl = process.env.ALIBABA_BASE_URL ?? "https://ws-7i0g4fvbloleocpm.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1";
   
   const cleanUser = cleanAndTruncate(userMessage);
   const cleanAssistant = cleanAndTruncate(assistantMessage);
   const prompt = `User Message: "${cleanUser}"\n\nAssistant Response: "${cleanAssistant}"`;
 
   try {
-    const doProvider = createOpenAI({
+    const alibabaProvider = createOpenAI({
       apiKey,
       baseURL: baseUrl,
     });
@@ -64,7 +64,7 @@ export async function extractAndSaveMemories(
     let text = "";
     try {
       const res = await streamText({
-        model: doProvider("deepseek-4-flash"),
+        model: alibabaProvider("qwen-3.7-plus"),
         system: MEMORY_EXTRACTION_SYSTEM,
         prompt,
         onError: ({ error }) => {
@@ -73,12 +73,12 @@ export async function extractAndSaveMemories(
       });
       text = await res.text;
     } catch (err) {
-      console.warn("[memory-extractor] DigitalOcean call failed:", err instanceof Error ? err.message : String(err));
+      console.warn("[memory-extractor] Alibaba call failed:", err instanceof Error ? err.message : String(err));
     }
 
-    // Fallback to OpenCode if DigitalOcean returned empty or failed, and OpenCode key is available
+    // Fallback to OpenCode if Alibaba returned empty or failed, and OpenCode key is available
     if ((!text || text.trim().length === 0) && opencodeKey) {
-      console.log("[memory-extractor] DigitalOcean returned empty or failed. Falling back to OpenCode...");
+      console.log("[memory-extractor] Alibaba returned empty or failed. Falling back to OpenCode...");
       try {
         const opencodeProvider = createOpenAI({
           apiKey: opencodeKey,

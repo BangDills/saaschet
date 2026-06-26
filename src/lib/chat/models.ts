@@ -48,24 +48,14 @@ export const agentCapableModels = new Set([
   // OpenAI Codex (ChatGPT subscription)
   "codex/gpt-5.5",
 
-  // DeepSeek
-  "deepseek-v4-pro",
-  "deepseek-4-flash",
-
   // OpenCode free
   "opencode/deepseek-v4-flash-free",
 
-  // Kimi — tool calling fixed via kimi-compat.ts
-  "kimi-k2.6",
-  "kimi-k2.5",
-
-  // GLM — DO categorizes as tool-calling capable
+  // Alibaba models
   "glm-5.2",
-  "glm-5",
-
-  // Nvidia
-  "nvidia-nemotron-3-super-120b",
-  "nemotron-3-ultra-550b",
+  "qwen-3.7-max",
+  "qwen-3.7-plus",
+  "kimi-2.7-code",
 ]);
 
 /** Check if a model is suitable for agent mode (tool calling). */
@@ -78,11 +68,9 @@ export function isAgentCapable(modelId: string): boolean {
  */
 export const multimodalModels = new Set([
   "codex/gpt-5.5",
-  "kimi-k2.6",
-  "kimi-k2.5",
   "glm-5.2",
-  "glm-5",
-  "nemotron-3-nano-omni",
+  "qwen-3.7-max",
+  "qwen-3.7-plus",
 ]);
 
 /** Check if a model supports vision/multimodal input. */
@@ -94,10 +82,10 @@ export function isMultimodal(modelId: string): boolean {
  * Multi-provider routing helpers
  *
  * Model IDs use a prefix convention: "provider/model-id".
- * Models without a prefix route to DigitalOcean (the default provider).
+ * Models without a prefix route to Alibaba (the default provider).
  * ────────────────────────────────────────────────────────────────────── */
 
-type ProviderName = "digitalocean" | "opencode" | "codex";
+type ProviderName = "alibaba" | "opencode" | "codex";
 
 const PROVIDER_PREFIXES: Record<string, ProviderName> = {
   "opencode/": "opencode",
@@ -109,7 +97,7 @@ export function resolveProvider(modelId: string): ProviderName {
   for (const [prefix, provider] of Object.entries(PROVIDER_PREFIXES)) {
     if (modelId.startsWith(prefix)) return provider;
   }
-  return "digitalocean";
+  return "alibaba";
 }
 
 /** Strip the provider prefix to get the raw model ID for the API. */
@@ -122,14 +110,14 @@ export function stripProviderPrefix(modelId: string): string {
 
 /** Base URLs for each provider. */
 export const PROVIDER_BASE_URLS: Record<ProviderName, string> = {
-  digitalocean: "https://inference.do-ai.run/v1",
+  alibaba: "https://ws-7i0g4fvbloleocpm.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
   opencode: "https://opencode.ai/zen/v1",
   codex: "https://chatgpt.com/backend-api/codex",
 };
 
 /** Environment variable names for each provider's API key. */
 export const PROVIDER_ENV_KEYS: Record<ProviderName, string> = {
-  digitalocean: "DO_INFERENCE_API_KEY",
+  alibaba: "ALIBABA_API_KEY",
   opencode: "OPENCODE_API_KEY",
   codex: "", // Uses per-user OAuth tokens, not a server-side env key
 };
@@ -187,73 +175,37 @@ export const defaultModels: ModelInfo[] = [
   // ── OpenAI Codex (requires ChatGPT subscription OAuth) ──
   ...codexModels,
 
-  // ── DigitalOcean Models ──
-  {
-    id: "deepseek-v4-pro",
-    label: "DeepSeek V4 Pro",
-    vendor: "DeepSeek",
-    tag: "1M context · reasoning",
-    agentCapable: true,
-  },
-  {
-    id: "deepseek-4-flash",
-    label: "DeepSeek 4 Flash",
-    vendor: "DeepSeek",
-    tag: "Fast reasoning",
-    agentCapable: true,
-  },
-  {
-    id: "nvidia-nemotron-3-super-120b",
-    label: "Nvidia Nemotron 3 Super 120B",
-    vendor: "Nvidia",
-    tag: "Public Preview",
-    agentCapable: true,
-  },
-  {
-    id: "nemotron-3-nano-omni",
-    label: "Nemotron 3 Nano Omni",
-    vendor: "Nvidia",
-    tag: "Lightweight Omni",
-    multimodal: true,
-  },
-  {
-    id: "nemotron-3-ultra-550b",
-    label: "Nemotron 3 Ultra 550B",
-    vendor: "Nvidia",
-    tag: "Ultra 550B parameters",
-    agentCapable: true,
-  },
-  {
-    id: "kimi-k2.6",
-    label: "Kimi K2.6",
-    vendor: "Kimi",
-    tag: "Strong coder",
-    agentCapable: true,
-    multimodal: true,
-  },
-  {
-    id: "kimi-k2.5",
-    label: "Kimi K2.5",
-    vendor: "Kimi",
-    tag: "MoE · 1T params",
-    agentCapable: true,
-    multimodal: true,
-  },
+  // ── Alibaba Cloud Models ──
   {
     id: "glm-5.2",
     label: "GLM 5.2",
     vendor: "GLM",
-    tag: "Latest version",
+    tag: "Latest Multimodal",
     agentCapable: true,
     multimodal: true,
   },
   {
-    id: "glm-5",
-    label: "GLM 5",
-    vendor: "GLM",
-    tag: "Versatile",
+    id: "qwen-3.7-max",
+    label: "Qwen 3.7 Max",
+    vendor: "Qwen",
+    tag: "Reasoning Max",
     agentCapable: true,
     multimodal: true,
+  },
+  {
+    id: "qwen-3.7-plus",
+    label: "Qwen 3.7 Plus",
+    vendor: "Qwen",
+    tag: "Speed & Quality",
+    agentCapable: true,
+    multimodal: true,
+  },
+  {
+    id: "kimi-2.7-code",
+    label: "Kimi 2.7 Code",
+    vendor: "Kimi",
+    tag: "Strong Coder",
+    agentCapable: true,
   },
 ];
 

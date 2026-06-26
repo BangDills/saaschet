@@ -1148,8 +1148,8 @@ ${recoveryInstruction}`;
             }
           }
 
-          // Structured JSONB profile extraction (uses DO LLM if available)
-          if (process.env.DO_INFERENCE_API_KEY && userText && text) {
+          // Structured JSONB profile extraction (uses Alibaba LLM if available)
+          if ((process.env.ALIBABA_API_KEY || process.env.DO_INFERENCE_API_KEY) && userText && text) {
             try {
               extractAndSaveStructuredMemory(userId, userText, text).catch((err) => {
                 console.error("[chat] structured memory extraction failed:", err);

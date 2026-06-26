@@ -15,8 +15,6 @@ import { Card } from "@/components/ui/card";
 import { fireCreditsRefresh } from "@/components/dashboard/credits-meter";
 
 const IMAGE_MODELS = [
-  // ── DigitalOcean Inference ──
-  { id: "stable-diffusion-3.5-large", name: "Stable Diffusion 3.5 Large", provider: "DigitalOcean" },
   // ── Pollinations.ai (free, no key needed) ──
   { id: "zimage", name: "Z Image", provider: "Pollinations" },
   { id: "flux", name: "Flux Schnell", provider: "Pollinations" },
