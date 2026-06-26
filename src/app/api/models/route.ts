@@ -124,16 +124,18 @@ export async function GET() {
         } satisfies ModelInfo;
       });
 
-    if (live.length === 0) {
-      return NextResponse.json({
-        models: [...defaultModels].sort(sortByVendor),
-        source: "fallback",
-        warning: "Live list was empty",
-      });
-    }
+    const alibabaModelsStatic = defaultModels.filter(
+      (m) => m.id === "glm-5.2" || m.id === "qwen-3.7-max" || m.id === "qwen-3.7-plus" || m.id === "kimi-2.7-code"
+    );
+
+    const liveIds = new Set(live.map((m) => m.id));
+    const finalAlibaba = [
+      ...live,
+      ...alibabaModelsStatic.filter((m) => !liveIds.has(m.id)),
+    ];
 
     // Merge: codex models + free models + whitelisted Alibaba models.
-    const merged = [...codexModels, ...allFreeModels, ...live];
+    const merged = [...codexModels, ...allFreeModels, ...finalAlibaba];
 
     return NextResponse.json({
       models: merged.sort(sortByVendor),
