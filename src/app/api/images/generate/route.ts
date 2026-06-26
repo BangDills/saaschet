@@ -72,7 +72,11 @@ async function generateViaAlibaba(
 
   const sizeParam = size.replace("x", "*");
 
-  const response = await fetch(`${nativeBaseUrl}/services/aigc/text2image/image-synthesis`, {
+  const endpointPath = model === "wanx-v1"
+    ? "services/aigc/text2image/image-synthesis"
+    : "services/aigc/multimodal-generation/generation";
+
+  const response = await fetch(`${nativeBaseUrl}/${endpointPath}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
