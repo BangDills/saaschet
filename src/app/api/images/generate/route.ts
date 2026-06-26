@@ -93,9 +93,7 @@ async function generateViaAlibaba(
       messages: [
         {
           role: "user",
-          content: [
-            { text: prompt.trim() },
-          ],
+          content: prompt.trim(),
         },
       ],
     };
