@@ -64,7 +64,7 @@ export async function extractAndSaveMemories(
     let text = "";
     try {
       const res = await streamText({
-        model: alibabaProvider("qwen-3.7-plus"),
+        model: alibabaProvider("qwen3.7-plus"),
         system: MEMORY_EXTRACTION_SYSTEM,
         prompt,
         onError: ({ error }) => {

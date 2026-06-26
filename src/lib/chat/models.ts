@@ -53,9 +53,9 @@ export const agentCapableModels = new Set([
 
   // Alibaba models
   "glm-5.2",
-  "qwen-3.7-max",
-  "qwen-3.7-plus",
-  "kimi-2.7-code",
+  "qwen3.7-max",
+  "qwen3.7-plus",
+  "kimi-k2.7-code",
 ]);
 
 /** Check if a model is suitable for agent mode (tool calling). */
@@ -69,8 +69,8 @@ export function isAgentCapable(modelId: string): boolean {
 export const multimodalModels = new Set([
   "codex/gpt-5.5",
   "glm-5.2",
-  "qwen-3.7-max",
-  "qwen-3.7-plus",
+  "qwen3.7-max",
+  "qwen3.7-plus",
 ]);
 
 /** Check if a model supports vision/multimodal input. */
@@ -185,7 +185,7 @@ export const defaultModels: ModelInfo[] = [
     multimodal: true,
   },
   {
-    id: "qwen-3.7-max",
+    id: "qwen3.7-max",
     label: "Qwen 3.7 Max",
     vendor: "Qwen",
     tag: "Reasoning Max",
@@ -193,7 +193,7 @@ export const defaultModels: ModelInfo[] = [
     multimodal: true,
   },
   {
-    id: "qwen-3.7-plus",
+    id: "qwen3.7-plus",
     label: "Qwen 3.7 Plus",
     vendor: "Qwen",
     tag: "Speed & Quality",
@@ -201,7 +201,7 @@ export const defaultModels: ModelInfo[] = [
     multimodal: true,
   },
   {
-    id: "kimi-2.7-code",
+    id: "kimi-k2.7-code",
     label: "Kimi 2.7 Code",
     vendor: "Kimi",
     tag: "Strong Coder",

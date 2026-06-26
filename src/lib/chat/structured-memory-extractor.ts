@@ -80,7 +80,7 @@ Assistant Response: "${cleanAssistant}"`;
     let text = "";
     try {
       const res = await streamText({
-        model: alibabaProvider("qwen-3.7-plus"),
+        model: alibabaProvider("qwen3.7-plus"),
         system: STRUCTURED_EXTRACTION_SYSTEM,
         prompt,
         onError: ({ error }) => {

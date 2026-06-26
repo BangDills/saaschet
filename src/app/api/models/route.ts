@@ -80,9 +80,9 @@ export async function GET() {
   // Only these Alibaba model IDs are shown in the selector.
   const ALLOWED_ALIBABA_MODELS = new Set([
     "glm-5.2",
-    "qwen-3.7-max",
-    "qwen-3.7-plus",
-    "kimi-2.7-code",
+    "qwen3.7-max",
+    "qwen3.7-plus",
+    "kimi-k2.7-code",
   ]);
 
   // No key configured → return curated list.
@@ -125,7 +125,7 @@ export async function GET() {
       });
 
     const alibabaModelsStatic = defaultModels.filter(
-      (m) => m.id === "glm-5.2" || m.id === "qwen-3.7-max" || m.id === "qwen-3.7-plus" || m.id === "kimi-2.7-code"
+      (m) => m.id === "glm-5.2" || m.id === "qwen3.7-max" || m.id === "qwen3.7-plus" || m.id === "kimi-k2.7-code"
     );
 
     const liveIds = new Set(live.map((m) => m.id));
