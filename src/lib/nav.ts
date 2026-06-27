@@ -25,7 +25,7 @@ export type NavItem = {
 
 /** Sidebar nav items — main features only. */
 const sidebarNavItems: NavItem[] = [
-  { label: "Admin Dashboard", href: "/", icon: LayoutDashboard, adminOnly: true },
+  { label: "Admin Dashboard", href: "/dashboard", icon: LayoutDashboard, adminOnly: true },
   { label: "Manage Users", href: "/users", icon: Users, adminOnly: true },
   { label: "AI Agent", href: "/ai-chat", icon: MessageSquare },
   { label: "PRD Generator", href: "/prd-generator", icon: ClipboardList },
