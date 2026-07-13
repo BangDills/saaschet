@@ -17,7 +17,6 @@ import {
   Search,
   Terminal,
   Wrench,
-  CheckCircle2,
   XCircle,
   BookOpen,
   Network,
@@ -168,23 +167,6 @@ const FALLBACK_META: ToolMeta = {
   running: "Working…",
   done: "Completed",
   category: "execute",
-};
-
-/** Category-based accent colors */
-const CATEGORY_COLORS: Record<ToolMeta["category"], string> = {
-  read: "text-sky-500 dark:text-sky-400",
-  write: "text-violet-500 dark:text-violet-400",
-  execute: "text-amber-500 dark:text-amber-400",
-  search: "text-emerald-500 dark:text-emerald-400",
-  git: "text-rose-500 dark:text-rose-400",
-};
-
-const CATEGORY_BG: Record<ToolMeta["category"], string> = {
-  read: "bg-sky-500/10",
-  write: "bg-violet-500/10",
-  execute: "bg-amber-500/10",
-  search: "bg-emerald-500/10",
-  git: "bg-rose-500/10",
 };
 
 function getToolName(part: ToolCallPart): string {
@@ -356,6 +338,14 @@ function summarizeOutput(toolName: string, output: unknown): string {
   }
 }
 
+function getLineStats(output: unknown): { added: number; deleted: number } | null {
+  if (!output || typeof output !== "object") return null;
+  const value = output as Record<string, unknown>;
+  const added = typeof value.lines_added === "number" ? value.lines_added : null;
+  const deleted = typeof value.lines_deleted === "number" ? value.lines_deleted : null;
+  return added !== null && deleted !== null ? { added, deleted } : null;
+}
+
 /** Pretty-print JSON for the expanded panel. */
 function prettyJson(value: unknown): string {
   try {
@@ -478,9 +468,7 @@ function ToolCallImpl({ part, onActionPrompt }: ToolCallProps) {
   const filePath = extractFilePath(toolName, part.input);
   const inputSummary = summarizeInput(toolName, part.input);
   const outputSummary = isDone ? summarizeOutput(toolName, part.output) : "";
-
-  const accentColor = CATEGORY_COLORS[meta.category];
-  const accentBg = CATEGORY_BG[meta.category];
+  const lineStats = isDone ? getLineStats(part.output) : null;
 
   const readFileMeta =
     isDone && toolName === "read_file"
@@ -490,12 +478,8 @@ function ToolCallImpl({ part, onActionPrompt }: ToolCallProps) {
   return (
     <div
       className={cn(
-        "my-1.5 rounded-lg border transition-all duration-200",
-        isError
-          ? "border-red-300/50 bg-red-500/5 dark:border-red-900/40"
-          : isRunning
-            ? "border-border/60 bg-muted/30"
-            : "border-border/40 bg-muted/20 hover:bg-muted/30",
+        "my-3 rounded-xl border bg-background shadow-sm transition-colors",
+        isError ? "border-destructive/40" : "border-border hover:bg-muted/30",
       )}
     >
       <button
@@ -512,19 +496,11 @@ function ToolCallImpl({ part, onActionPrompt }: ToolCallProps) {
           )}
         </span>
 
-        {/* Icon with category accent */}
-        <span
-          className={cn(
-            "flex size-6 shrink-0 items-center justify-center rounded-md",
-            accentBg,
-          )}
-        >
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
           {isRunning ? (
-            <Loader2
-              className={cn("size-3.5 animate-spin", accentColor)}
-            />
+            <Loader2 className="size-3.5 animate-spin" />
           ) : (
-            <Icon className={cn("size-3.5", accentColor)} />
+            <Icon className="size-3.5" />
           )}
         </span>
 
@@ -550,30 +526,24 @@ function ToolCallImpl({ part, onActionPrompt }: ToolCallProps) {
           )}
         </div>
 
-        {/* Status badge */}
-        <span className="flex shrink-0 items-center gap-1">
-          {isRunning && (
-            <span className="flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-600 dark:text-violet-300">
-              <span className="relative flex size-1.5">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-violet-500 opacity-75" />
-                <span className="relative inline-flex size-1.5 rounded-full bg-violet-500" />
-              </span>
-              working
+        <span className="flex shrink-0 items-center gap-2">
+          {lineStats && (
+            <span className="rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] font-semibold">
+              <span className="text-emerald-600">+{lineStats.added}</span>
+              <span className="text-muted-foreground"> / </span>
+              <span className="text-red-600">-{lineStats.deleted}</span>
             </span>
           )}
-          {isDone && !isError && outputSummary && (
-            <span className="flex max-w-[50%] items-center gap-1 text-[10px] text-muted-foreground">
-              <CheckCircle2 className="size-3 shrink-0 text-emerald-500" />
-              <span className="truncate" title={outputSummary}>{outputSummary}</span>
+          {isRunning && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
+          {isDone && !isError && !lineStats && (
+            <span className="max-w-28 truncate text-[10px] text-muted-foreground" title={outputSummary}>
+              {outputSummary || "Done"}
             </span>
-          )}
-          {isDone && !isError && !outputSummary && (
-            <CheckCircle2 className="size-3.5 text-emerald-500" />
           )}
           {isError && (
-            <span className="flex items-center gap-1 text-[10px] text-red-500">
+            <span className="flex items-center gap-1 text-[10px] text-destructive">
               <XCircle className="size-3" />
-              error
+              Error
             </span>
           )}
         </span>

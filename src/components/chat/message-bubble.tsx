@@ -92,15 +92,15 @@ function MessageBubbleImpl({
   return (
     <div
       className={cn(
-        "flex w-full px-4 py-3",
+        "flex w-full py-4 sm:py-5",
         isUser ? "justify-end" : "justify-start",
       )}
     >
       <div
         className={cn(
           isUser
-            ? "max-w-[min(75%,32rem)] rounded-2xl bg-secondary px-4 py-2.5 text-secondary-foreground"
-            : "max-w-[min(85%,48rem)] text-foreground",
+            ? "max-w-[85%] rounded-3xl rounded-br-lg bg-secondary px-4 py-3 text-secondary-foreground sm:max-w-[70%]"
+            : "w-full max-w-none text-foreground",
         )}
       >
         {isUser ? (

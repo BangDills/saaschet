@@ -400,8 +400,13 @@ export function createAgentTools(ctx: AgentContext) {
           commit_sha: result.commitSha,
           files_written: result.filesWritten,
           paths: files.map((f) => f.path),
-          method: result.fallback,
-          ...(isEmptyRepo
+  method: result.fallback,
+  lines_added: files.reduce(
+    (total, file) => total + (file.content.length === 0 ? 0 : file.content.split(/\r?\n/).length),
+    0,
+  ),
+  lines_deleted: 0,
+  ...(isEmptyRepo
             ? {
                 note: "Repo was empty — committed directly to the default branch as the bootstrap commit. No pull request is needed; the work is already on the main branch.",
               }
@@ -463,6 +468,8 @@ export function createAgentTools(ctx: AgentContext) {
           branch,
           commit_sha: result.commitSha,
           bytes_written: content.length,
+          lines_added: content.length === 0 ? 0 : content.split(/\r?\n/).length,
+          lines_deleted: 0,
           ...(isEmptyRepo
             ? {
                 note: "Repo was empty — committed directly to the default branch as the bootstrap commit. No pull request is needed; the work is already on the main branch.",
@@ -569,6 +576,10 @@ export function createAgentTools(ctx: AgentContext) {
         }
 
         const newContent = original.content.replace(find, replace);
+        const countLines = (value: string) =>
+          value.length === 0 ? 0 : value.split(/\r?\n/).length;
+        const linesDeleted = countLines(find);
+        const linesAdded = countLines(replace);
         const { branch, isEmptyRepo } = await ensureWorkBranch(writeToken);
         const result = await putFile(
           owner,
@@ -585,6 +596,8 @@ export function createAgentTools(ctx: AgentContext) {
           branch,
           commit_sha: result.commitSha,
           bytes_changed: Math.abs(newContent.length - original.content.length),
+          lines_added: linesAdded,
+          lines_deleted: linesDeleted,
           old_length: original.content.length,
           new_length: newContent.length,
           ...(isEmptyRepo
