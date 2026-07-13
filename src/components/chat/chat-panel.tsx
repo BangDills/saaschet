@@ -485,9 +485,12 @@ export function ChatPanel({
           <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-8">
 
             <div className="text-center">
-              <h2 className="text-balance text-2xl font-bold leading-tight tracking-[-0.025em] sm:text-3xl">
-                Apa yang ingin Anda kerjakan?
+              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+                Halo!
               </h2>
+              <p className="mt-2 text-base text-muted-foreground">
+                Ada yang bisa saya bantu hari ini?
+              </p>
             </div>
 
             <ChatInput variant="centered" {...inputProps} />
