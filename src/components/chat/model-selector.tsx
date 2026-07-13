@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, Check, Sparkles, Link, Lock } from "lucide-react";
+import { ChevronDown, Check, Link, Lock } from "lucide-react";
 import type { ModelInfo } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -75,9 +75,6 @@ export function ModelSelector({
         <span className="truncate">
           {current?.label ?? "Select model"}
         </span>
-        {current?.agentCapable && (
-          <Sparkles className="size-3 text-violet-500" />
-        )}
         <ChevronDown className="size-3.5 opacity-70" />
       </button>
 
@@ -93,10 +90,7 @@ export function ModelSelector({
         >
           {agentMode && (
             <div className="mx-3 mb-1 mt-1.5 flex items-center gap-1.5 rounded-md bg-violet-500/10 px-2 py-1.5 text-[11px] text-violet-600 dark:text-violet-300">
-              <Sparkles className="size-3 shrink-0" />
-              <span>
-                Agent Mode active — <Sparkles className="inline size-2.5" /> models support tool calling
-              </span>
+              <span>Agent Mode active — compatible models support tool calling</span>
             </div>
           )}
           {groups.map(([vendor, items]) => (
@@ -150,9 +144,6 @@ export function ModelSelector({
                               Connect
                             </span>
                           )
-                        )}
-                        {m.agentCapable && (
-                          <Sparkles className="size-3 shrink-0 text-violet-500" />
                         )}
                       </p>
                       {m.tag && (

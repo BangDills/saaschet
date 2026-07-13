@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type CreditSnapshot = {
@@ -88,16 +87,6 @@ export function CreditsMeter() {
     >
       <div className="mb-2 flex items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-1.5 font-semibold">
-          <Sparkles
-            className={cn(
-              "size-3.5",
-              isEmpty
-                ? "text-red-500"
-                : isLow
-                  ? "text-amber-500"
-                  : "text-violet-500",
-            )}
-          />
           <span>Credits</span>
           {snap.tier === "pro" && (
             <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
@@ -118,7 +107,7 @@ export function CreditsMeter() {
               ? "bg-red-500"
               : isLow
                 ? "bg-amber-500"
-                : "bg-gradient-to-r from-violet-500 to-fuchsia-500",
+                : "bg-foreground",
           )}
           style={{ width: `${pct}%` }}
         />
