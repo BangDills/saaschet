@@ -242,7 +242,7 @@ export default async function LandingPage() {
                 <span className="inline-flex size-6 items-center justify-center bg-foreground text-background"><Zap className="size-3" /></span>
                 One workspace. Every creative workflow.
               </div>
-              <h1 className="max-w-5xl text-balance text-5xl font-extrabold leading-[0.94] tracking-[-0.065em] sm:text-7xl lg:text-[6.6rem]">
+              <h1 className="max-w-5xl text-balance text-5xl font-extrabold leading-[0.98] tracking-[-0.045em] sm:text-7xl lg:text-[6.6rem]">
                 From idea to output, without the busywork.
               </h1>
             </div>

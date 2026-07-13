@@ -485,11 +485,14 @@ export function ChatPanel({
           <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-8">
 
             <div className="text-center">
-              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                Halo! 👋
+              <p className="mb-3 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                Celiuz AI
+              </p>
+              <h2 className="text-balance text-3xl font-extrabold leading-tight tracking-[-0.035em] sm:text-4xl">
+                Apa yang ingin Anda kerjakan?
               </h2>
-              <p className="mt-2 text-base text-muted-foreground">
-                Ada yang bisa saya bantu hari ini?
+              <p className="mx-auto mt-3 max-w-lg text-pretty text-base leading-relaxed text-muted-foreground">
+                Mulai percakapan, tulis kode, atau kembangkan ide Anda bersama AI.
               </p>
             </div>
 

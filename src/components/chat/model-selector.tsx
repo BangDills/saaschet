@@ -89,7 +89,7 @@ export function ModelSelector({
           )}
         >
           {agentMode && (
-            <div className="mx-3 mb-1 mt-1.5 flex items-center gap-1.5 rounded-md bg-violet-500/10 px-2 py-1.5 text-[11px] text-violet-600 dark:text-violet-300">
+            <div className="mx-3 mb-1 mt-1.5 flex items-center gap-1.5 rounded-md bg-muted px-2 py-1.5 text-xs text-muted-foreground">
               <span>Agent Mode active — compatible models support tool calling</span>
             </div>
           )}
