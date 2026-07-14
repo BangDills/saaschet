@@ -10,6 +10,7 @@ import { StreamingPill } from "./streaming-pill";
 import { ProcessingIndicator } from "./processing-indicator";
 import { fireCreditsRefresh } from "@/components/dashboard/credits-meter";
 import { OpenAIConnectDialog } from "./openai-connect-dialog";
+import { ArrowDown } from "lucide-react";
 
 function partsToText(parts: UIMessage["parts"] | undefined): string {
   if (!parts) return "";
@@ -344,6 +345,7 @@ export function ChatPanel({
 
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const userScrolledUpRef = React.useRef(false);
+  const [showScrollToLatest, setShowScrollToLatest] = React.useState(false);
 
   React.useEffect(() => {
     const el = scrollRef.current;
@@ -353,7 +355,9 @@ export function ChatPanel({
       if (!el) return;
       const distanceFromBottom =
         el.scrollHeight - el.scrollTop - el.clientHeight;
-      userScrolledUpRef.current = distanceFromBottom > 60;
+      const isAwayFromBottom = distanceFromBottom > 120;
+      userScrolledUpRef.current = isAwayFromBottom;
+      setShowScrollToLatest(isAwayFromBottom);
     }
 
     el.addEventListener("scroll", onScroll, { passive: true });
@@ -397,6 +401,22 @@ export function ChatPanel({
 
   // The input pill at the bottom (or center for hero) is the same in both
   // modes — the page-level state controls the toggles.
+  const suggestions = React.useMemo(
+    () =>
+      repo
+        ? [
+            `Review the ${repo} repository`,
+            `Find issues in ${repo}`,
+            `Explain the architecture of ${repo}`,
+          ]
+        : [
+            "Review a repository",
+            "Build a landing page",
+            "Debug an issue",
+          ],
+    [repo],
+  );
+
   const inputProps = {
     onSubmit: handleSubmit,
     onStop: stop,
@@ -420,9 +440,9 @@ export function ChatPanel({
     <div className="flex h-full min-h-0 flex-1 flex-col">
       {hasMessages ? (
         <>
-          <div ref={scrollRef} className="flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-3xl py-4">
-              {visibleMessages.map((m) => {
+          <div ref={scrollRef} className="relative flex-1 overflow-y-auto">
+            <div className="mx-auto w-full max-w-3xl px-4 pb-28 pt-4 sm:px-6">
+              {visibleMessages.map((m, messageIndex) => {
                 const isLast =
                   m.id === messages[messages.length - 1]?.id;
                 const isStreamingThis =
@@ -435,6 +455,17 @@ export function ChatPanel({
                       parts={toBubbleParts(m.parts)}
                       streaming={isStreamingThis}
                       onToolActionPrompt={handleToolActionPrompt}
+                      onRetry={
+                        !isStreaming
+                          ? () => {
+                              const previousUser = visibleMessages
+                                .slice(0, messageIndex)
+                                .findLast((message) => message.role === "user");
+                              const retryText = partsToText(previousUser?.parts);
+                              if (retryText) sendMessage({ text: retryText });
+                            }
+                          : undefined
+                      }
                     />
                   );
                 }
@@ -475,22 +506,50 @@ export function ChatPanel({
             </div>
           </div>
 
-          <div className="bg-background px-4 py-3">
+          <div className="relative border-t border-border/60 bg-background px-4 py-3">
+            {showScrollToLatest && (
+              <button
+                type="button"
+                aria-label="Scroll to latest message"
+                onClick={() => {
+                  const el = scrollRef.current;
+                  if (!el) return;
+                  userScrolledUpRef.current = false;
+                  setShowScrollToLatest(false);
+                  el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+                }}
+                className="absolute -top-12 left-1/2 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-sm transition-colors hover:bg-muted"
+              >
+                <ArrowDown className="size-4" />
+              </button>
+            )}
             <ChatInput {...inputProps} />
           </div>
         </>
       ) : (
         <div className="flex h-full flex-col overflow-y-auto px-4">
           <div className="flex-1" />
-          <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-8">
-
+          <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-5">
             <div className="text-center">
-              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                Halo! 👋
+              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+                Halo!
               </h2>
-              <p className="mt-2 text-base text-muted-foreground">
+              <p className="mt-1 text-sm text-muted-foreground">
                 Ada yang bisa saya bantu hari ini?
               </p>
+            </div>
+
+            <div className="flex w-full flex-wrap justify-center gap-2 px-2">
+              {suggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => handleSubmit(suggestion)}
+                  className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                >
+                  {suggestion}
+                </button>
+              ))}
             </div>
 
             <ChatInput variant="centered" {...inputProps} />

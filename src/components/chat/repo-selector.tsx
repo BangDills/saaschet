@@ -6,9 +6,7 @@ import {
   GitBranch,
   Loader2,
   Lock,
-  Plus,
   Search,
-  Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -82,6 +80,7 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
   const [reposState, setReposState] = React.useState<{
     kind: "idle" | "loading" | "loaded" | "error";
     githubConnected: boolean;
+    username?: string | null;
     repos: UserRepo[];
     error?: string;
   }>({ kind: "idle", githubConnected: false, repos: [] });
@@ -89,12 +88,17 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
   const ref = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    function onClick(e: MouseEvent) {
-      if (!ref.current) return;
-      if (!ref.current.contains(e.target as Node)) setOpen(false);
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
     }
-    if (open) document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, [open]);
 
   // Lazy-load the user's repos the first time the popover opens.
@@ -120,12 +124,13 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
           });
           return;
         }
-        setReposState({
-          kind: "loaded",
-          githubConnected: true,
-          repos: json.repos,
-          error: "error" in json ? json.error : undefined,
-        });
+          setReposState({
+            kind: "loaded",
+            githubConnected: true,
+            username: json.username,
+            repos: json.repos,
+            error: "error" in json ? json.error : undefined,
+          });
       })
       .catch((err) => {
         setReposState({
@@ -183,6 +188,7 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
         fileCount: json.fileCount,
       });
       setInput("");
+      setOpen(false);
     } catch (err) {
       setStatus({
         kind: "error",
@@ -216,26 +222,53 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
         type="button"
         onClick={() => setOpen((s) => !s)}
         title={value ? `Connected to ${value}` : "Select a GitHub repository"}
-        className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+        className="inline-flex h-8 min-w-8 items-center justify-center gap-1 rounded-lg px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
       >
-        <GitBranch className="size-4" />
-        <span>{value ? value : "Select repo"}</span>
-        <ChevronDown className="size-3 opacity-70" />
+        <GitBranch className="size-4 shrink-0" />
+        <span className="hidden max-w-24 truncate sm:inline">{value ? value : "Repo"}</span>
+        <ChevronDown className="hidden size-3 opacity-70 sm:block" />
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-0 z-30 mb-2 w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-border bg-card shadow-lg">
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/20 sm:items-center sm:p-6"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setOpen(false);
+          }}
+        >
+          <section
+            ref={ref}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="repo-dialog-title"
+            className="flex max-h-[88dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-border bg-background shadow-xl sm:max-h-[760px] sm:max-w-2xl sm:rounded-2xl"
+          >
+            <div className="flex justify-center py-3 sm:hidden">
+              <span className="h-1.5 w-16 rounded-full bg-border" />
+            </div>
+            <header className="px-5 pb-4 text-center sm:px-6 sm:pt-6">
+              <h2 id="repo-dialog-title" className="text-2xl font-bold tracking-tight">
+                Import from GitHub
+              </h2>
+            </header>
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           {/* Your repos section (only when GitHub-connected) */}
           {reposState.githubConnected ? (
-            <div className="border-b border-border p-3">
-              <div className="flex items-center justify-between pb-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Your repositories
+            <div className="order-2 px-5 pb-5 sm:px-6">
+              <div className="flex items-center justify-between pb-3">
+                <p className="text-base font-medium text-muted-foreground">
+                  Select a Repository
                 </p>
-                <span className="text-[10px] text-muted-foreground">
-                  {reposState.repos.length} loaded
+                <span className="text-xs text-muted-foreground">
+                  {reposState.repos.length} repos
                 </span>
               </div>
+              <div className="mb-3 flex items-center gap-3">
+                <div className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-border px-3 text-sm font-medium">
+                  <GitHubMark className="size-5 shrink-0" />
+                  <span className="truncate">{reposState.username || "GitHub"}</span>
+                </div>
 
               {reposState.error && (
                 <div className="mb-2 space-y-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 dark:border-amber-900/50 dark:bg-amber-950/40">
@@ -258,11 +291,12 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search by name or description…"
-                  className="w-full rounded-md border border-border bg-background py-1.5 pl-7 pr-2 text-xs outline-none focus:ring-2 focus:ring-ring/30"
+                  className="h-11 w-full rounded-xl border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
                 />
               </div>
+              </div>
 
-              <div className="mt-2 max-h-56 overflow-y-auto">
+              <div className="max-h-80 overflow-y-auto rounded-xl border border-border">
                 {filteredRepos.length === 0 ? (
                   <div className="px-2 py-3 text-center text-xs text-muted-foreground">
                     {reposState.repos.length === 0 ? (
@@ -289,43 +323,29 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
                         onClick={() => connectSlug(r.fullName)}
                         disabled={status.kind === "loading"}
                         className={cn(
-                          "flex w-full items-start gap-2 rounded-md px-2 py-2 text-left transition-colors",
-                          "hover:bg-accent disabled:opacity-60",
-                          isActive && "bg-accent",
+                          "flex w-full items-center gap-3 border-b border-border px-4 py-4 text-left transition-colors last:border-b-0",
+                          "hover:bg-muted disabled:opacity-60",
+                          isActive && "bg-muted",
                         )}
                       >
-                        <GitBranch className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border">
+                          <GitBranch className="size-4 text-muted-foreground" />
+                        </span>
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1">
-                            <span className="truncate text-xs font-medium">
-                              {r.fullName}
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate text-sm font-semibold">
+                              {r.fullName.split("/").pop()}
                             </span>
-                            {r.isPrivate && (
-                              <Lock className="size-3 shrink-0 text-muted-foreground" />
-                            )}
-                            {r.isFork && (
-                              <span className="rounded bg-muted px-1 text-[10px] font-medium text-muted-foreground">
-                                fork
-                              </span>
-                            )}
+                            {r.isPrivate && <Lock className="size-3 text-muted-foreground" />}
                           </div>
-                          {r.description && (
-                            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                              {r.description}
-                            </p>
-                          )}
-                          <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground">
-                            {r.primaryLanguage && (
-                              <span>{r.primaryLanguage}</span>
-                            )}
-                            {r.stars > 0 && (
-                              <span className="flex items-center gap-0.5">
-                                <Star className="size-2.5" />
-                                {r.stars}
-                              </span>
-                            )}
-                          </div>
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                            {new Intl.DateTimeFormat("en", { month: "short", day: "2-digit" }).format(new Date(r.updatedAt))}
+                            {r.primaryLanguage ? ` · ${r.primaryLanguage}` : ""}
+                          </p>
                         </div>
+                        <span className="shrink-0 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium">
+                          {status.kind === "loading" ? "Importing" : isActive ? "Selected" : "Import"}
+                        </span>
                       </button>
                     );
                   })
@@ -366,15 +386,12 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
           )}
 
           {/* Manual paste section (always available) */}
-          <div className="p-3">
-            <div className="flex items-center gap-2 pb-2">
-              <GitBranch className="size-4 text-muted-foreground" />
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Or paste a public repo
-              </p>
-            </div>
+          <div className="order-1 px-5 pb-6 sm:px-6">
+            <p className="pb-3 text-base font-medium text-muted-foreground">
+              Import from a URL
+            </p>
 
-            <div className="flex gap-2">
+            <div className="flex overflow-hidden rounded-xl border border-border focus-within:ring-2 focus-within:ring-ring/30">
               <input
                 type="text"
                 value={input}
@@ -385,25 +402,24 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleManualConnect();
                 }}
-                placeholder="vercel/next.js"
+                placeholder="https://github.com/owner/repository"
+                aria-label="GitHub repository URL"
                 disabled={status.kind === "loading"}
-                className="flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-ring/30 disabled:opacity-60"
+                className="h-12 min-w-0 flex-1 bg-background px-4 text-sm outline-none disabled:opacity-60"
               />
               <button
                 type="button"
                 onClick={handleManualConnect}
                 disabled={!input.trim() || status.kind === "loading"}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground",
+                  "inline-flex h-12 items-center gap-1 border-l border-primary bg-primary px-5 text-sm font-semibold text-primary-foreground",
                   "transition-opacity hover:opacity-90 disabled:opacity-50",
                 )}
               >
-                {status.kind === "loading" ? (
+                {status.kind === "loading" && (
                   <Loader2 className="size-3 animate-spin" />
-                ) : (
-                  <Plus className="size-3" />
                 )}
-                Connect
+                Import
               </button>
             </div>
 
@@ -434,6 +450,17 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
               </button>
             )}
           </div>
+            </div>
+            <footer className="border-t border-border bg-background p-4 sm:px-6">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="h-11 w-full rounded-xl border border-border text-sm font-semibold transition-colors hover:bg-muted"
+              >
+                Back
+              </button>
+            </footer>
+          </section>
         </div>
       )}
     </div>

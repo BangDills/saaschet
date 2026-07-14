@@ -48,7 +48,7 @@ export default async function DashboardLayout({
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar initials={initials} role={role} />
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="flex-1 px-3 py-3 sm:px-6 sm:py-6 lg:px-8">{children}</main>
       </div>
     </div>
   );

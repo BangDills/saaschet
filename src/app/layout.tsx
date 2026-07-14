@@ -16,8 +16,9 @@ const googleSansCode = Google_Sans_Code({
 });
 
 export const metadata: Metadata = {
-  title: "Celiuz AI — AI SaaS Dashboard",
-  description: "Manage your AI credits, users, and generations in one place.",
+  title: "Celiuz AI Studio — Create, Build, and Ship with AI",
+  description:
+    "One focused AI workspace for chat, code, product documents, images, copy, and natural speech.",
 };
 
 export default function RootLayout({
@@ -26,10 +27,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="bg-background" suppressHydrationWarning>
       <body
-        className={`${plusJakartaSans.variable} ${googleSansCode.variable} min-h-screen antialiased`}
-        style={{ fontFamily: "var(--font-plus-jakarta-sans), 'Plus Jakarta Sans', sans-serif" }}
+        className={`${plusJakartaSans.variable} ${googleSansCode.variable} min-h-screen bg-background font-sans antialiased`}
       >
         <ThemeProvider
           attribute="class"
