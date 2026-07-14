@@ -172,6 +172,13 @@ export const defaultModels: ModelInfo[] = [
     provider: "fireworks",
   },
   {
+    id: "accounts/fireworks/models/deepseek-v4-flash",
+    label: "DeepSeek V4 Flash",
+    vendor: "DeepSeek",
+    tag: "Fast",
+    provider: "fireworks",
+  },
+  {
     id: "accounts/fireworks/models/deepseek-v4-pro",
     label: "DeepSeek V4 Pro",
     vendor: "DeepSeek",

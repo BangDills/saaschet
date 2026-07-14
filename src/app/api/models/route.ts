@@ -83,6 +83,7 @@ export async function GET() {
     "accounts/fireworks/models/glm-5p2",
     "accounts/fireworks/models/kimi-k2p7-code",
     "accounts/fireworks/models/minimax-m3",
+    "accounts/fireworks/models/deepseek-v4-flash",
     "accounts/fireworks/models/deepseek-v4-pro",
     "accounts/fireworks/models/qwen3p7-plus",
   ]);
@@ -112,6 +113,13 @@ export async function GET() {
     const json = (await res.json()) as DOModelListResponse;
     const items = json.data ?? [];
 
+    const fireworksModelsStatic = defaultModels.filter(
+      (m) => m.provider === "fireworks",
+    );
+    // Lookup by id so live models inherit the curated label/tag/capabilities
+    // from defaultModels (prettyLabel mangles Fireworks ids like "Glm 5p2").
+    const staticById = new Map(fireworksModelsStatic.map((m) => [m.id, m]));
+
     // Filter to ONLY whitelisted chat models.
     const live: ModelInfo[] = items
       .filter(
@@ -119,19 +127,18 @@ export async function GET() {
           ALLOWED_FIREWORKS_MODELS.has(m.id) && m.supports_chat !== false,
       )
       .map((m) => {
+        const known = staticById.get(m.id);
         const vendor = vendorFromId(m.id);
         return {
           id: m.id,
-          label: prettyLabel(m.id),
+          label: known?.label ?? prettyLabel(m.id),
+          tag: known?.tag,
           vendor,
-          agentCapable: isAgentCapable(m.id),
-          multimodal: isMultimodal(m.id),
+          agentCapable: known?.agentCapable ?? isAgentCapable(m.id),
+          multimodal: known?.multimodal ?? isMultimodal(m.id),
+          provider: "fireworks",
         } satisfies ModelInfo;
       });
-
-    const fireworksModelsStatic = defaultModels.filter(
-      (m) => m.provider === "fireworks",
-    );
 
     const liveIds = new Set(live.map((m) => m.id));
     const finalFireworks = [
