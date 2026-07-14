@@ -81,7 +81,7 @@ export function ModelSelector({
       {open && (
         <div
           className={cn(
-            "absolute z-30 max-h-80 w-80 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg",
+            "absolute z-30 max-h-[60dvh] w-72 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg sm:max-h-80 sm:w-80",
             // Show dropdown ABOVE the trigger when compact (it sits at bottom of input)
             variant === "compact"
               ? "bottom-full right-0 mb-2"
@@ -89,13 +89,13 @@ export function ModelSelector({
           )}
         >
           {agentMode && (
-            <div className="mx-3 mb-1 mt-1.5 flex items-center gap-1.5 rounded-md bg-muted px-2 py-1.5 text-xs text-muted-foreground">
-              <span>Agent Mode active — compatible models support tool calling</span>
+            <div className="mx-2 my-1 rounded-md bg-muted px-2 py-1 text-[10px] text-muted-foreground">
+              Agent Mode · compatible models only
             </div>
           )}
           {groups.map(([vendor, items]) => (
-            <div key={vendor} className="py-1">
-              <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div key={vendor} className="py-0.5">
+              <p className="px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {vendor}
               </p>
               {items.map((m) => {
@@ -113,14 +113,14 @@ export function ModelSelector({
                       setOpen(false);
                     }}
                     className={cn(
-                      "flex w-full items-start gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent",
+                      "flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-accent",
                       active && "bg-accent",
                       dimmed && "opacity-40",
                     )}
                   >
                     <Check
                       className={cn(
-                        "mt-0.5 size-4 shrink-0",
+                        "size-3.5 shrink-0",
                         active ? "opacity-100" : "opacity-0",
                       )}
                     />
@@ -128,18 +128,18 @@ export function ModelSelector({
                       <p className="flex items-center gap-1.5 truncate font-medium">
                         {m.label}
                         {m.free && (
-                          <span className="shrink-0 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                          <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
                             Free
                           </span>
                         )}
                         {m.requiresAuth && (
                           openaiConnected ? (
-                            <span className="shrink-0 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                            <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
                               <Link className="mr-0.5 inline size-2.5" />
                               Connected
                             </span>
                           ) : (
-                            <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                            <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-foreground">
                               <Lock className="mr-0.5 inline size-2.5" />
                               Connect
                             </span>
@@ -147,13 +147,8 @@ export function ModelSelector({
                         )}
                       </p>
                       {m.tag && (
-                        <p className="truncate text-xs text-muted-foreground">
+                        <p className="hidden truncate text-[11px] leading-4 text-muted-foreground sm:block">
                           {m.tag}
-                        </p>
-                      )}
-                      {dimmed && (
-                        <p className="text-[10px] text-amber-500">
-                          Not recommended for Agent Mode
                         </p>
                       )}
                     </div>
