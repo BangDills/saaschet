@@ -5,6 +5,34 @@ import { ChevronDown, Check, Link, Lock } from "lucide-react";
 import type { ModelInfo } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
+const PROVIDER_LOGOS: Record<string, string> = {
+  OpenAI: "https://thesvg.org/icons/openai/default.svg",
+  DeepSeek: "https://thesvg.org/icons/deepseek/default.svg",
+  Kimi: "https://thesvg.org/icons/kimi/default.svg",
+  Qwen: "https://thesvg.org/icons/qwen/default.svg",
+};
+
+function ProviderLogo({ vendor }: { vendor: string }) {
+  const src = PROVIDER_LOGOS[vendor];
+
+  if (src) {
+    return (
+      // Brand assets are served by theSVG.org and retain their original trademarks.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={src} alt="" className="size-4 shrink-0 object-contain grayscale" />
+    );
+  }
+
+  return (
+    <span
+      aria-hidden
+      className="flex size-4 shrink-0 items-center justify-center rounded border border-border text-[8px] font-bold text-muted-foreground"
+    >
+      {vendor.slice(0, 1)}
+    </span>
+  );
+}
+
 export type ModelSelectorProps = {
   models: ModelInfo[];
   value: string;
@@ -45,17 +73,6 @@ export function ModelSelector({
 
   const current = models.find((m) => m.id === value) ?? models[0];
 
-  // Group by vendor for readability
-  const groups = React.useMemo(() => {
-    const map = new Map<string, ModelInfo[]>();
-    for (const m of models) {
-      const arr = map.get(m.vendor) ?? [];
-      arr.push(m);
-      map.set(m.vendor, arr);
-    }
-    return Array.from(map.entries());
-  }, [models]);
-
   return (
     <div ref={ref} className="relative">
       <button
@@ -81,82 +98,54 @@ export function ModelSelector({
       {open && (
         <div
           className={cn(
-            "absolute z-30 max-h-[60dvh] w-72 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg sm:max-h-80 sm:w-80",
+            "absolute z-30 max-h-72 w-56 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-lg sm:w-60",
             // Show dropdown ABOVE the trigger when compact (it sits at bottom of input)
             variant === "compact"
               ? "bottom-full right-0 mb-2"
               : "top-full left-0 mt-2",
           )}
         >
-          {agentMode && (
-            <div className="mx-2 my-1 rounded-md bg-muted px-2 py-1 text-[10px] text-muted-foreground">
-              Agent Mode · compatible models only
-            </div>
-          )}
-          {groups.map(([vendor, items]) => (
-            <div key={vendor} className="py-0.5">
-              <p className="px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {vendor}
-              </p>
-              {items.map((m) => {
-                const active = m.id === value;
-                const dimmed = agentMode && !m.agentCapable;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => {
-                      if (m.requiresAuth && !openaiConnected) {
-                        onConnectOpenAI?.();
-                        return;
-                      }
-                      onChange(m.id);
-                      setOpen(false);
-                    }}
-                    className={cn(
-                      "flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-accent",
-                      active && "bg-accent",
-                      dimmed && "opacity-40",
-                    )}
-                  >
-                    <Check
-                      className={cn(
-                        "size-3.5 shrink-0",
-                        active ? "opacity-100" : "opacity-0",
-                      )}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="flex items-center gap-1.5 truncate font-medium">
-                        {m.label}
-                        {m.free && (
-                          <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-                            Free
-                          </span>
-                        )}
-                        {m.requiresAuth && (
-                          openaiConnected ? (
-                            <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              <Link className="mr-0.5 inline size-2.5" />
-                              Connected
-                            </span>
-                          ) : (
-                            <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-foreground">
-                              <Lock className="mr-0.5 inline size-2.5" />
-                              Connect
-                            </span>
-                          )
-                        )}
-                      </p>
-                      {m.tag && (
-                        <p className="hidden truncate text-[11px] leading-4 text-muted-foreground sm:block">
-                          {m.tag}
-                        </p>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+          {models.map((m) => {
+            const active = m.id === value;
+            const dimmed = agentMode && !m.agentCapable;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => {
+                  if (m.requiresAuth && !openaiConnected) {
+                    onConnectOpenAI?.();
+                    return;
+                  }
+                  onChange(m.id);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "flex h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-xs transition-colors hover:bg-accent",
+                  active && "bg-accent",
+                  dimmed && "opacity-40",
+                )}
+              >
+                <ProviderLogo vendor={m.vendor} />
+                <span className="min-w-0 flex-1 truncate font-medium">{m.label}</span>
+                {m.free && !active && (
+                  <span className="text-[8px] font-semibold uppercase text-muted-foreground">Free</span>
+                )}
+                {m.requiresAuth && !openaiConnected && (
+                  <Lock className="size-3 shrink-0 text-muted-foreground" />
+                )}
+                {m.requiresAuth && openaiConnected && !active && (
+                  <Link className="size-3 shrink-0 text-muted-foreground" />
+                )}
+                <Check
+                  className={cn(
+                    "size-3.5 shrink-0",
+                    active ? "opacity-100" : "hidden",
+                  )}
+                />
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
