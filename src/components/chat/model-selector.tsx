@@ -5,13 +5,16 @@ import { ChevronDown, Check, Link, Lock } from "lucide-react";
 import type { ModelInfo } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
+const LOBE_ICON_BASE =
+  "https://unpkg.com/@lobehub/icons-static-svg@latest/icons";
+
 const PROVIDER_LOGOS: Record<string, string> = {
-  OpenAI: "https://thesvg.org/icons/openai/default.svg",
-  DeepSeek: "https://thesvg.org/icons/deepseek/default.svg",
-  Nvidia: "https://thesvg.org/icons/nvidia/color.svg",
-  Kimi: "https://thesvg.org/icons/kimi/default.svg",
-  GLM: "https://thesvg.org/icons/chatglm/color.svg",
-  Qwen: "https://thesvg.org/icons/qwen/default.svg",
+  OpenAI: `${LOBE_ICON_BASE}/openai.svg`,
+  DeepSeek: `${LOBE_ICON_BASE}/deepseek-color.svg`,
+  Nvidia: `${LOBE_ICON_BASE}/nvidia-color.svg`,
+  Kimi: `${LOBE_ICON_BASE}/kimi-color.svg`,
+  GLM: `${LOBE_ICON_BASE}/chatglm-color.svg`,
+  Qwen: `${LOBE_ICON_BASE}/qwen-color.svg`,
 };
 
 function ProviderLogo({ vendor }: { vendor: string }) {
@@ -19,7 +22,7 @@ function ProviderLogo({ vendor }: { vendor: string }) {
 
   if (src) {
     return (
-      // Brand assets are served by theSVG.org and retain their original trademarks.
+      // Brand assets are served from the official Lobe Icons static package.
       // eslint-disable-next-line @next/next/no-img-element
       <img src={src} alt="" className="size-4 shrink-0 object-contain" />
     );
