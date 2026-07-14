@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Square } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { BrainCircuit, Square } from "lucide-react";
 
 export type StreamingPillProps = {
   /** length of accumulated text so far — drives the character counter */
@@ -44,7 +43,7 @@ export function StreamingPill({
       role="status"
       aria-live="polite"
     >
-      <Spinner />
+      <BrainCircuit className="size-4 animate-pulse" aria-hidden />
       <span>Generating</span>
       <span aria-hidden>·</span>
       <span className="tabular-nums">{elapsedSec}s</span>
@@ -59,20 +58,5 @@ export function StreamingPill({
         </button>
       )}
     </div>
-  );
-}
-
-/** Tiny conic-gradient spinner — purely decorative. */
-function Spinner() {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "size-3.5 rounded-full",
-        "bg-[conic-gradient(from_0deg,var(--muted),transparent_60%,var(--foreground))]",
-        "animate-spin",
-      )}
-      style={{ animationDuration: "1.2s" }}
-    />
   );
 }

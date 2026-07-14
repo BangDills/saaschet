@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Activity, ChevronDown, ChevronRight } from "lucide-react";
+import { AudioWaveform, ChevronDown, ChevronRight } from "lucide-react";
 import { Markdown } from "./markdown";
 
 export type ReasoningBlockProps = {
@@ -27,7 +27,7 @@ export function ReasoningBlock({
         className="flex items-center gap-2 py-1 text-left transition-colors hover:text-foreground"
       >
         {open ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-        <Activity className={inProgress ? "size-4 animate-pulse" : "size-4"} />
+        <AudioWaveform className={inProgress ? "size-4 animate-pulse" : "size-4"} />
         <span>{inProgress ? "Thinking" : `Worked for ${seconds}s`}</span>
       </button>
       {open && (
