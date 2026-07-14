@@ -476,81 +476,57 @@ function ToolCallImpl({ part, onActionPrompt }: ToolCallProps) {
       : null;
 
   return (
-    <div
-      className={cn(
-        "my-2 rounded-lg border bg-background transition-colors",
-        isError ? "border-destructive/40" : "border-border hover:bg-muted/30",
-      )}
-    >
+    <div className="my-1 text-sm">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex min-h-10 w-full items-center gap-2 overflow-hidden px-2.5 py-1.5 text-left text-xs transition-colors"
+        aria-expanded={open}
+        className="group flex min-h-9 w-full items-center gap-2 overflow-hidden rounded-md px-1 py-1.5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        {/* Expand chevron */}
-        <span className="flex size-4 shrink-0 items-center justify-center">
-          {open ? (
-            <ChevronDown className="size-3 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="size-3 text-muted-foreground" />
-          )}
-        </span>
-
         <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
           {isRunning ? (
-            <Loader2 className="size-3.5 animate-spin" />
+            <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+          ) : isError ? (
+            <XCircle className="size-4 text-destructive" aria-hidden="true" />
           ) : (
-            <Icon className="size-3.5" />
+            <Icon className="size-4" aria-hidden="true" />
           )}
         </span>
 
-        {/* Label and path */}
-        <div className="min-w-0 flex-1 overflow-hidden">
-          <span className="font-medium text-foreground">
-            {isRunning ? meta.running : meta.done}
+        <div className="flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden">
+          <span className={cn("shrink-0 font-medium", isError ? "text-destructive" : "text-foreground")}>
+            {isError ? `${meta.done} failed` : isRunning ? meta.running : meta.done}
           </span>
-
-          {/* Show file path or input summary */}
           {(filePath || inputSummary) && (
-            <span
-              className={cn(
-                "ml-1.5 inline-block max-w-[45%] truncate align-bottom font-mono text-[11px]",
-                isRunning
-                  ? "text-foreground/60"
-                  : "text-muted-foreground",
-              )}
-              title={filePath || inputSummary}
-            >
+            <span className="min-w-0 truncate text-muted-foreground" title={filePath || inputSummary}>
               {filePath || inputSummary}
             </span>
           )}
         </div>
 
-        <span className="flex shrink-0 items-center gap-2">
+        <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
           {lineStats && (
-            <span className="rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] font-semibold">
+            <span className="font-mono font-medium">
               <span className="text-emerald-600">+{lineStats.added}</span>
-              <span className="text-muted-foreground"> / </span>
+              <span aria-hidden="true"> / </span>
               <span className="text-red-600">-{lineStats.deleted}</span>
             </span>
           )}
-          {isRunning && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
-          {isDone && !isError && !lineStats && (
-            <span className="max-w-28 truncate text-[10px] text-muted-foreground" title={outputSummary}>
-              {outputSummary || "Done"}
+          {isDone && !isError && !lineStats && outputSummary && (
+            <span className="hidden max-w-28 truncate sm:inline" title={outputSummary}>
+              {outputSummary}
             </span>
           )}
-          {isError && (
-            <span className="flex items-center gap-1 text-[10px] text-destructive">
-              <XCircle className="size-3" />
-              Error
-            </span>
+          {open ? (
+            <ChevronDown className="size-3.5" aria-hidden="true" />
+          ) : (
+            <ChevronRight className="size-3.5" aria-hidden="true" />
           )}
         </span>
       </button>
 
       {open && (
-        <div className="space-y-2 border-t border-border px-2.5 py-2 text-xs">
+        <div className="ml-7 space-y-3 border-l border-border py-2 pl-3 text-xs">
           {part.input !== undefined && (
             <DetailSection label="Input" value={part.input} />
           )}
@@ -590,8 +566,8 @@ function DetailSection({
       </p>
       <pre
         className={cn(
-          "max-h-72 overflow-auto rounded-md bg-background/80 p-2 font-mono text-[11px] leading-relaxed",
-          isError && "text-red-700 dark:text-red-300",
+          "max-h-72 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-muted-foreground",
+          isError && "text-destructive",
         )}
       >
         {text}
