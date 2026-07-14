@@ -22,8 +22,12 @@ alter table public.user_credits
 
 -- ----------------------------------------------------------------------------
 -- Self-serve tier switch (caller's own row). Pro → 24h, free → no expiry.
+-- Drop first: the signature's return type changed (added tier_expires_at),
+-- and CREATE OR REPLACE cannot alter a function's return type.
 -- ----------------------------------------------------------------------------
-create or replace function public.set_user_tier(p_tier text)
+drop function if exists public.set_user_tier(text);
+
+create function public.set_user_tier(p_tier text)
 returns table (
   user_id uuid,
   tier text,
