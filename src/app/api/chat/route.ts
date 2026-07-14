@@ -462,7 +462,13 @@ export async function POST(req: Request) {
   }
 
   const messages = body.messages ?? [];
-  const modelId = body.model || defaultModelId;
+  // Validate the requested model against the catalog. Old conversations may
+  // carry a model_id from a removed provider (e.g. "qwen3.7-max", the old
+  // Alibaba ids) which would route to Fireworks and 404. Fall back to the
+  // default model in that case.
+  const knownModelIds = new Set(defaultModels.map((m) => m.id));
+  const modelId =
+    body.model && knownModelIds.has(body.model) ? body.model : defaultModelId;
   const isRegeneration = body.trigger === "regenerate-message";
   const wantsWebSearch = body.webSearch === true;
   const conversationId = body.conversationId;
