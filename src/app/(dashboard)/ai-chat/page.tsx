@@ -343,7 +343,7 @@ export default function AIChatPage() {
                                       <MoreHorizontal className="size-4" />
                                     </button>
                                     {menuId === conversation.id && (
-                                      <div className="order-last mb-2 ml-auto flex w-full basis-full flex-col rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-sm sm:absolute sm:right-1 sm:top-9 sm:z-20 sm:mb-0 sm:w-40 sm:basis-auto sm:shadow-lg">
+                                      <div className="order-last mb-2 ml-auto flex w-full basis-full flex-col rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-sm sm:absolute sm:bottom-full sm:right-1 sm:z-30 sm:mb-1 sm:w-40 sm:basis-auto sm:shadow-lg">
                                         <button type="button" onClick={() => beginRename(conversation)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent"><Pencil className="size-3.5" />Rename</button>
                                         <button type="button" onClick={() => void togglePin(conversation)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent">{conversation.isPinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}{conversation.isPinned ? "Unpin" : "Pin"}</button>
                                         <button type="button" onClick={() => { setDeleteTarget(conversation); setMenuId(null); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-destructive hover:bg-destructive/10"><Trash2 className="size-3.5" />Delete</button>
