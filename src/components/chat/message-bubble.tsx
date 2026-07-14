@@ -50,57 +50,106 @@ export type MessageBubbleProps = {
   ) => Promise<void>;
 };
 
-/** Walk parts and render in order; keep tool calls inline between text. */
-function renderParts(
-  parts: AnyPart[],
-  streaming?: boolean,
-  onToolActionPrompt?: (text: string) => void,
-) {
-  return parts.map((p, idx) => {
-    if (p.type === "text") {
-      // Apply reasoning-tag splitting on assistant text parts.
-      const segs = parseReasoningSegments(p.text || "");
-      return (
-        <React.Fragment key={`t-${idx}`}>
-          {segs.map((seg, i) => {
-            if (seg.type === "reasoning") {
-              return (
-                <ReasoningBlock
-                  key={`r-${idx}-${i}`}
-                  content={seg.content}
-                  streaming={streaming}
-                  inProgress={!seg.closed}
-                />
-              );
-            }
-            return seg.content ? (
-              <Markdown key={`m-${idx}-${i}`} streaming={streaming}>
-                {seg.content}
-              </Markdown>
-            ) : null;
-          })}
-        </React.Fragment>
-      );
-    }
-    if (p.type === "file") {
-      if (p.mediaType?.startsWith("image/")) {
+function isToolPart(part: AnyPart): part is AnyPart & ToolCallPart {
+  return part.type === "dynamic-tool" || part.type.startsWith("tool-");
+}
+
+function ActivityGroup({
+  parts,
+  streaming,
+  onToolActionPrompt,
+}: {
+  parts: Array<AnyPart & ToolCallPart>;
+  streaming?: boolean;
+  onToolActionPrompt?: (text: string) => void;
+}) {
+  const [expandedAfterCompletion, setExpandedAfterCompletion] = React.useState(false);
+  const open = Boolean(streaming) || expandedAfterCompletion;
+
+  return (
+    <div className="mb-4">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => {
+          if (!streaming) setExpandedAfterCompletion((value) => !value);
+        }}
+        className="flex min-h-9 items-center gap-2 rounded-md px-1 text-sm text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {streaming ? (
+          <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+        ) : (
+          <Check className="size-4" aria-hidden="true" />
+        )}
+        <span className="font-medium text-foreground">
+          {streaming ? "Working" : "Completed"}
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>{parts.length} {parts.length === 1 ? "action" : "actions"}</span>
+        <span className={cn("transition-transform", open && "rotate-90")} aria-hidden="true">
+          ›
+        </span>
+      </button>
+      {open && (
+        <div className="ml-2 border-l border-border pl-3">
+          {parts.map((part, index) => (
+            <ToolCall
+              key={part.toolCallId ?? `tc-${index}`}
+              part={part}
+              onActionPrompt={onToolActionPrompt}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AssistantParts({
+  parts,
+  streaming,
+  onToolActionPrompt,
+}: {
+  parts: AnyPart[];
+  streaming?: boolean;
+  onToolActionPrompt?: (text: string) => void;
+}) {
+  const toolParts = parts.filter(isToolPart);
+  const textParts = parts.filter((part) => part.type === "text");
+
+  return (
+    <>
+      {toolParts.length > 0 && (
+        <ActivityGroup
+          parts={toolParts}
+          streaming={streaming}
+          onToolActionPrompt={onToolActionPrompt}
+        />
+      )}
+      {textParts.map((part, index) => {
+        if (part.type !== "text") return null;
+        const segments = parseReasoningSegments(part.text || "");
         return (
-          <div key={`f-${idx}`} className="mt-2 max-w-xs overflow-hidden rounded-lg border border-border bg-muted">
-            <img src={p.url} alt={p.filename || "Image attachment"} className="max-h-60 object-contain" />
-          </div>
+          <React.Fragment key={`t-${index}`}>
+            {segments.map((segment, segmentIndex) =>
+              segment.type === "reasoning" ? (
+                <ReasoningBlock
+                  key={`r-${index}-${segmentIndex}`}
+                  content={segment.content}
+                  streaming={streaming}
+                  inProgress={!segment.closed}
+                />
+              ) : segment.content ? (
+                <Markdown key={`m-${index}-${segmentIndex}`} streaming={streaming}>
+                  {segment.content}
+                </Markdown>
+              ) : null,
+            )}
+          </React.Fragment>
         );
-      }
-      return null;
-    }
-    // Tool call (static or dynamic)
-    return (
-      <ToolCall
-        key={p.toolCallId ?? `tc-${idx}`}
-        part={p}
-        onActionPrompt={onToolActionPrompt}
-      />
-    );
-  });
+      })}
+    </>
+  );
 }
 
 function MessageBubbleImpl({
@@ -193,7 +242,11 @@ function MessageBubbleImpl({
           </div>
         ) : parts && parts.length > 0 ? (
           <>
-            {renderParts(parts, streaming, onToolActionPrompt)}
+            <AssistantParts
+              parts={parts}
+              streaming={streaming}
+              onToolActionPrompt={onToolActionPrompt}
+            />
             {streaming && (
               <span
                 aria-hidden
