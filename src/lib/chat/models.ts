@@ -64,6 +64,9 @@ export function isAgentCapable(modelId: string): boolean {
  */
 export const multimodalModels = new Set([
   "codex/gpt-5.5",
+  "accounts/fireworks/models/qwen3p7-plus",
+  "accounts/fireworks/models/minimax-m3",
+  "accounts/fireworks/models/kimi-k2p7-code",
 ]);
 
 /** Check if a model supports vision/multimodal input. */
@@ -157,6 +160,7 @@ export const defaultModels: ModelInfo[] = [
     vendor: "Kimi",
     tag: "Strong Coder",
     agentCapable: true,
+    multimodal: true,
     provider: "fireworks",
   },
   {
@@ -164,6 +168,7 @@ export const defaultModels: ModelInfo[] = [
     label: "MiniMax M3",
     vendor: "MiniMax",
     tag: "Balanced",
+    multimodal: true,
     provider: "fireworks",
   },
   {
@@ -178,6 +183,7 @@ export const defaultModels: ModelInfo[] = [
     label: "Qwen 3.7 Plus",
     vendor: "Qwen",
     tag: "Speed & Quality",
+    multimodal: true,
     provider: "fireworks",
   },
 
