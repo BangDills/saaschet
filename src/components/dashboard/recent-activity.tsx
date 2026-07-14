@@ -37,6 +37,7 @@ function fmtRelative(ms: number): string {
 function shortModel(modelId: string | null): string {
   if (!modelId) return "model";
   return modelId
+    .replace(/^accounts\/fireworks\/models\//, "")
     .replace(/^anthropic-/, "")
     .replace(/^openai-/, "")
     .replace(/-instruct$/, "")

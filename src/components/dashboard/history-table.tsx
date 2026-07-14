@@ -176,7 +176,9 @@ export function HistoryTable({ rows }: { rows: HistoryRow[] }) {
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                       {row.modelId
-                        ? row.modelId.replace(/^(anthropic-|openai-|deepseek-)/, "")
+                        ? row.modelId
+                            .replace(/^accounts\/fireworks\/models\//, "")
+                            .replace(/^(anthropic-|openai-|deepseek-)/, "")
                         : "—"}
                     </td>
                     <td className="px-4 py-3 text-center tabular-nums text-muted-foreground">
