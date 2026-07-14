@@ -182,24 +182,27 @@ const CodeBlock = React.memo(
  * ────────────────────────────────────────────────────────────────────── */
 
 const MD_COMPONENTS: Components = {
-  img: ({ src, alt }: { src?: any; alt?: string }) => (
+  img: ({ src, alt }: { src?: string | Blob; alt?: string }) => (
+    // Remote and generated Markdown sources are dynamic, so their dimensions
+    // and host allow-list are not known ahead of time for next/image.
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={typeof src === "string" ? src : undefined}
-      alt={alt}
-      className="max-h-60 rounded-lg object-contain my-2 border border-border bg-muted"
+      alt={alt ?? ""}
+      className="my-2 max-h-60 rounded-lg border border-border bg-muted object-contain"
     />
   ),
   p: ({ children }: { children?: React.ReactNode }) => (
-    <p className="mb-3 last:mb-0">{children}</p>
+    <p className="mb-2.5 last:mb-0">{children}</p>
   ),
   ul: ({ children }: { children?: React.ReactNode }) => (
-    <ul className="mb-3 list-disc space-y-1 pl-6">{children}</ul>
+    <ul className="mb-2.5 list-disc pl-5 marker:text-muted-foreground">{children}</ul>
   ),
   ol: ({ children }: { children?: React.ReactNode }) => (
-    <ol className="mb-3 list-decimal space-y-1 pl-6">{children}</ol>
+    <ol className="mb-2.5 list-decimal pl-5 marker:text-muted-foreground">{children}</ol>
   ),
   li: ({ children }: { children?: React.ReactNode }) => (
-    <li className="leading-relaxed">{children}</li>
+    <li className="my-1 leading-6">{children}</li>
   ),
   a: ({ children, href }: { children?: React.ReactNode; href?: string }) => (
     <a
@@ -212,13 +215,13 @@ const MD_COMPONENTS: Components = {
     </a>
   ),
   h1: ({ children }: { children?: React.ReactNode }) => (
-    <h1 className="mb-3 mt-4 text-xl font-bold">{children}</h1>
+    <h1 className="mb-2 mt-5 text-lg font-semibold tracking-tight first:mt-0">{children}</h1>
   ),
   h2: ({ children }: { children?: React.ReactNode }) => (
-    <h2 className="mb-2 mt-4 text-lg font-bold">{children}</h2>
+    <h2 className="mb-2 mt-4 text-base font-semibold tracking-tight first:mt-0">{children}</h2>
   ),
   h3: ({ children }: { children?: React.ReactNode }) => (
-    <h3 className="mb-2 mt-3 text-base font-semibold">{children}</h3>
+    <h3 className="mb-1.5 mt-3 text-[15px] font-semibold first:mt-0">{children}</h3>
   ),
   blockquote: ({ children }: { children?: React.ReactNode }) => (
     <blockquote className="my-3 border-l-2 border-border pl-4 text-muted-foreground">
@@ -247,7 +250,7 @@ const MD_COMPONENTS: Components = {
     }
     return (
       <code
-        className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em]"
+        className="rounded bg-muted/70 px-1 py-0.5 font-mono text-[0.82em] font-normal text-foreground"
         {...props}
       >
         {children}
