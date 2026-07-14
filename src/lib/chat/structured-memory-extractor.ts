@@ -70,7 +70,7 @@ Latest Message Exchange:
 User Message: "${cleanUser}"
 Assistant Response: "${cleanAssistant}"`;
 
-    // 3. Invoke LLM (Fireworks Qwen 3.7 Plus)
+    // 3. Invoke LLM (Fireworks DeepSeek V4 Flash — fast, 131k cap, fits extraction)
     const fireworksProvider = createOpenAI({
       apiKey,
       baseURL: baseUrl,
@@ -79,7 +79,7 @@ Assistant Response: "${cleanAssistant}"`;
     let text = "";
     try {
       const res = await streamText({
-        model: fireworksProvider("accounts/fireworks/models/qwen3p7-plus"),
+        model: fireworksProvider("accounts/fireworks/models/deepseek-v4-flash"),
         system: STRUCTURED_EXTRACTION_SYSTEM,
         prompt,
         onError: ({ error }) => {

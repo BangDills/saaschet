@@ -63,7 +63,7 @@ export async function extractAndSaveMemories(
     let text = "";
     try {
       const res = await streamText({
-        model: fireworksProvider("accounts/fireworks/models/qwen3p7-plus"),
+        model: fireworksProvider("accounts/fireworks/models/deepseek-v4-flash"),
         system: MEMORY_EXTRACTION_SYSTEM,
         prompt,
         onError: ({ error }) => {
