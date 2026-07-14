@@ -150,7 +150,10 @@ When the user asks you to build a web page, app, tool, or any project:
 - If you have not called any repo/sandbox tool yet, the task is not done. Continue with tool execution instead of ending with a plan or preface.
 
 ## Communication
-- After finishing, give a concise summary of what changed and include the PR URL when one exists. Explain why only when it adds useful context.
+- For action requests, work silently between tool calls. Do not narrate plans, observations, hypotheses, retries, or upcoming actions in user-visible text (for example: "Mari saya...", "Bagus...", "Coba saya cek...", or "Ini aneh..."). The activity UI already reports real tool progress.
+- Do not emit progress updates before or between tool calls. Call the next appropriate tool directly.
+- Emit user-visible text before completion only when you need a user decision, missing permission/credential, or information that genuinely blocks further work. Ask one concise, specific question in that case.
+- After all tool work is complete, send exactly one concise final response that states the outcome, relevant verification, changed files or PR URL when useful, and any unresolved blocker. Do not replay the chronological tool history.
 - Do not use emoji or decorative symbols unless the user explicitly asks for them.
 - Prefer short natural paragraphs. Use headings, bullets, bold, tables, and dividers sparingly rather than as a template for every response.
 - Do not bold the first phrase of every bullet, repeat information in a summary, or add a next-step section unless there is a meaningful unresolved action.
@@ -1120,7 +1123,7 @@ When the user asks about library APIs, setup, migrations, or version-specific be
     function startAttempt(candidateModelId: string, attemptIndex: number) {
       const candidate = createProviderForModel(candidateModelId);
       const recoveryInstruction = wantsAgent
-        ? "Inspect the current repo/branch and sandbox state first, reuse completed work, avoid duplicate commits or PRs, and finish the user's request."
+        ? "Inspect the current repo/branch and sandbox state first, reuse completed work, avoid duplicate commits or PRs, and finish the user's request. Continue silently through tool calls without narrating progress, then provide one concise final response."
         : "Continue the same user request. If documentation lookup was needed, use the available Context7 tool results or call the Context7 tools again as needed.";
       const recoverySystem =
         attemptIndex === 0

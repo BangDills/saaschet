@@ -115,7 +115,19 @@ function AssistantParts({
   onToolActionPrompt?: (text: string) => void;
 }) {
   const toolParts = parts.filter(isToolPart);
-  const textParts = parts.filter((part) => part.type === "text");
+  const allTextParts = parts.filter(
+    (part): part is Extract<AnyPart, { type: "text" }> =>
+      part.type === "text" && Boolean(part.text.trim()),
+  );
+  // Agent models may emit conversational progress between tool calls. The
+  // activity group already exposes real progress, so keep that narration out
+  // of the transcript and reveal only the final text after the run completes.
+  const textParts =
+    toolParts.length > 0
+      ? streaming
+        ? []
+        : allTextParts.slice(-1)
+      : allTextParts;
 
   return (
     <>
@@ -127,7 +139,6 @@ function AssistantParts({
         />
       )}
       {textParts.map((part, index) => {
-        if (part.type !== "text") return null;
         const segments = parseReasoningSegments(part.text || "");
         return (
           <React.Fragment key={`t-${index}`}>
