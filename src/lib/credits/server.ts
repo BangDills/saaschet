@@ -18,7 +18,6 @@ export const COST_CHAT_BASE = 1;
 export const COST_AGENT_BASE = 3;
 export const COST_AGENT_PER_TOOL = 1;
 export const COST_AGENT_TOOL_CAP = 10;
-export const COST_IMAGE_BASE = 5;
 export const DEFAULT_DAILY_LIMIT = 50;
 
 /** Free / Pro tier definition. Stays in code, mirrored by the SQL function
@@ -109,9 +108,8 @@ export async function getCreditSnapshot(
  * the base only and let `recordSpend` catch up at the end.
  */
 export function estimatePreflightCost(
-  kind: "chat" | "agent" | "image",
+  kind: "chat" | "agent",
 ): number {
-  if (kind === "image") return COST_IMAGE_BASE;
   return kind === "chat" ? COST_CHAT_BASE : COST_AGENT_BASE;
 }
 
@@ -119,19 +117,21 @@ export function estimatePreflightCost(
  * Compute the actual cost based on observed tool calls.
  */
 export function computeFinalCost(
-  kind: "chat" | "agent" | "image",
+  kind: "chat" | "agent",
   toolCount: number,
 ): number {
-  if (kind === "image") return COST_IMAGE_BASE;
   if (kind === "chat") return COST_CHAT_BASE;
   const tools = Math.min(Math.max(0, toolCount), COST_AGENT_TOOL_CAP);
   return COST_AGENT_BASE + tools * COST_AGENT_PER_TOOL;
 }
 
 /**
- * Pre-flight gate. Checks current snapshot vs estimated cost; throws a
- * recognizable error when over the daily limit so the API route can
- * return a 402.
+ * Pre-flight gate. Read-only snapshot check vs estimated cost; throws a
+ * recognizable error when already over the daily limit so the API route
+ * can return a 402 fast, before running the turn. This is a UX short-cut
+ * only — the authoritative atomic charge happens in `recordSpend` via the
+ * `spend_credits` RPC, which serializes concurrent turns on a row lock so
+ * a race here can't let a second turn slip past the limit.
  */
 export class OutOfCreditsError extends Error {
   readonly snapshot: CreditSnapshot;
@@ -148,7 +148,7 @@ export class OutOfCreditsError extends Error {
 
 export async function assertCanSpend(
   userId: string,
-  kind: "chat" | "agent" | "image",
+  kind: "chat" | "agent",
 ): Promise<{ snapshot: CreditSnapshot; estimated: number }> {
   const snapshot = await getCreditSnapshot(userId);
   const estimated = estimatePreflightCost(kind);
@@ -167,54 +167,36 @@ export async function assertCanSpend(
 export async function recordSpend(opts: {
   userId: string;
   conversationId: string | null;
-  kind: "chat" | "agent" | "image";
+  kind: "chat" | "agent";
   toolCount: number;
   modelId: string;
-}): Promise<{ cost: number }> {
+}): Promise<{ cost: number; overLimit: boolean }> {
   const cost = computeFinalCost(opts.kind, opts.toolCount);
   const admin = createAdminClient();
 
-  // Insert log entry.
-  const { error: logErr } = await admin.from("credit_usage_log").insert({
-    user_id: opts.userId,
-    conversation_id: opts.conversationId,
-    kind: opts.kind,
-    cost,
-    model_id: opts.modelId,
-    tool_count: opts.toolCount,
+  // Single atomic RPC: gate check + counter bump + ledger row in one
+  // transaction with a row lock (SELECT ... FOR UPDATE). Concurrent turns
+  // serialize on the lock, so two requests can't both pass a stale gate.
+  // If the bump would exceed the daily limit the function reports
+  // over_limit = true and skips the write — the user already received the
+  // response, so we log + move on rather than throw.
+  const { data, error } = await admin.rpc("spend_credits", {
+    p_user_id: opts.userId,
+    p_kind: opts.kind,
+    p_cost: cost,
+    p_model_id: opts.modelId,
+    p_conversation_id: opts.conversationId,
+    p_tool_count: opts.toolCount,
   });
-  if (logErr) {
-    console.error("[credits] failed to write usage log:", logErr);
+
+  if (error) {
+    console.error("[credits] spend_credits RPC failed:", error);
+    return { cost, overLimit: false };
   }
 
-  // Atomically bump the user's counters. We do a read-modify-write since
-  // Supabase JS doesn't expose a SQL UPDATE … SET col = col + N helper
-  // without an RPC. The race window is tiny + worst case the user
-  // gets one extra request through, which is acceptable.
-  const { data: cur } = await admin
-    .from("user_credits")
-    .select("used_today, day_started_on, total_used")
-    .eq("user_id", opts.userId)
-    .maybeSingle();
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { over_limit: boolean | null }
+    | null;
 
-  if (!cur) return { cost };
-
-  const today = todayUtcDate();
-  const nextUsedToday =
-    cur.day_started_on === today ? (cur.used_today ?? 0) + cost : cost;
-  const nextTotal = Number(cur.total_used ?? 0) + cost;
-
-  const { error: updErr } = await admin
-    .from("user_credits")
-    .update({
-      used_today: nextUsedToday,
-      day_started_on: today,
-      total_used: nextTotal,
-    })
-    .eq("user_id", opts.userId);
-  if (updErr) {
-    console.error("[credits] failed to update counter:", updErr);
-  }
-
-  return { cost };
+  return { cost, overLimit: Boolean(row?.over_limit) };
 }
