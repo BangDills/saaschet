@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "./theme-toggle";
 import { signOut } from "@/app/(auth)/login/actions";
-import { CeliuzLogo } from "@/components/celiuz-logo";
+import { CreditsMeter } from "./credits-meter";
 
 function useCurrentTitle() {
   const pathname = usePathname();
@@ -136,15 +136,13 @@ export function Topbar({ initials, role = "user" }: TopbarProps) {
             className="absolute inset-0 bg-black/20"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute left-0 top-0 h-full w-64 border-r border-sidebar-border bg-sidebar shadow-lg">
+          <div className="absolute left-0 top-0 flex h-full w-64 flex-col border-r border-sidebar-border bg-sidebar shadow-lg">
             <div className="flex items-center justify-between px-4 py-3">
               <Link
                 href="/ai-chat"
-                className="flex items-center gap-3 text-base font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80"
-                aria-label="Celiuz AI Studio"
+                className="text-base font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80"
               >
-                <CeliuzLogo />
-                <span>Celiuz AI Studio</span>
+                Celiuz AI Studio
               </Link>
               <Button
                 variant="ghost"
@@ -155,7 +153,7 @@ export function Topbar({ initials, role = "user" }: TopbarProps) {
                 <X className="size-4" />
               </Button>
             </div>
-            <nav className="flex flex-col gap-0.5 px-3 py-2">
+            <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-2">
               {items.map((item) => {
                 const active =
                   item.href === "/"
@@ -179,6 +177,9 @@ export function Topbar({ initials, role = "user" }: TopbarProps) {
                 );
               })}
             </nav>
+            <div className="border-t border-sidebar-border p-3">
+              <CreditsMeter />
+            </div>
           </div>
         </div>
       )}
