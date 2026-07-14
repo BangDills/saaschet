@@ -13,6 +13,7 @@ import {
 } from "ai";
 import {
   defaultModelId,
+  defaultModels,
   resolveProvider,
   stripProviderPrefix,
   PROVIDER_BASE_URLS,
@@ -920,11 +921,12 @@ When the user asks about library APIs, setup, migrations, or version-specific be
   function agentAttemptModelIds(): string[] {
     if (!tools) return [modelId];
 
+    // All agent-capable models are fallback candidates when the primary
+    // hits a rate limit. The current model goes first, then the rest of
+    // the catalog in order.
     const candidates = [
       modelId,
-      "accounts/fireworks/models/glm-5p2",
-      "accounts/fireworks/models/kimi-k2p7-code",
-      "codex/gpt-5.5",
+      ...defaultModels.map((m) => m.id).filter((id) => id !== modelId),
     ];
 
     return Array.from(new Set(candidates)).filter(

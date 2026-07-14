@@ -49,9 +49,13 @@ export const agentCapableModels = new Set([
   // OpenAI Codex (ChatGPT subscription)
   "codex/gpt-5.5",
 
-  // Fireworks AI
+  // Fireworks AI — all support function-calling per Fireworks docs (verified)
   "accounts/fireworks/models/glm-5p2",
   "accounts/fireworks/models/kimi-k2p7-code",
+  "accounts/fireworks/models/minimax-m3",
+  "accounts/fireworks/models/deepseek-v4-flash",
+  "accounts/fireworks/models/deepseek-v4-pro",
+  "accounts/fireworks/models/qwen3p7-plus",
 ]);
 
 /** Check if a model is suitable for agent mode (tool calling). */
@@ -168,6 +172,7 @@ export const defaultModels: ModelInfo[] = [
     label: "MiniMax M3",
     vendor: "MiniMax",
     tag: "Balanced",
+    agentCapable: true,
     multimodal: true,
     provider: "fireworks",
   },
@@ -176,6 +181,7 @@ export const defaultModels: ModelInfo[] = [
     label: "DeepSeek V4 Flash",
     vendor: "DeepSeek",
     tag: "Fast",
+    agentCapable: true,
     provider: "fireworks",
   },
   {
@@ -183,6 +189,7 @@ export const defaultModels: ModelInfo[] = [
     label: "DeepSeek V4 Pro",
     vendor: "DeepSeek",
     tag: "Reasoning Pro",
+    agentCapable: true,
     provider: "fireworks",
   },
   {
@@ -190,6 +197,7 @@ export const defaultModels: ModelInfo[] = [
     label: "Qwen 3.7 Plus",
     vendor: "Qwen",
     tag: "Speed & Quality",
+    agentCapable: true,
     multimodal: true,
     provider: "fireworks",
   },
