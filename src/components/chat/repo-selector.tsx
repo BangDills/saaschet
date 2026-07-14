@@ -222,11 +222,11 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
         type="button"
         onClick={() => setOpen((s) => !s)}
         title={value ? `Connected to ${value}` : "Select a GitHub repository"}
-        className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+        className="inline-flex h-8 min-w-8 items-center justify-center gap-1 rounded-lg px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
       >
-        <GitBranch className="size-4" />
-        <span>{value ? value : "Select repo"}</span>
-        <ChevronDown className="size-3 opacity-70" />
+        <GitBranch className="size-4 shrink-0" />
+        <span className="hidden max-w-24 truncate sm:inline">{value ? value : "Repo"}</span>
+        <ChevronDown className="hidden size-3 opacity-70 sm:block" />
       </button>
 
       {open && (

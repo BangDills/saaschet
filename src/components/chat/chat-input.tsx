@@ -107,12 +107,6 @@ export function ChatInput({
     };
   }, [selectedImage]);
 
-  React.useEffect(() => {
-    if (!isMultimodal && selectedImage) {
-      clearImage();
-    }
-  }, [isMultimodal, selectedImage, clearImage]);
-
   const adjust = React.useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -143,6 +137,7 @@ export function ChatInput({
   }
 
   function handleKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();
@@ -181,10 +176,12 @@ export function ChatInput({
   return (
     <div className="mx-auto w-full max-w-3xl">
       {/* Main input box */}
-      <div className="relative rounded-2xl border border-border bg-card shadow-sm transition-shadow focus-within:shadow-md">
+      <div className="chat-composer relative rounded-2xl border border-border bg-card transition-shadow focus-within:border-input">
         {selectedImage && (
           <div className="relative inline-block m-3 ml-4">
             <div className="relative size-16 overflow-hidden rounded-lg border border-border bg-muted">
+              {/* Blob previews are local and do not benefit from Next image optimization. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={selectedImage.url}
                 alt="Upload preview"
@@ -209,8 +206,8 @@ export function ChatInput({
           placeholder={placeholder}
           rows={2}
           disabled={disabled}
-          className="block w-full resize-none rounded-2xl bg-transparent px-4 pb-12 pt-4 text-[15px] outline-none placeholder:text-muted-foreground"
-          style={{ minHeight: "112px" }}
+          className="block w-full resize-none rounded-2xl bg-transparent px-4 pb-14 pt-4 text-[15px] leading-6 outline-none placeholder:text-muted-foreground"
+          style={{ minHeight: "104px" }}
         />
 
         {isStreaming ? (
@@ -239,13 +236,34 @@ export function ChatInput({
           </button>
         )}
 
-        {/* Bottom row: status + model selector */}
-        <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2 px-2">
-          <StatusDot streaming={!!isStreaming} />
+        <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-0.5">
+            <ToolbarToggle
+              active={webSearch}
+              onToggle={() => onWebSearchChange(!webSearch)}
+              title={webSearch ? "Disable web search" : "Enable web search"}
+              label="Web"
+            >
+              <Globe className="size-4" />
+            </ToolbarToggle>
+            <ToolbarButton
+              title={isMultimodal ? "Attach image" : "This model does not support images"}
+              disabled={!isMultimodal || disabled}
+              onClick={handleImagePick}
+            >
+              <ImagePlus className="size-4" />
+              <span className="sr-only">Attach image</span>
+            </ToolbarButton>
+            <RepoSelector value={repo} onChange={onRepoChange} />
+          </div>
           <ModelSelector
             models={models}
             value={modelId}
-            onChange={onModelChange}
+            onChange={(nextModelId) => {
+              const nextModel = models.find((model) => model.id === nextModelId);
+              if (!nextModel?.multimodal) clearImage();
+              onModelChange(nextModelId);
+            }}
             agentMode={agentMode}
             openaiConnected={openaiConnected}
             onConnectOpenAI={onConnectOpenAI}
@@ -253,60 +271,27 @@ export function ChatInput({
         </div>
       </div>
 
-      {/* Bottom toolbar */}
-      <div className="mt-2 flex items-center gap-1 px-1">
-        {agentMode && (
-          <div
-            className="flex items-center gap-1 rounded-full bg-violet-500/15 px-2.5 py-1 text-xs font-medium text-violet-400"
-            title="Agent Mode is active for the connected repo"
-          >
-            <Sparkles className="size-3.5" />
-            Agent
-          </div>
-        )}
+      {(agentMode || (repo && githubAccessMode !== "unknown")) && (
+        <div className="mt-1.5 flex items-center gap-1.5 px-1">
+          {agentMode && (
+            <div className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium text-muted-foreground">
+              <Sparkles className="size-3" />
+              Agent
+            </div>
+          )}
+          {agentMode && repo && githubAccessMode !== "unknown" && (
+            <AgentAccessBadge mode={githubAccessMode} username={githubUsername} />
+          )}
+        </div>
+      )}
 
-        {agentMode && repo && githubAccessMode !== "unknown" && (
-          <AgentAccessBadge
-            mode={githubAccessMode}
-            username={githubUsername}
-          />
-        )}
-
-        <ToolbarToggle
-          active={webSearch}
-          onToggle={() => onWebSearchChange(!webSearch)}
-          title={
-            webSearch
-              ? "Web search ON — results will be added to the AI's context"
-              : "Enable web search (Tavily)"
-          }
-          label={webSearch ? "Web ON" : "Web"}
-        >
-          <Globe className="size-4" />
-        </ToolbarToggle>
-
-        <ToolbarButton
-          title={isMultimodal ? "Attach image" : "Selected model does not support vision/images"}
-          disabled={!isMultimodal || disabled}
-          onClick={handleImagePick}
-        >
-          <ImagePlus className="size-4" />
-        </ToolbarButton>
-
-        <RepoSelector value={repo} onChange={onRepoChange} />
-
-
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          className="hidden"
-          onChange={handleImageChosen}
-        />
-      </div>
-
-
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={handleImageChosen}
+      />
     </div>
   );
 }
@@ -327,37 +312,11 @@ function AgentAccessBadge({
 
   return (
     <div
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
-        isFull
-          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300"
-          : "bg-amber-500/15 text-amber-600 dark:text-amber-300",
-      )}
+      className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium text-muted-foreground"
       title={title}
     >
       {isFull ? <CheckCircle2 className="size-3.5" /> : <Lock className="size-3.5" />}
       {isFull ? "Full access" : "Read-only"}
-    </div>
-  );
-}
-
-function StatusDot({ streaming }: { streaming: boolean }) {
-  return (
-    <div
-      className={cn(
-        "relative flex size-5 items-center justify-center",
-        streaming && "animate-pulse",
-      )}
-      aria-hidden
-    >
-      <div
-        className={cn(
-          "size-4 rounded-full",
-          streaming
-            ? "bg-gradient-to-tr from-violet-500 via-fuchsia-500 to-rose-400"
-            : "bg-transparent ring-2 ring-border",
-        )}
-      />
     </div>
   );
 }
@@ -380,7 +339,7 @@ function ToolbarButton({
       disabled={disabled}
       title={title}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-muted-foreground transition-colors",
+        "inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors",
         "hover:bg-accent hover:text-accent-foreground",
         "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent",
       )}
@@ -396,7 +355,6 @@ function ToolbarToggle({
   onToggle,
   title,
   label,
-  variant = "sky",
   disabled,
 }: {
   children: React.ReactNode;
@@ -404,7 +362,6 @@ function ToolbarToggle({
   onToggle: () => void;
   title?: string;
   label?: string;
-  variant?: "sky" | "violet";
   disabled?: boolean;
 }) {
   return (
@@ -415,14 +372,11 @@ function ToolbarToggle({
       aria-pressed={active}
       disabled={disabled}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors",
+        "inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-medium transition-colors",
         "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent",
-        active && variant === "sky" && "bg-sky-500/15 text-sky-600 dark:text-sky-300",
-        active &&
-          variant === "violet" &&
-          "bg-violet-500/15 text-violet-600 dark:text-violet-300",
-        !active &&
-          "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+        active
+          ? "bg-foreground text-background"
+          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
       )}
     >
       {children}
