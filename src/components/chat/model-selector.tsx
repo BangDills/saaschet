@@ -8,7 +8,9 @@ import { cn } from "@/lib/utils";
 const PROVIDER_LOGOS: Record<string, string> = {
   OpenAI: "https://thesvg.org/icons/openai/default.svg",
   DeepSeek: "https://thesvg.org/icons/deepseek/default.svg",
+  Nvidia: "https://thesvg.org/icons/nvidia/color.svg",
   Kimi: "https://thesvg.org/icons/kimi/default.svg",
+  GLM: "https://thesvg.org/icons/chatglm/color.svg",
   Qwen: "https://thesvg.org/icons/qwen/default.svg",
 };
 
@@ -19,7 +21,7 @@ function ProviderLogo({ vendor }: { vendor: string }) {
     return (
       // Brand assets are served by theSVG.org and retain their original trademarks.
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt="" className="size-4 shrink-0 object-contain grayscale" />
+      <img src={src} alt="" className="size-4 shrink-0 object-contain" />
     );
   }
 
