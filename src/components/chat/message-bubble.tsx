@@ -6,7 +6,20 @@ import { ReasoningBlock } from "./reasoning-block";
 import { ToolCall, type ToolCallPart } from "./tool-call";
 import { parseReasoningSegments } from "@/lib/chat/parse-reasoning";
 import { cn } from "@/lib/utils";
-import { Check, Copy, RotateCcw, ThumbsDown, ThumbsUp } from "lucide-react";
+import {
+  Check,
+  Copy,
+  Loader2,
+  RotateCcw,
+  ThumbsDown,
+  ThumbsUp,
+  X,
+} from "lucide-react";
+
+export type MessageFeedback = {
+  rating: "like" | "dislike";
+  reason: string | null;
+};
 
 /** A subset of the AI SDK's UIMessagePart that the bubble cares about. */
 export type AnyPart =
@@ -27,6 +40,14 @@ export type MessageBubbleProps = {
   onToolActionPrompt?: (text: string) => void;
   /** Retry the preceding user request. */
   onRetry?: () => void;
+  /** Persisted feedback for this assistant message. */
+  feedback?: MessageFeedback | null;
+  feedbackPending?: boolean;
+  feedbackError?: string | null;
+  onFeedback?: (
+    rating: MessageFeedback["rating"] | null,
+    reason?: string | null,
+  ) => Promise<void>;
 };
 
 /** Walk parts and render in order; keep tool calls inline between text. */
@@ -89,9 +110,14 @@ function MessageBubbleImpl({
   streaming,
   onToolActionPrompt,
   onRetry,
+  feedback,
+  feedbackPending = false,
+  feedbackError,
+  onFeedback,
 }: MessageBubbleProps) {
   const [copied, setCopied] = React.useState(false);
-  const [feedback, setFeedback] = React.useState<"up" | "down" | null>(null);
+  const [showReason, setShowReason] = React.useState(false);
+  const [reason, setReason] = React.useState(feedback?.reason ?? "");
   if (role === "system") return null;
   const isUser = role === "user";
   const plainText =
@@ -102,6 +128,29 @@ function MessageBubbleImpl({
     await navigator.clipboard.writeText(plainText);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
+  }
+
+  async function chooseLike() {
+    if (!onFeedback || feedbackPending) return;
+    setShowReason(false);
+    await onFeedback(feedback?.rating === "like" ? null : "like");
+  }
+
+  async function chooseDislike() {
+    if (!onFeedback || feedbackPending) return;
+    if (feedback?.rating === "dislike") {
+      setShowReason(false);
+      await onFeedback(null);
+      return;
+    }
+    setReason("");
+    setShowReason(true);
+  }
+
+  async function submitDislike() {
+    if (!onFeedback || feedbackPending) return;
+    await onFeedback("dislike", reason.trim() || null);
+    setShowReason(false);
   }
 
   return (
@@ -189,13 +238,79 @@ function MessageBubbleImpl({
                 <RotateCcw className="size-3.5" />
               </MessageAction>
             )}
-            <MessageAction label="Good response" active={feedback === "up"} onClick={() => setFeedback(feedback === "up" ? null : "up")}>
-              <ThumbsUp className="size-3.5" />
-            </MessageAction>
-            <MessageAction label="Poor response" active={feedback === "down"} onClick={() => setFeedback(feedback === "down" ? null : "down")}>
-              <ThumbsDown className="size-3.5" />
-            </MessageAction>
+            {onFeedback && (
+              <>
+                <MessageAction
+                  label="Respons membantu"
+                  active={feedback?.rating === "like"}
+                  disabled={feedbackPending}
+                  onClick={() => void chooseLike()}
+                >
+                  <ThumbsUp className="size-3.5" />
+                </MessageAction>
+                <MessageAction
+                  label="Respons kurang membantu"
+                  active={feedback?.rating === "dislike"}
+                  disabled={feedbackPending}
+                  onClick={() => void chooseDislike()}
+                >
+                  {feedbackPending ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <ThumbsDown className="size-3.5" />
+                  )}
+                </MessageAction>
+              </>
+            )}
           </div>
+        )}
+        {!isUser && showReason && onFeedback && (
+          <div className="mt-2 rounded-xl border border-border bg-muted/40 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  Apa yang perlu diperbaiki?
+                </p>
+                <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                  Alasan bersifat opsional dan membantu meningkatkan respons.
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Tutup form feedback"
+                onClick={() => setShowReason(false)}
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <textarea
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              maxLength={500}
+              rows={3}
+              placeholder="Contoh: kurang akurat atau terlalu panjang"
+              className="mt-3 w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <span className="text-xs text-muted-foreground">
+                {reason.length}/500
+              </span>
+              <button
+                type="button"
+                onClick={() => void submitDislike()}
+                disabled={feedbackPending}
+                className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+              >
+                Kirim feedback
+              </button>
+            </div>
+          </div>
+        )}
+        {!isUser && feedbackError && (
+          <p role="status" className="mt-2 text-xs text-destructive">
+            {feedbackError}
+          </p>
         )}
       </div>
     </div>
@@ -205,11 +320,13 @@ function MessageBubbleImpl({
 function MessageAction({
   label,
   active,
+  disabled,
   onClick,
   children,
 }: {
   label: string;
   active?: boolean;
+  disabled?: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }) {
@@ -219,9 +336,10 @@ function MessageAction({
       aria-label={label}
       title={label}
       aria-pressed={active}
+      disabled={disabled}
       onClick={onClick}
       className={cn(
-        "flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-muted hover:text-foreground",
+        "flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50",
         active && "bg-muted text-foreground",
       )}
     >
@@ -237,6 +355,11 @@ export const MessageBubble = React.memo(MessageBubbleImpl, (prev, next) => {
   if (prev.content !== next.content) return false;
   if (prev.onToolActionPrompt !== next.onToolActionPrompt) return false;
   if (prev.onRetry !== next.onRetry) return false;
+  if (prev.onFeedback !== next.onFeedback) return false;
+  if (prev.feedbackPending !== next.feedbackPending) return false;
+  if (prev.feedbackError !== next.feedbackError) return false;
+  if (prev.feedback?.rating !== next.feedback?.rating) return false;
+  if (prev.feedback?.reason !== next.feedback?.reason) return false;
   // Compare parts shallowly via JSON for tool state changes.
   if ((prev.parts ? prev.parts.length : 0) !== (next.parts ? next.parts.length : 0)) {
     return false;

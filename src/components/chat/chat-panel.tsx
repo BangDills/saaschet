@@ -4,13 +4,29 @@ import * as React from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import type { ChatMessage, ModelInfo } from "@/lib/chat/types";
-import { MessageBubble, type AnyPart } from "./message-bubble";
+import {
+  MessageBubble,
+  type AnyPart,
+  type MessageFeedback,
+} from "./message-bubble";
 import { ChatInput } from "./chat-input";
 import { StreamingPill } from "./streaming-pill";
 import { ProcessingIndicator } from "./processing-indicator";
 import { fireCreditsRefresh } from "@/components/dashboard/credits-meter";
 import { OpenAIConnectDialog } from "./openai-connect-dialog";
 import { AlertCircle, ArrowDown, Clock3, RefreshCcw, WifiOff } from "lucide-react";
+import useSWR from "swr";
+
+type FeedbackResponse = {
+  feedback: Array<MessageFeedback & { messageId: string }>;
+};
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const response = await fetch(url, { cache: "no-store" });
+  const json = (await response.json()) as T & { error?: string };
+  if (!response.ok) throw new Error(json.error || "Request failed");
+  return json;
+}
 
 type RecoveryError = {
   title: string;
@@ -152,7 +168,6 @@ export function ChatPanel({
 
   // The body callback is invoked at send-time (deferred), NOT during
   // render. Accessing .current there is safe — suppress false positive.
-  /* eslint-disable react-hooks/refs */
   const transport = React.useMemo(
     () =>
       new DefaultChatTransport({
@@ -166,7 +181,6 @@ export function ChatPanel({
       }),
     [],
   );
-  /* eslint-enable react-hooks/refs */
 
   // ── OpenAI connection state ──────────────────────────────────────────
   const [openaiConnected, setOpenaiConnected] = React.useState(false);
@@ -230,6 +244,94 @@ export function ChatPanel({
   });
 
   const isStreaming = status === "submitted" || status === "streaming";
+  const feedbackUrl = `/api/conversations/${conversationId}/feedback`;
+  const { data: feedbackData, mutate: mutateFeedback } = useSWR<FeedbackResponse>(
+    messages.some((message) => message.role === "assistant") ? feedbackUrl : null,
+    fetchJson,
+    { revalidateOnFocus: false },
+  );
+  const [pendingFeedbackIds, setPendingFeedbackIds] = React.useState<Set<string>>(
+    () => new Set(),
+  );
+  const [feedbackErrors, setFeedbackErrors] = React.useState<
+    Record<string, string | null>
+  >({});
+
+  const feedbackByMessage = React.useMemo(
+    () =>
+      Object.fromEntries(
+        (feedbackData?.feedback ?? []).map(({ messageId, rating, reason }) => [
+          messageId,
+          { rating, reason },
+        ]),
+      ) as Record<string, MessageFeedback>,
+    [feedbackData],
+  );
+
+  const updateFeedback = React.useCallback(
+    async (
+      messageId: string,
+      rating: MessageFeedback["rating"] | null,
+      reason?: string | null,
+    ) => {
+      setPendingFeedbackIds((current) => new Set(current).add(messageId));
+      setFeedbackErrors((current) => ({ ...current, [messageId]: null }));
+
+      const previous = feedbackData;
+      const nextItems = (previous?.feedback ?? []).filter(
+        (item) => item.messageId !== messageId,
+      );
+      if (rating) nextItems.push({ messageId, rating, reason: reason ?? null });
+      await mutateFeedback({ feedback: nextItems }, { revalidate: false });
+
+      try {
+        const response = await fetch(feedbackUrl, {
+          method: rating ? "PUT" : "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messageId, rating, reason }),
+        });
+        const json = (await response.json()) as {
+          error?: string;
+          feedback?: MessageFeedback & { messageId: string };
+          messageId?: string;
+        };
+        if (!response.ok) throw new Error(json.error || "Feedback gagal disimpan");
+
+        const persistedId = json.feedback?.messageId ?? json.messageId ?? messageId;
+        const persistedItems = nextItems.filter(
+          (item) => item.messageId !== messageId && item.messageId !== persistedId,
+        );
+        if (rating) {
+          const persisted = {
+            messageId: persistedId,
+            rating,
+            reason: reason ?? null,
+          };
+          persistedItems.push(persisted);
+          if (persistedId !== messageId) {
+            persistedItems.push({ ...persisted, messageId });
+          }
+        }
+        await mutateFeedback({ feedback: persistedItems }, { revalidate: false });
+      } catch (feedbackError) {
+        await mutateFeedback(previous, { revalidate: false });
+        setFeedbackErrors((current) => ({
+          ...current,
+          [messageId]:
+            feedbackError instanceof Error
+              ? feedbackError.message
+              : "Feedback gagal disimpan",
+        }));
+      } finally {
+        setPendingFeedbackIds((current) => {
+          const next = new Set(current);
+          next.delete(messageId);
+          return next;
+        });
+      }
+    },
+    [feedbackData, feedbackUrl, mutateFeedback],
+  );
 
   // ── Background processing polling ──────────────────────────────────
   // When we restore a conversation that has initialMessages (from DB),
@@ -364,7 +466,6 @@ export function ChatPanel({
   );
   // Sync streaming status → streamStartedAt. Legitimate sync with
   // external system (useChat streaming flag).
-  /* eslint-disable react-hooks/set-state-in-effect */
   React.useEffect(() => {
     if (isStreaming && streamStartedAt === null) {
       setStreamStartedAt(Date.now());
@@ -372,7 +473,6 @@ export function ChatPanel({
       setStreamStartedAt(null);
     }
   }, [isStreaming, streamStartedAt]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const hasMessages = messages.length > 0;
 
@@ -616,6 +716,12 @@ export function ChatPanel({
                       parts={toBubbleParts(m.parts)}
                       streaming={isStreamingThis}
                       onToolActionPrompt={handleToolActionPrompt}
+                      feedback={feedbackByMessage[m.id] ?? null}
+                      feedbackPending={pendingFeedbackIds.has(m.id)}
+                      feedbackError={feedbackErrors[m.id] ?? null}
+                      onFeedback={(rating, reason) =>
+                        updateFeedback(m.id, rating, reason)
+                      }
                       onRetry={
                         !isStreaming && isLast
                           ? () => {
