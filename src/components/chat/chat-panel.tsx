@@ -344,43 +344,78 @@ export function ChatPanel({
   }, [messages, isStreaming]);
 
   const scrollRef = React.useRef<HTMLDivElement>(null);
-  const userScrolledUpRef = React.useRef(false);
+  const messagesRef = React.useRef<HTMLDivElement>(null);
+  const composerRef = React.useRef<HTMLDivElement>(null);
+  const isNearBottomRef = React.useRef(true);
+  const isScrollingToLatestRef = React.useRef(false);
+  const scrollFrameRef = React.useRef<number | null>(null);
   const [showScrollToLatest, setShowScrollToLatest] = React.useState(false);
+
+  const updateScrollPosition = React.useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const isNearBottom = distanceFromBottom <= 120;
+    if (isScrollingToLatestRef.current && !isNearBottom) return;
+    if (isNearBottom) isScrollingToLatestRef.current = false;
+    isNearBottomRef.current = isNearBottom;
+    setShowScrollToLatest(!isNearBottom);
+  }, []);
+
+  const scrollToLatest = React.useCallback((behavior: ScrollBehavior = "auto") => {
+    const el = scrollRef.current;
+    if (!el) return;
+    isNearBottomRef.current = true;
+    isScrollingToLatestRef.current = behavior === "smooth";
+    setShowScrollToLatest(false);
+    if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current);
+    scrollFrameRef.current = requestAnimationFrame(() => {
+      el.scrollTo({ top: el.scrollHeight, behavior });
+      scrollFrameRef.current = null;
+    });
+  }, []);
 
   React.useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    updateScrollPosition();
+    el.addEventListener("scroll", updateScrollPosition, { passive: true });
+    return () => el.removeEventListener("scroll", updateScrollPosition);
+  }, [updateScrollPosition]);
 
-    function onScroll() {
-      if (!el) return;
-      const distanceFromBottom =
-        el.scrollHeight - el.scrollTop - el.clientHeight;
-      const isAwayFromBottom = distanceFromBottom > 120;
-      userScrolledUpRef.current = isAwayFromBottom;
-      setShowScrollToLatest(isAwayFromBottom);
-    }
-
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const lastScrollAtRef = React.useRef(0);
   React.useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || userScrolledUpRef.current) return;
-    const now = Date.now();
-    if (now - lastScrollAtRef.current < 80) return;
-    lastScrollAtRef.current = now;
-    requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight;
+    const messagesEl = messagesRef.current;
+    const composerEl = composerRef.current;
+    if (!messagesEl || !composerEl) return;
+
+    const observer = new ResizeObserver(() => {
+      if (isNearBottomRef.current) scrollToLatest();
+      else updateScrollPosition();
     });
-  }, [visibleMessages.length, isStreaming]);
+    observer.observe(messagesEl);
+    observer.observe(composerEl);
+    return () => observer.disconnect();
+  }, [scrollToLatest, updateScrollPosition]);
+
+  React.useEffect(() => {
+    if (isNearBottomRef.current) scrollToLatest();
+  }, [conversationId, visibleMessages.length, isStreaming, scrollToLatest]);
+
+  React.useEffect(
+    () => () => {
+      if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current);
+    },
+    [],
+  );
 
   function handleSubmit(
     text: string,
     file?: { mediaType: string; base64: string; name: string } | null,
   ) {
     if ((!text.trim() && !file) || isStreaming) return;
+
+    isNearBottomRef.current = true;
+    setShowScrollToLatest(false);
 
     if (file) {
       sendMessage({
@@ -441,7 +476,7 @@ export function ChatPanel({
       {hasMessages ? (
         <>
           <div ref={scrollRef} className="relative flex-1 overflow-y-auto">
-            <div className="mx-auto w-full max-w-3xl px-4 pb-28 pt-4 sm:px-6">
+            <div ref={messagesRef} className="mx-auto w-full max-w-3xl px-4 pb-28 pt-4 sm:px-6">
               {visibleMessages.map((m, messageIndex) => {
                 const isLast =
                   m.id === messages[messages.length - 1]?.id;
@@ -506,18 +541,12 @@ export function ChatPanel({
             </div>
           </div>
 
-          <div className="relative border-t border-border/60 bg-background px-4 py-3">
+          <div ref={composerRef} className="relative shrink-0 border-t border-border/60 bg-background px-4 py-3">
             {showScrollToLatest && (
               <button
                 type="button"
                 aria-label="Scroll to latest message"
-                onClick={() => {
-                  const el = scrollRef.current;
-                  if (!el) return;
-                  userScrolledUpRef.current = false;
-                  setShowScrollToLatest(false);
-                  el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-                }}
+                onClick={() => scrollToLatest("smooth")}
                 className="absolute -top-12 left-1/2 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-sm transition-colors hover:bg-muted"
               >
                 <ArrowDown className="size-4" />
