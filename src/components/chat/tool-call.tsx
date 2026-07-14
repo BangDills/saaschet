@@ -399,7 +399,7 @@ function ReadFileTruncationNotice({
   };
 
   return (
-    <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2.5 text-[11px] text-muted-foreground leading-relaxed">
+    <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <p className="font-medium text-foreground">
@@ -420,7 +420,7 @@ function ReadFileTruncationNotice({
             <button
               type="button"
               onClick={handleReadNext}
-              className="flex items-center gap-1 rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-sky-700 transition-colors hover:bg-sky-500/15 dark:text-sky-300"
+              className="flex items-center gap-1 rounded border border-border bg-background px-2 py-1 text-foreground transition-colors hover:bg-muted"
             >
               <ChevronRight className="size-3" />
               <span>Read next page</span>
@@ -478,14 +478,14 @@ function ToolCallImpl({ part, onActionPrompt }: ToolCallProps) {
   return (
     <div
       className={cn(
-        "my-3 rounded-xl border bg-background shadow-sm transition-colors",
+        "my-2 rounded-lg border bg-background transition-colors",
         isError ? "border-destructive/40" : "border-border hover:bg-muted/30",
       )}
     >
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2.5 overflow-hidden px-3 py-2 text-left text-xs transition-colors"
+        className="flex min-h-10 w-full items-center gap-2 overflow-hidden px-2.5 py-1.5 text-left text-xs transition-colors"
       >
         {/* Expand chevron */}
         <span className="flex size-4 shrink-0 items-center justify-center">
@@ -496,7 +496,7 @@ function ToolCallImpl({ part, onActionPrompt }: ToolCallProps) {
           )}
         </span>
 
-        <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+        <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
           {isRunning ? (
             <Loader2 className="size-3.5 animate-spin" />
           ) : (
@@ -550,7 +550,7 @@ function ToolCallImpl({ part, onActionPrompt }: ToolCallProps) {
       </button>
 
       {open && (
-        <div className="space-y-2 border-t border-border/40 px-3 py-2.5 text-xs">
+        <div className="space-y-2 border-t border-border px-2.5 py-2 text-xs">
           {part.input !== undefined && (
             <DetailSection label="Input" value={part.input} />
           )}

@@ -12,6 +12,7 @@ import {
   Trash2,
   ChevronDown,
   X,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +41,21 @@ export default function AIChatPage() {
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
   const [active, setActive] = React.useState<ActivePanel>(freshPanel);
   const [historyOpen, setHistoryOpen] = React.useState(false);
+  const [historyQuery, setHistoryQuery] = React.useState("");
+
+  const conversationGroups = React.useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfYesterday = startOfToday - 86_400_000;
+    const filtered = conversations.filter((conversation) =>
+      conversation.title.toLowerCase().includes(historyQuery.trim().toLowerCase()),
+    );
+    return [
+      ["Today", filtered.filter((conversation) => conversation.updatedAt >= startOfToday)],
+      ["Yesterday", filtered.filter((conversation) => conversation.updatedAt >= startOfYesterday && conversation.updatedAt < startOfToday)],
+      ["Earlier", filtered.filter((conversation) => conversation.updatedAt < startOfYesterday)],
+    ] as const;
+  }, [conversations, historyQuery]);
 
   // Close history dropdown when clicking outside
   const historyRef = React.useRef<HTMLDivElement>(null);
@@ -186,7 +202,7 @@ export default function AIChatPage() {
   }, [reloadConversations]);
 
   return (
-    <div className="-mx-4 -my-6 flex h-[calc(100vh-5rem)] flex-col sm:-mx-6 lg:-mx-8">
+    <div className="-mx-3 -my-3 flex h-[calc(100vh-3.5rem)] flex-col sm:-mx-6 sm:-my-6 sm:h-[calc(100vh-5rem)] lg:-mx-8">
       {/* ── Top bar: New Chat + History toggle ── */}
       <div className="relative z-10 flex items-center gap-2 bg-background px-4 py-2">
         <div ref={historyRef} className="relative">
@@ -211,8 +227,8 @@ export default function AIChatPage() {
 
           {/* ── Dropdown panel ── */}
           {historyOpen && (
-            <div className="absolute left-0 top-full z-50 mt-1 w-[calc(100vw-2rem)] max-w-80 rounded-xl border border-border bg-card shadow-xl sm:w-80">
-              <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+            <div className="fixed inset-x-3 bottom-3 top-20 z-50 flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl sm:absolute sm:inset-auto sm:left-0 sm:top-full sm:mt-1 sm:max-h-[28rem] sm:w-80 sm:rounded-xl">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:py-2.5">
                 <span className="text-sm font-semibold">
                   Conversations ({conversations.length})
                 </span>
@@ -223,7 +239,19 @@ export default function AIChatPage() {
                   <X className="size-3.5" />
                 </button>
               </div>
-              <div className="max-h-80 overflow-y-auto p-2">
+              <div className="px-3 pt-3">
+                <label className="flex h-10 items-center gap-2 rounded-lg border border-border px-3 text-muted-foreground focus-within:text-foreground">
+                  <Search className="size-4 shrink-0" />
+                  <span className="sr-only">Search conversations</span>
+                  <input
+                    value={historyQuery}
+                    onChange={(event) => setHistoryQuery(event.target.value)}
+                    placeholder="Search conversations"
+                    className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                  />
+                </label>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-2">
                 {conversations.length === 0 ? (
                   <p className="px-3 py-6 text-center text-xs text-muted-foreground">
                     No conversations yet.
@@ -231,36 +259,45 @@ export default function AIChatPage() {
                     Start chatting to begin.
                   </p>
                 ) : (
-                  <div className="space-y-0.5">
-                    {conversations.map((conv) => {
-                      const isActive = conv.id === active.conversationId;
-                      return (
-                        <div
-                          key={conv.id}
-                          className={cn(
-                            "group flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition-colors",
-                            isActive
-                              ? "bg-accent text-accent-foreground"
-                              : "hover:bg-accent/60",
-                          )}
-                        >
-                          <button
-                            onClick={() => openChat(conv.id)}
-                            className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                          >
-                            <MessageSquare className="size-3.5 shrink-0 text-muted-foreground" />
-                            <span className="truncate">{conv.title}</span>
-                          </button>
-                          <button
-                            onClick={() => removeChat(conv.id)}
-                            aria-label="Delete conversation"
-                            className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-red-500 group-hover:opacity-100"
-                          >
-                            <Trash2 className="size-3" />
-                          </button>
-                        </div>
-                      );
-                    })}
+                  <div className="flex flex-col gap-3">
+                    {conversationGroups.map(([label, group]) =>
+                      group.length > 0 ? (
+                        <section key={label}>
+                          <h3 className="px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            {label}
+                          </h3>
+                          <div className="flex flex-col gap-0.5">
+                            {group.map((conv) => {
+                              const isActive = conv.id === active.conversationId;
+                              return (
+                                <div
+                                  key={conv.id}
+                                  className={cn(
+                                    "group flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition-colors",
+                                    isActive ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
+                                  )}
+                                >
+                                  <button onClick={() => openChat(conv.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                                    <MessageSquare className="size-3.5 shrink-0 text-muted-foreground" />
+                                    <span className="truncate">{conv.title}</span>
+                                  </button>
+                                  <button
+                                    onClick={() => removeChat(conv.id)}
+                                    aria-label="Delete conversation"
+                                    className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-colors hover:bg-background hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100"
+                                  >
+                                    <Trash2 className="size-3" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </section>
+                      ) : null,
+                    )}
+                    {conversationGroups.every(([, group]) => group.length === 0) && (
+                      <p className="px-3 py-6 text-center text-xs text-muted-foreground">No matching conversations.</p>
+                    )}
                   </div>
                 )}
               </div>

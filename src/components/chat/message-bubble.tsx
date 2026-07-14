@@ -6,6 +6,7 @@ import { ReasoningBlock } from "./reasoning-block";
 import { ToolCall, type ToolCallPart } from "./tool-call";
 import { parseReasoningSegments } from "@/lib/chat/parse-reasoning";
 import { cn } from "@/lib/utils";
+import { Check, Copy, RotateCcw, ThumbsDown, ThumbsUp } from "lucide-react";
 
 /** A subset of the AI SDK's UIMessagePart that the bubble cares about. */
 export type AnyPart =
@@ -24,6 +25,8 @@ export type MessageBubbleProps = {
   streaming?: boolean;
   /** Callback to submit a tool action prompt. */
   onToolActionPrompt?: (text: string) => void;
+  /** Retry the preceding user request. */
+  onRetry?: () => void;
 };
 
 /** Walk parts and render in order; keep tool calls inline between text. */
@@ -85,9 +88,21 @@ function MessageBubbleImpl({
   content,
   streaming,
   onToolActionPrompt,
+  onRetry,
 }: MessageBubbleProps) {
+  const [copied, setCopied] = React.useState(false);
+  const [feedback, setFeedback] = React.useState<"up" | "down" | null>(null);
   if (role === "system") return null;
   const isUser = role === "user";
+  const plainText =
+    content ?? parts?.map((part) => (part.type === "text" ? part.text : "")).join("") ?? "";
+
+  async function copyMessage() {
+    if (!plainText) return;
+    await navigator.clipboard.writeText(plainText);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  }
 
   return (
     <div
@@ -164,8 +179,54 @@ function MessageBubbleImpl({
             )}
           </>
         )}
+        {!isUser && !streaming && plainText && (
+          <div className="mt-2 flex items-center gap-0.5 text-muted-foreground">
+            <MessageAction label={copied ? "Copied" : "Copy"} onClick={copyMessage}>
+              {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+            </MessageAction>
+            {onRetry && (
+              <MessageAction label="Retry" onClick={onRetry}>
+                <RotateCcw className="size-3.5" />
+              </MessageAction>
+            )}
+            <MessageAction label="Good response" active={feedback === "up"} onClick={() => setFeedback(feedback === "up" ? null : "up")}>
+              <ThumbsUp className="size-3.5" />
+            </MessageAction>
+            <MessageAction label="Poor response" active={feedback === "down"} onClick={() => setFeedback(feedback === "down" ? null : "down")}>
+              <ThumbsDown className="size-3.5" />
+            </MessageAction>
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+function MessageAction({
+  label,
+  active,
+  onClick,
+  children,
+}: {
+  label: string;
+  active?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        "flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-muted hover:text-foreground",
+        active && "bg-muted text-foreground",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -175,6 +236,7 @@ export const MessageBubble = React.memo(MessageBubbleImpl, (prev, next) => {
   if (prev.streaming !== next.streaming) return false;
   if (prev.content !== next.content) return false;
   if (prev.onToolActionPrompt !== next.onToolActionPrompt) return false;
+  if (prev.onRetry !== next.onRetry) return false;
   // Compare parts shallowly via JSON for tool state changes.
   if ((prev.parts ? prev.parts.length : 0) !== (next.parts ? next.parts.length : 0)) {
     return false;
