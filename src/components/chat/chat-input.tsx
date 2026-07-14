@@ -242,9 +242,9 @@ export function ChatInput({
               active={webSearch}
               onToggle={() => onWebSearchChange(!webSearch)}
               title={webSearch ? "Disable web search" : "Enable web search"}
-              label="Web"
             >
               <Globe className="size-4" />
+              <span className="sr-only">{webSearch ? "Web search enabled" : "Web search disabled"}</span>
             </ToolbarToggle>
             <ToolbarButton
               title={isMultimodal ? "Attach image" : "This model does not support images"}
@@ -354,14 +354,12 @@ function ToolbarToggle({
   active,
   onToggle,
   title,
-  label,
   disabled,
 }: {
   children: React.ReactNode;
   active: boolean;
   onToggle: () => void;
   title?: string;
-  label?: string;
   disabled?: boolean;
 }) {
   return (
@@ -372,7 +370,7 @@ function ToolbarToggle({
       aria-pressed={active}
       disabled={disabled}
       className={cn(
-        "inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-medium transition-colors",
+        "inline-flex size-8 items-center justify-center rounded-lg text-xs font-medium transition-colors",
         "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent",
         active
           ? "bg-foreground text-background"
@@ -380,7 +378,6 @@ function ToolbarToggle({
       )}
     >
       {children}
-      {label && <span>{label}</span>}
     </button>
   );
 }
