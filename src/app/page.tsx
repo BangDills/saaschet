@@ -123,7 +123,7 @@ function ProductPreview() {
           <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6">
             <div>
               <p className="text-xs font-bold">Celiuz Agent</p>
-              <p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Qwen 3.7 Max · Tools enabled</p>
+              <p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">GLM 5.2 · Tools enabled</p>
             </div>
             <span className="border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-wider">Auto</span>
           </div>

@@ -12,12 +12,15 @@
  * Returns true if the model ID belongs to a model that sends
  * `"type":""` in tool_call streaming chunks and needs the fix.
  *
- * Known affected models:
- * - Kimi K2.x (kimi-k2.5, kimi-k2.6)
- * - GLM-5
+ * Known affected models (Fireworks AI ids):
+ * - Kimi K2.x (accounts/fireworks/models/kimi-k2p7-code)
+ * - GLM-5.x (accounts/fireworks/models/glm-5p2)
+ *
+ * Matches by substring so it works on the full Fireworks id
+ * ("accounts/fireworks/models/kimi-k2p7-code") as well as a bare "kimi-".
  */
 export function needsToolCallTypeFix(modelId: string): boolean {
-  return /^kimi-/i.test(modelId) || /^glm-/i.test(modelId);
+  return /(^|\/)kimi-/i.test(modelId) || /(^|\/)glm-/i.test(modelId);
 }
 
 // Keep the old name as an alias for backward compatibility.

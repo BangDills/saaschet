@@ -87,15 +87,14 @@ a `.env` file). Click **+ ADD VARIABLE** and add:
 
 | Name                     | Value                                  |
 | ------------------------ | -------------------------------------- |
-| `DO_INFERENCE_API_KEY`   | your model access key from DigitalOcean |
+| `FIREWORKS_API_KEY`      | your Fireworks AI API key              |
 | `NODE_ENV`               | `production` (auto-set by cPanel mode)  |
 
-Where to get the key: DigitalOcean Cloud → **Inference** → **Model Access Keys**
-→ create one with chat-completion scope.
+Where to get the key: Fireworks AI → **API Keys** → create one.
 
 After adding, click **"Restart"** so the app picks up the new env var.
 
-Other env vars you may add later: `DO_INFERENCE_BASE_URL` (only if DO changes
+Other env vars you may add later: `FIREWORKS_BASE_URL` (only if Fireworks changes
 its endpoint), `NEXT_PUBLIC_SUPABASE_URL`, `STRIPE_SECRET_KEY`, etc.
 
 ---

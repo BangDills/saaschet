@@ -11,10 +11,10 @@ const LOBE_ICON_BASE =
 const PROVIDER_LOGOS: Record<string, string> = {
   OpenAI: `${LOBE_ICON_BASE}/openai.svg`,
   DeepSeek: `${LOBE_ICON_BASE}/deepseek-color.svg`,
-  Nvidia: `${LOBE_ICON_BASE}/nvidia-color.svg`,
   Kimi: `${LOBE_ICON_BASE}/kimi.svg`,
   GLM: `${LOBE_ICON_BASE}/chatglm-color.svg`,
   Qwen: `${LOBE_ICON_BASE}/qwen-color.svg`,
+  MiniMax: `${LOBE_ICON_BASE}/minimax-color.svg`,
 };
 
 function ProviderLogo({ vendor }: { vendor: string }) {

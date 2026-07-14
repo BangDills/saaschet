@@ -4,7 +4,6 @@ import {
   vendorOrder,
   isAgentCapable,
   isMultimodal,
-  allFreeModels,
   codexModels,
 } from "@/lib/chat/models";
 import type { ModelInfo } from "@/lib/chat/types";
@@ -14,13 +13,16 @@ export const dynamic = "force-dynamic";
 // Cache the model list for an hour at the edge.
 export const revalidate = 3600;
 
-const ALIBABA_BASE_URL =
-  process.env.ALIBABA_BASE_URL ?? "https://ws-7i0g4fvbloleocpm.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1";
+const FIREWORKS_BASE_URL =
+  process.env.FIREWORKS_BASE_URL ?? "https://api.fireworks.ai/inference/v1";
 
 type DOModelEntry = {
   id: string;
   object?: string;
   owned_by?: string;
+  supports_chat?: boolean;
+  supports_image_input?: boolean;
+  kind?: string;
 };
 
 type DOModelListResponse = {
@@ -41,7 +43,6 @@ function vendorFromId(id: string): string {
   if (lower.includes("llama") || lower.includes("maverick")) return "Meta";
   if (lower.includes("qwen")) return "Qwen";
   if (lower.includes("kimi")) return "Kimi";
-  if (lower.includes("nemotron") || lower.includes("nvidia")) return "Nvidia";
   if (lower.includes("minimax") || lower.includes("abab")) return "MiniMax";
   if (lower.includes("mistral") || lower.includes("codestral") || lower.includes("mixtral"))
     return "Mistral";
@@ -56,9 +57,9 @@ function vendorFromId(id: string): string {
 
 function prettyLabel(id: string): string {
   return id
+    .replace(/^accounts\/fireworks\/models\//, "")
     .replace(/^anthropic-/, "")
     .replace(/^openai-/, "")
-    .replace(/^alibaba-/, "")
     .replace(/-instruct$/, "")
     .replace(/-/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
@@ -75,14 +76,15 @@ function sortByVendor(a: ModelInfo, b: ModelInfo): number {
 }
 
 export async function GET() {
-  const apiKey = process.env.ALIBABA_API_KEY || process.env.DO_INFERENCE_API_KEY;
+  const apiKey = process.env.FIREWORKS_API_KEY;
 
-  // Only these Alibaba model IDs are shown in the selector.
-  const ALLOWED_ALIBABA_MODELS = new Set([
-    "glm-5.2",
-    "qwen3.7-max",
-    "qwen3.7-plus",
-    "kimi-k2.7-code",
+  // Only these Fireworks model IDs are shown in the selector.
+  const ALLOWED_FIREWORKS_MODELS = new Set([
+    "accounts/fireworks/models/glm-5p2",
+    "accounts/fireworks/models/kimi-k2p7-code",
+    "accounts/fireworks/models/minimax-m3",
+    "accounts/fireworks/models/deepseek-v4-pro",
+    "accounts/fireworks/models/qwen3p7-plus",
   ]);
 
   // No key configured → return curated list.
@@ -94,7 +96,7 @@ export async function GET() {
   }
 
   try {
-    const res = await fetch(`${ALIBABA_BASE_URL}/models`, {
+    const res = await fetch(`${FIREWORKS_BASE_URL}/models`, {
       headers: { Authorization: `Bearer ${apiKey}` },
       next: { revalidate: 3600 },
     });
@@ -110,9 +112,12 @@ export async function GET() {
     const json = (await res.json()) as DOModelListResponse;
     const items = json.data ?? [];
 
-    // Filter to ONLY whitelisted models.
+    // Filter to ONLY whitelisted chat models.
     const live: ModelInfo[] = items
-      .filter((m) => ALLOWED_ALIBABA_MODELS.has(m.id))
+      .filter(
+        (m) =>
+          ALLOWED_FIREWORKS_MODELS.has(m.id) && m.supports_chat !== false,
+      )
       .map((m) => {
         const vendor = vendorFromId(m.id);
         return {
@@ -124,18 +129,18 @@ export async function GET() {
         } satisfies ModelInfo;
       });
 
-    const alibabaModelsStatic = defaultModels.filter(
-      (m) => m.id === "glm-5.2" || m.id === "qwen3.7-max" || m.id === "qwen3.7-plus" || m.id === "kimi-k2.7-code"
+    const fireworksModelsStatic = defaultModels.filter(
+      (m) => m.provider === "fireworks",
     );
 
     const liveIds = new Set(live.map((m) => m.id));
-    const finalAlibaba = [
+    const finalFireworks = [
       ...live,
-      ...alibabaModelsStatic.filter((m) => !liveIds.has(m.id)),
+      ...fireworksModelsStatic.filter((m) => !liveIds.has(m.id)),
     ];
 
-    // Merge: codex models + free models + whitelisted Alibaba models.
-    const merged = [...codexModels, ...allFreeModels, ...finalAlibaba];
+    // Merge: Fireworks models first (default order), then Codex.
+    const merged = [...finalFireworks, ...codexModels];
 
     return NextResponse.json({
       models: merged.sort(sortByVendor),
@@ -145,7 +150,7 @@ export async function GET() {
     return NextResponse.json({
       models: [...defaultModels].sort(sortByVendor),
       source: "fallback",
-      warning: "Failed to reach Alibaba MaaS API",
+      warning: "Failed to reach Fireworks API",
     });
   }
 }

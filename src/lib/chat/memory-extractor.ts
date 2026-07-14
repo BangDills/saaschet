@@ -39,24 +39,23 @@ export async function extractAndSaveMemories(
   userMessage: string,
   assistantMessage: string,
 ): Promise<void> {
-  const apiKey = process.env.ALIBABA_API_KEY || process.env.DO_INFERENCE_API_KEY;
-  const opencodeKey = process.env.OPENCODE_API_KEY;
-  
-  console.log(`[memory-extractor] Env check: ALIBABA_API_KEY/DO_INFERENCE_API_KEY exists: ${!!apiKey}, OPENCODE_API_KEY exists: ${!!opencodeKey}`);
+  const apiKey = process.env.FIREWORKS_API_KEY;
+
+  console.log(`[memory-extractor] Env check: FIREWORKS_API_KEY exists: ${!!apiKey}`);
 
   if (!apiKey) {
-    console.warn("[memory-extractor] ALIBABA_API_KEY or DO_INFERENCE_API_KEY is not set. Skipping memory extraction.");
+    console.warn("[memory-extractor] FIREWORKS_API_KEY is not set. Skipping memory extraction.");
     return;
   }
 
-  const baseUrl = process.env.ALIBABA_BASE_URL ?? "https://ws-7i0g4fvbloleocpm.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1";
-  
+  const baseUrl = process.env.FIREWORKS_BASE_URL ?? "https://api.fireworks.ai/inference/v1";
+
   const cleanUser = cleanAndTruncate(userMessage);
   const cleanAssistant = cleanAndTruncate(assistantMessage);
   const prompt = `User Message: "${cleanUser}"\n\nAssistant Response: "${cleanAssistant}"`;
 
   try {
-    const alibabaProvider = createOpenAI({
+    const fireworksProvider = createOpenAI({
       apiKey,
       baseURL: baseUrl,
     });
@@ -64,7 +63,7 @@ export async function extractAndSaveMemories(
     let text = "";
     try {
       const res = await streamText({
-        model: alibabaProvider("qwen3.7-plus"),
+        model: fireworksProvider("accounts/fireworks/models/qwen3p7-plus"),
         system: MEMORY_EXTRACTION_SYSTEM,
         prompt,
         onError: ({ error }) => {
@@ -73,29 +72,7 @@ export async function extractAndSaveMemories(
       });
       text = await res.text;
     } catch (err) {
-      console.warn("[memory-extractor] Alibaba call failed:", err instanceof Error ? err.message : String(err));
-    }
-
-    // Fallback to OpenCode if Alibaba returned empty or failed, and OpenCode key is available
-    if ((!text || text.trim().length === 0) && opencodeKey) {
-      console.log("[memory-extractor] Alibaba returned empty or failed. Falling back to OpenCode...");
-      try {
-        const opencodeProvider = createOpenAI({
-          apiKey: opencodeKey,
-          baseURL: "https://opencode.ai/zen/v1",
-        });
-        const res = await streamText({
-          model: opencodeProvider("deepseek-v4-flash-free"),
-          system: MEMORY_EXTRACTION_SYSTEM,
-          prompt,
-          onError: ({ error }) => {
-            console.error("[memory-extractor] OpenCode streamText error details:", error);
-          },
-        });
-        text = await res.text;
-      } catch (err) {
-        console.error("[memory-extractor] OpenCode fallback failed:", err instanceof Error ? err.message : String(err));
-      }
+      console.warn("[memory-extractor] Fireworks call failed:", err instanceof Error ? err.message : String(err));
     }
 
     // Robustly extract the JSON array using regex (bypasses reasoning tags, markdown blocks, etc.)

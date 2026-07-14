@@ -6,9 +6,10 @@ import type { ModelInfo } from "./types";
 export const vendorOrder = [
   "OpenAI",
   "DeepSeek",
-  "Nvidia",
-  "Kimi",
   "GLM",
+  "Qwen",
+  "Kimi",
+  "MiniMax",
 ] as const;
 
 /**
@@ -48,14 +49,9 @@ export const agentCapableModels = new Set([
   // OpenAI Codex (ChatGPT subscription)
   "codex/gpt-5.5",
 
-  // OpenCode free
-  "opencode/deepseek-v4-flash-free",
-
-  // Alibaba models
-  "glm-5.2",
-  "qwen3.7-max",
-  "qwen3.7-plus",
-  "kimi-k2.7-code",
+  // Fireworks AI
+  "accounts/fireworks/models/glm-5p2",
+  "accounts/fireworks/models/kimi-k2p7-code",
 ]);
 
 /** Check if a model is suitable for agent mode (tool calling). */
@@ -68,9 +64,6 @@ export function isAgentCapable(modelId: string): boolean {
  */
 export const multimodalModels = new Set([
   "codex/gpt-5.5",
-  "glm-5.2",
-  "qwen3.7-max",
-  "qwen3.7-plus",
 ]);
 
 /** Check if a model supports vision/multimodal input. */
@@ -81,23 +74,25 @@ export function isMultimodal(modelId: string): boolean {
 /* ─────────────────────────────────────────────────────────────────────────
  * Multi-provider routing helpers
  *
- * Model IDs use a prefix convention: "provider/model-id".
- * Models without a prefix route to Alibaba (the default provider).
+ * Model IDs use a prefix convention: "provider/model-id" (e.g. "codex/gpt-5.5").
+ * Fireworks model IDs already include the "accounts/fireworks/models/" path
+ * and need no extra prefix — resolveProvider detects them by that path.
+ * Models without a recognized prefix route to Fireworks (the default provider).
  * ────────────────────────────────────────────────────────────────────── */
 
-type ProviderName = "alibaba" | "opencode" | "codex";
+type ProviderName = "fireworks" | "codex";
 
 const PROVIDER_PREFIXES: Record<string, ProviderName> = {
-  "opencode/": "opencode",
   "codex/": "codex",
 };
 
 /** Resolve which provider a model routes through. */
 export function resolveProvider(modelId: string): ProviderName {
+  if (modelId.startsWith("accounts/fireworks/")) return "fireworks";
   for (const [prefix, provider] of Object.entries(PROVIDER_PREFIXES)) {
     if (modelId.startsWith(prefix)) return provider;
   }
-  return "alibaba";
+  return "fireworks";
 }
 
 /** Strip the provider prefix to get the raw model ID for the API. */
@@ -110,38 +105,15 @@ export function stripProviderPrefix(modelId: string): string {
 
 /** Base URLs for each provider. */
 export const PROVIDER_BASE_URLS: Record<ProviderName, string> = {
-  alibaba: "https://ws-7i0g4fvbloleocpm.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
-  opencode: "https://opencode.ai/zen/v1",
+  fireworks: "https://api.fireworks.ai/inference/v1",
   codex: "https://chatgpt.com/backend-api/codex",
 };
 
 /** Environment variable names for each provider's API key. */
 export const PROVIDER_ENV_KEYS: Record<ProviderName, string> = {
-  alibaba: "ALIBABA_API_KEY",
-  opencode: "OPENCODE_API_KEY",
+  fireworks: "FIREWORKS_API_KEY",
   codex: "", // Uses per-user OAuth tokens, not a server-side env key
 };
-
-/**
- * Known OpenCode Zen free models. These don't require payment — only a
- * free OpenCode account for the API key.
- */
-export const opencodeFreeMod: ModelInfo[] = [
-  {
-    id: "opencode/deepseek-v4-flash-free",
-    label: "DeepSeek V4 Flash",
-    vendor: "DeepSeek",
-    tag: "FREE · OpenCode",
-    agentCapable: true,
-    provider: "opencode",
-    free: true,
-  },
-];
-
-/** All free models from all providers. */
-export const allFreeModels: ModelInfo[] = [
-  ...opencodeFreeMod,
-];
 
 /**
  * OpenAI Codex models — require the user to connect their ChatGPT account
@@ -161,53 +133,56 @@ export const codexModels: ModelInfo[] = [
 ];
 
 /**
- * Curated default model catalog for DigitalOcean Serverless Inference.
+ * Curated default model catalog for Fireworks AI.
  *
  * The full live list is fetched at runtime from /api/models, which proxies
- * GET https://inference.do-ai.run/v1/models. This static list is shown
+ * GET https://api.fireworks.ai/inference/v1/models. This static list is shown
  * immediately while the live fetch is in flight (and serves as a fallback
- * if the upstream is down).
+ * if the upstream is down). Fireworks models are listed first so the default
+ * model is not the auth-gated Codex entry.
  */
 export const defaultModels: ModelInfo[] = [
-  // ── Free Models ──
-  ...allFreeModels,
-
-  // ── OpenAI Codex (requires ChatGPT subscription OAuth) ──
-  ...codexModels,
-
-  // ── Alibaba Cloud Models ──
+  // ── Fireworks AI (default provider) ──
   {
-    id: "glm-5.2",
+    id: "accounts/fireworks/models/glm-5p2",
     label: "GLM 5.2",
     vendor: "GLM",
-    tag: "Latest Multimodal",
+    tag: "Agent · Default",
     agentCapable: true,
-    multimodal: true,
+    provider: "fireworks",
   },
   {
-    id: "qwen3.7-max",
-    label: "Qwen 3.7 Max",
-    vendor: "Qwen",
-    tag: "Reasoning Max",
-    agentCapable: true,
-    multimodal: true,
-  },
-  {
-    id: "qwen3.7-plus",
-    label: "Qwen 3.7 Plus",
-    vendor: "Qwen",
-    tag: "Speed & Quality",
-    agentCapable: true,
-    multimodal: true,
-  },
-  {
-    id: "kimi-k2.7-code",
+    id: "accounts/fireworks/models/kimi-k2p7-code",
     label: "Kimi 2.7 Code",
     vendor: "Kimi",
     tag: "Strong Coder",
     agentCapable: true,
+    provider: "fireworks",
   },
+  {
+    id: "accounts/fireworks/models/minimax-m3",
+    label: "MiniMax M3",
+    vendor: "MiniMax",
+    tag: "Balanced",
+    provider: "fireworks",
+  },
+  {
+    id: "accounts/fireworks/models/deepseek-v4-pro",
+    label: "DeepSeek V4 Pro",
+    vendor: "DeepSeek",
+    tag: "Reasoning Pro",
+    provider: "fireworks",
+  },
+  {
+    id: "accounts/fireworks/models/qwen3p7-plus",
+    label: "Qwen 3.7 Plus",
+    vendor: "Qwen",
+    tag: "Speed & Quality",
+    provider: "fireworks",
+  },
+
+  // ── OpenAI Codex (requires ChatGPT subscription OAuth) ──
+  ...codexModels,
 ];
 
 export const defaultModelId = defaultModels[0].id;
-

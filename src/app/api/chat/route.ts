@@ -922,12 +922,9 @@ When the user asks about library APIs, setup, migrations, or version-specific be
 
     const candidates = [
       modelId,
-      "opencode/deepseek-v4-flash-free",
-      "deepseek-4-flash",
-      "deepseek-v4-pro",
-      "kimi-k2.6",
-      "kimi-k2.5",
-      "glm-5",
+      "accounts/fireworks/models/glm-5p2",
+      "accounts/fireworks/models/kimi-k2p7-code",
+      "codex/gpt-5.5",
     ];
 
     return Array.from(new Set(candidates)).filter(
@@ -1050,7 +1047,7 @@ When the user asks about library APIs, setup, migrations, or version-specific be
     const modelMessages = await convertToModelMessages(processedMessages);
     // Agent tasks generate large tool call arguments (e.g. full file content
     // in write_file). 32k gives enough room for reasoning + multi-file writes.
-    // GLM-5 and DeepSeek V4 Pro also use reasoning tokens that eat into budget.
+    // DeepSeek V4 Pro and Qwen 3.7 Plus also use reasoning tokens that eat into budget.
     const maxOutputTokens = tools ? 32768 : 8192;
     let sandboxCleaned = false;
     let finishedSuccessfully = false;
@@ -1188,8 +1185,8 @@ ${recoveryInstruction}`;
             }
           }
 
-          // Structured JSONB profile extraction (uses Alibaba LLM if available)
-          if ((process.env.ALIBABA_API_KEY || process.env.DO_INFERENCE_API_KEY) && userText && text) {
+          // Structured JSONB profile extraction (uses Fireworks LLM if available)
+          if (process.env.FIREWORKS_API_KEY && userText && text) {
             try {
               extractAndSaveStructuredMemory(userId, userText, text).catch((err) => {
                 console.error("[chat] structured memory extraction failed:", err);

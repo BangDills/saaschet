@@ -75,8 +75,7 @@ Copy `.env.example` to `.env.local` and fill in your keys:
 
 | Variable | Required | Description |
 |----------|:---:|-------------|
-| `DO_INFERENCE_API_KEY` | ✅ | DigitalOcean model access key ([get here](https://cloud.digitalocean.com)) |
-| `OPENCODE_API_KEY` | Optional | OpenCode Zen API key for free DeepSeek model ([opencode.ai](https://opencode.ai)) |
+| `FIREWORKS_API_KEY` | ✅ | Fireworks AI API key ([get here](https://fireworks.ai)) |
 | `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Supabase service role key (server-side only) |

@@ -41,8 +41,8 @@ export type ModelInfo = {
   tag?: string;
   /** True when this model reliably supports tool calling for Agent Mode. */
   agentCapable?: boolean;
-  /** Which backend routes this model. Defaults to "digitalocean". */
-  provider?: "alibaba" | "opencode" | "codex";
+  /** Which backend routes this model. Defaults to "fireworks". */
+  provider?: "fireworks" | "codex";
   /** True when this model is free to use. */
   free?: boolean;
   /** True when this model requires the user to connect their own account. */
