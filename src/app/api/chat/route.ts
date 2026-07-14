@@ -19,6 +19,7 @@ import {
   PROVIDER_BASE_URLS,
   PROVIDER_ENV_KEYS,
   isAgentCapable,
+  maxOutputFor,
 } from "@/lib/chat/models";
 import { codexCompatFetch } from "@/lib/chat/codex-compat";
 import { searchWeb, formatSearchResults } from "@/lib/chat/web-search";
@@ -1049,7 +1050,9 @@ When the user asks about library APIs, setup, migrations, or version-specific be
     const modelMessages = await convertToModelMessages(processedMessages);
     // Agent tasks generate large tool call arguments (e.g. full file content
     // in write_file). 32k gives enough room for reasoning + multi-file writes.
-    // DeepSeek V4 Pro and Qwen 3.7 Plus also use reasoning tokens that eat into budget.
+    // Per-model caps from Fireworks docs are applied via maxOutputFor() —
+    // e.g. Qwen 3.7 Plus is capped at 4k. DeepSeek V4 Pro/Flash and GLM 5.2
+    // also use reasoning tokens that eat into the budget.
     const maxOutputTokens = tools ? 32768 : 8192;
     let sandboxCleaned = false;
     let finishedSuccessfully = false;
@@ -1126,7 +1129,9 @@ ${recoveryInstruction}`;
             : candidate.provider.chat(candidate.resolvedModelId),
         system: recoverySystem,
         messages: modelMessages,
-        ...(candidate.providerName === "codex" ? {} : { maxOutputTokens }),
+        ...(candidate.providerName === "codex"
+          ? {}
+          : { maxOutputTokens: maxOutputFor(candidateModelId, maxOutputTokens) }),
         ...(candidate.providerName === "codex"
           ? {
               providerOptions: {

@@ -116,6 +116,31 @@ export const PROVIDER_BASE_URLS: Record<ProviderName, string> = {
   codex: "https://chatgpt.com/backend-api/codex",
 };
 
+/**
+ * Per-model max output tokens, from Fireworks docs. A request whose
+ * max_tokens exceeds the model's cap is rejected or clamped, so we cap
+ * our requested maxOutputTokens to these values. Codex is excluded
+ * (chat route doesn't set maxOutputTokens for it).
+ */
+export const MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
+  "accounts/fireworks/models/glm-5p2": 131072,
+  "accounts/fireworks/models/deepseek-v4-flash": 131072,
+  "accounts/fireworks/models/deepseek-v4-pro": 131072,
+  "accounts/fireworks/models/kimi-k2p7-code": 32768,
+  "accounts/fireworks/models/minimax-m3": 64000,
+  "accounts/fireworks/models/qwen3p7-plus": 4000,
+};
+
+/** Max output tokens for a model, clamped to the model's documented cap. */
+export function maxOutputFor(
+  modelId: string,
+  /** Requested tokens for this turn (agent vs chat default). */
+  requested: number,
+): number {
+  const cap = MODEL_MAX_OUTPUT_TOKENS[modelId];
+  return cap ? Math.min(requested, cap) : requested;
+}
+
 /** Environment variable names for each provider's API key. */
 export const PROVIDER_ENV_KEYS: Record<ProviderName, string> = {
   fireworks: "FIREWORKS_API_KEY",
