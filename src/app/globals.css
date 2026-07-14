@@ -15,6 +15,8 @@
   --ring: #0a0a0a;
   --primary: #0a0a0a;
   --primary-foreground: #ffffff;
+  --logo: #0a0a0a;
+  --logo-foreground: #ffffff;
   --secondary: #f2f2f0;
   --secondary-foreground: #0a0a0a;
   --accent: #e8e8e5;
@@ -75,6 +77,8 @@
   --color-ring: var(--ring);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-logo: var(--logo);
+  --color-logo-foreground: var(--logo-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-accent: var(--accent);

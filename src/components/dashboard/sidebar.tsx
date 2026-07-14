@@ -6,6 +6,7 @@ import { getNavItems, type UserRole } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { CreditsMeter } from "./credits-meter";
+import { CeliuzLogo } from "@/components/celiuz-logo";
 
 export type SidebarProps = {
   displayName: string;
@@ -31,9 +32,11 @@ export function Sidebar({
       <div className="px-5 py-4">
         <Link
           href="/ai-chat"
-          className="text-base font-semibold tracking-tight text-foreground hover:text-primary transition-colors"
+          className="group flex items-center gap-3 text-base font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80"
+          aria-label="Celiuz AI Studio"
         >
-          Celiuz AI Studio
+          <CeliuzLogo />
+          <span>Celiuz AI Studio</span>
         </Link>
       </div>
 

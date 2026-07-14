@@ -7,7 +7,6 @@ import {
   Circle,
   ClipboardList,
   Coins,
-  Command,
   FileText,
   Image as ImageIcon,
   Mic,
@@ -18,6 +17,7 @@ import {
   Zap,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { CeliuzLogo } from "@/components/celiuz-logo";
 
 export const dynamic = "force-dynamic";
 
@@ -99,9 +99,7 @@ const faqs = [
 function Brand() {
   return (
     <Link href="/" className="group flex items-center gap-3" aria-label="Celiuz AI Studio home">
-      <span className="flex size-9 items-center justify-center border border-foreground bg-foreground text-background transition-colors group-hover:bg-background group-hover:text-foreground">
-        <Command aria-hidden="true" className="size-4" />
-      </span>
+      <CeliuzLogo className="rounded-none transition-transform group-hover:-translate-y-0.5" />
       <span className="text-sm font-extrabold tracking-[-0.03em] sm:text-base">CELIUZ / AI</span>
     </Link>
   );

@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "./theme-toggle";
 import { signOut } from "@/app/(auth)/login/actions";
+import { CeliuzLogo } from "@/components/celiuz-logo";
 
 function useCurrentTitle() {
   const pathname = usePathname();
@@ -139,9 +140,11 @@ export function Topbar({ initials, role = "user" }: TopbarProps) {
             <div className="flex items-center justify-between px-4 py-3">
               <Link
                 href="/ai-chat"
-                className="text-base font-semibold tracking-tight text-foreground hover:text-primary transition-colors"
+                className="flex items-center gap-3 text-base font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80"
+                aria-label="Celiuz AI Studio"
               >
-                Celiuz AI Studio
+                <CeliuzLogo />
+                <span>Celiuz AI Studio</span>
               </Link>
               <Button
                 variant="ghost"
