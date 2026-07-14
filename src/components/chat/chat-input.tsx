@@ -44,6 +44,11 @@ export type ChatInputProps = {
   githubUsername?: string | null;
   /** Callback to open the OpenAI connect dialog. */
   onConnectOpenAI?: () => void;
+  /** Controlled composer draft shared with prompt suggestions. */
+  draft: string;
+  onDraftChange: (value: string) => void;
+  /** Increment to move focus back to the composer. */
+  focusRequestKey?: number;
 };
 
 /**
@@ -74,8 +79,10 @@ export function ChatInput({
   githubAccessMode = "unknown",
   githubUsername,
   onConnectOpenAI,
+  draft,
+  onDraftChange,
+  focusRequestKey = 0,
 }: ChatInputProps) {
-  const [value, setValue] = React.useState("");
   const [selectedImage, setSelectedImage] = React.useState<{
     url: string;
     base64: string;
@@ -116,10 +123,14 @@ export function ChatInput({
 
   React.useEffect(() => {
     adjust();
-  }, [value, adjust]);
+  }, [draft, adjust]);
+
+  React.useEffect(() => {
+    if (focusRequestKey > 0) textareaRef.current?.focus();
+  }, [focusRequestKey]);
 
   function send() {
-    const text = value.trim();
+    const text = draft.trim();
     if ((!text && !selectedImage) || disabled) return;
     onSubmit(
       text,
@@ -131,7 +142,7 @@ export function ChatInput({
           }
         : null,
     );
-    setValue("");
+    onDraftChange("");
     clearImage();
     requestAnimationFrame(adjust);
   }
@@ -171,7 +182,7 @@ export function ChatInput({
     e.target.value = "";
   }
 
-  const canSend = (value.trim().length > 0 || selectedImage !== null) && !disabled;
+  const canSend = (draft.trim().length > 0 || selectedImage !== null) && !disabled;
 
   return (
     <div className="mx-auto w-full max-w-3xl">
@@ -200,8 +211,8 @@ export function ChatInput({
         )}
         <textarea
           ref={textareaRef}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
+          value={draft}
+          onChange={(e) => onDraftChange(e.target.value)}
           onKeyDown={handleKey}
           placeholder={placeholder}
           rows={2}

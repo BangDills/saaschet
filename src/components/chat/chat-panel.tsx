@@ -434,23 +434,58 @@ export function ChatPanel({
     }
   }
 
-  // The input pill at the bottom (or center for hero) is the same in both
-  // modes — the page-level state controls the toggles.
-  const suggestions = React.useMemo(
-    () =>
-      repo
-        ? [
-            `Review the ${repo} repository`,
-            `Find issues in ${repo}`,
-            `Explain the architecture of ${repo}`,
-          ]
-        : [
-            "Review a repository",
-            "Build a landing page",
-            "Debug an issue",
-          ],
-    [repo],
-  );
+  // The composer draft lives here so starter and follow-up prompts can fill it
+  // without sending immediately or losing the text when the layout changes.
+  const [draft, setDraft] = React.useState("");
+  const [focusRequestKey, setFocusRequestKey] = React.useState(0);
+
+  const fillComposer = React.useCallback((suggestion: string) => {
+    setDraft(suggestion);
+    setFocusRequestKey((key) => key + 1);
+  }, []);
+
+  const starterSuggestions = React.useMemo(() => {
+    if (repo && agentMode) {
+      return [
+        `Tinjau kode di ${repo}`,
+        `Temukan dan perbaiki bug di ${repo}`,
+        `Buat rencana perubahan untuk ${repo}`,
+      ];
+    }
+    if (repo) {
+      return [
+        `Jelaskan arsitektur ${repo}`,
+        `Temukan potensi masalah di ${repo}`,
+        `Ringkas isi repository ${repo}`,
+      ];
+    }
+    if (agentMode) {
+      return [
+        "Bantu saya merencanakan fitur baru",
+        "Tinjau kode dan sarankan perbaikan",
+        "Bantu debug sebuah masalah",
+      ];
+    }
+    return [
+      "Tinjau sebuah repository",
+      "Buat landing page",
+      "Bantu debug sebuah masalah",
+    ];
+  }, [agentMode, repo]);
+
+  const followUpSuggestions = React.useMemo(() => {
+    if (repo && agentMode) {
+      return ["Terapkan perubahan ini", "Periksa dampak perubahannya", "Buatkan pengujian"];
+    }
+    if (repo) {
+      return ["Jelaskan lebih rinci", "Tunjukkan file terkait", "Apa langkah berikutnya?"];
+    }
+    return ["Jelaskan lebih sederhana", "Berikan contoh", "Apa langkah berikutnya?"];
+  }, [agentMode, repo]);
+
+  const lastVisibleMessage = visibleMessages[visibleMessages.length - 1];
+  const showFollowUps =
+    !isStreaming && !error && lastVisibleMessage?.role === "assistant";
 
   const inputProps = {
     onSubmit: handleSubmit,
@@ -469,6 +504,9 @@ export function ChatPanel({
     githubAccessMode,
     githubUsername,
     onConnectOpenAI: () => setShowOpenAIDialog(true),
+    draft,
+    onDraftChange: setDraft,
+    focusRequestKey,
   } as const;
 
   return (
@@ -526,6 +564,21 @@ export function ChatPanel({
                   />
                 )}
 
+              {showFollowUps && (
+                <div className="mt-3 flex flex-wrap gap-2 pl-10 sm:pl-12" aria-label="Saran lanjutan">
+                  {followUpSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => fillComposer(suggestion)}
+                      className="rounded-lg border border-border bg-background px-3 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Background processing indicator — shown when conversation
                   was restored from DB and server is still working */}
               {isServerProcessing && !isStreaming && <ProcessingIndicator />}
@@ -569,12 +622,12 @@ export function ChatPanel({
             </div>
 
             <div className="flex w-full flex-wrap justify-center gap-2 px-2">
-              {suggestions.map((suggestion) => (
+              {starterSuggestions.map((suggestion) => (
                 <button
                   key={suggestion}
                   type="button"
-                  onClick={() => handleSubmit(suggestion)}
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                  onClick={() => fillComposer(suggestion)}
+                  className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {suggestion}
                 </button>
