@@ -52,7 +52,7 @@ export function Topbar({ initials, role = "user" }: TopbarProps) {
   }, [profileOpen]);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-sm lg:border-b-0 lg:bg-background">
+    <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm lg:bg-background">
       <div className="flex h-14 items-center justify-between gap-3 px-3 sm:h-auto sm:px-6 sm:py-3 lg:px-8">
         <div className="flex min-w-0 items-center gap-2.5">
           <Button
