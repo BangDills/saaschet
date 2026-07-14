@@ -326,7 +326,7 @@ export default function AIChatPage() {
                             const isActive = conversation.id === active.conversationId;
                             const isEditing = editingId === conversation.id;
                             return (
-                              <div key={conversation.id} className={cn("relative flex min-h-10 items-center gap-1 rounded-lg px-2 text-sm transition-colors", isActive ? "bg-accent text-accent-foreground" : "hover:bg-accent/60")}>
+                              <div key={conversation.id} className={cn("relative flex min-h-10 flex-wrap items-center gap-1 rounded-lg px-2 text-sm transition-colors", isActive ? "bg-accent text-accent-foreground" : "hover:bg-accent/60")}>
                                 {isEditing ? (
                                   <form className="flex min-w-0 flex-1 items-center gap-1 py-1" onSubmit={(event) => { event.preventDefault(); void saveRename(conversation.id); }}>
                                     <input ref={renameInputRef} value={draftTitle} maxLength={MAX_TITLE_LENGTH} onChange={(event) => setDraftTitle(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setEditingId(null); }} aria-label="Conversation title" className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring" />
@@ -343,7 +343,7 @@ export default function AIChatPage() {
                                       <MoreHorizontal className="size-4" />
                                     </button>
                                     {menuId === conversation.id && (
-                                      <div className="absolute right-1 top-9 z-20 w-40 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg">
+                                      <div className="order-last mb-2 ml-auto flex w-full basis-full flex-col rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-sm sm:absolute sm:right-1 sm:top-9 sm:z-20 sm:mb-0 sm:w-40 sm:basis-auto sm:shadow-lg">
                                         <button type="button" onClick={() => beginRename(conversation)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent"><Pencil className="size-3.5" />Rename</button>
                                         <button type="button" onClick={() => void togglePin(conversation)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent">{conversation.isPinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}{conversation.isPinned ? "Unpin" : "Pin"}</button>
                                         <button type="button" onClick={() => { setDeleteTarget(conversation); setMenuId(null); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-destructive hover:bg-destructive/10"><Trash2 className="size-3.5" />Delete</button>
