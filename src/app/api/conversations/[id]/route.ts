@@ -10,6 +10,7 @@ type ConversationRow = {
   title: string;
   model_id: string;
   github_repo: string | null;
+  is_pinned: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -39,7 +40,7 @@ export async function GET(
   // RLS already guarantees ownership, but eq filters keep things tidy.
   const { data: conv, error: convErr } = await supabase
     .from("conversations")
-    .select("id, title, model_id, github_repo, created_at, updated_at")
+    .select("id, title, model_id, github_repo, is_pinned, created_at, updated_at")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -73,6 +74,7 @@ export async function GET(
       title: c.title,
       modelId: c.model_id,
       githubRepo: c.github_repo,
+      isPinned: c.is_pinned,
       createdAt: new Date(c.created_at).getTime(),
       updatedAt: new Date(c.updated_at).getTime(),
       messages: m.map((row) => ({
@@ -81,6 +83,81 @@ export async function GET(
         content: row.content,
         createdAt: new Date(row.created_at).getTime(),
       })),
+    },
+  });
+}
+
+/** PATCH /api/conversations/[id] — rename or pin an owned conversation. */
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let body: { title?: unknown; isPinned?: unknown };
+  try {
+    body = (await req.json()) as { title?: unknown; isPinned?: unknown };
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const updates: { title?: string; is_pinned?: boolean } = {};
+  if (body.title !== undefined) {
+    if (typeof body.title !== "string") {
+      return NextResponse.json({ error: "Title must be a string" }, { status: 400 });
+    }
+    const title = body.title.trim().replace(/\s+/g, " ");
+    if (title.length < 1 || title.length > 100) {
+      return NextResponse.json(
+        { error: "Title must be between 1 and 100 characters" },
+        { status: 400 },
+      );
+    }
+    updates.title = title;
+  }
+  if (body.isPinned !== undefined) {
+    if (typeof body.isPinned !== "boolean") {
+      return NextResponse.json({ error: "isPinned must be a boolean" }, { status: 400 });
+    }
+    updates.is_pinned = body.isPinned;
+  }
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: "No supported updates provided" }, { status: 400 });
+  }
+
+  const { data, error } = await supabase
+    .from("conversations")
+    .update(updates)
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .select("id, title, model_id, github_repo, is_pinned, created_at, updated_at")
+    .maybeSingle();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!data) {
+    return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+  }
+
+  const conversation = data as ConversationRow;
+  return NextResponse.json({
+    conversation: {
+      id: conversation.id,
+      title: conversation.title,
+      modelId: conversation.model_id,
+      githubRepo: conversation.github_repo,
+      isPinned: conversation.is_pinned,
+      messages: [],
+      createdAt: new Date(conversation.created_at).getTime(),
+      updatedAt: new Date(conversation.updated_at).getTime(),
     },
   });
 }

@@ -22,6 +22,8 @@ export type Conversation = {
   githubRepo: string | null;
   /** 'idle' | 'processing' — tracks whether the server is still generating */
   status?: string;
+  /** Pinned conversations are shown before date-based history groups. */
+  isPinned: boolean;
   /** Empty when this object came from the list endpoint. */
   messages: ChatMessage[];
   createdAt: number;
