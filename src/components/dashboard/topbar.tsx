@@ -52,19 +52,19 @@ export function Topbar({ initials, role = "user" }: TopbarProps) {
   }, [profileOpen]);
 
   return (
-    <header className="sticky top-0 z-30 bg-background">
-      <div className="flex items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-sm lg:border-b-0 lg:bg-background">
+      <div className="flex h-14 items-center justify-between gap-3 px-3 sm:h-auto sm:px-6 sm:py-3 lg:px-8">
+        <div className="flex min-w-0 items-center gap-2.5">
           <Button
             variant="outline"
             size="icon"
-            className="rounded-lg lg:hidden"
+            className="size-10 rounded-lg lg:hidden"
             aria-label="Open menu"
             onClick={() => setOpen(true)}
           >
             <Menu className="size-4" />
           </Button>
-          <h1 className="text-lg font-semibold tracking-tight">
+          <h1 className="truncate text-base font-semibold tracking-tight sm:text-lg">
             {title}
           </h1>
         </div>
@@ -81,7 +81,7 @@ export function Topbar({ initials, role = "user" }: TopbarProps) {
           >
             <button
               onClick={() => setProfileOpen((p) => !p)}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-80"
+              className="flex size-9 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-80 sm:size-8"
               aria-label="Profile menu"
             >
               {initials || "U"}
