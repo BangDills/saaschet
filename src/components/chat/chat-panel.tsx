@@ -751,6 +751,7 @@ export function ChatPanel({
                   <StreamingPill
                     charCount={pendingCharCount}
                     startedAt={streamStartedAt}
+                    requestStatus={status === "submitted" ? "submitted" : "streaming"}
                     onStop={stop}
                   />
                 )}

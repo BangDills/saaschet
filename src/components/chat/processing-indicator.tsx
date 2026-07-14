@@ -3,34 +3,52 @@
 import * as React from "react";
 import { BrainCircuit } from "lucide-react";
 
-/**
- * Pulsing indicator shown when a conversation was restored from DB
- * and the server is still processing the AI response.
- */
+function formatElapsed(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes > 0 ? `${minutes}:${seconds.toString().padStart(2, "0")}` : `${seconds}s`;
+}
+
+/** Shown when a restored conversation is still being processed by the server. */
 export function ProcessingIndicator() {
   const [elapsed, setElapsed] = React.useState(0);
 
   React.useEffect(() => {
-    const timer = setInterval(() => {
-      setElapsed((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(timer);
+    const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
   }, []);
-
-  const mins = Math.floor(elapsed / 60);
-  const secs = elapsed % 60;
-  const timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
 
   return (
     <div
-      className="my-3 flex items-center gap-2 py-1 text-sm text-muted-foreground"
+      className="my-3 w-full max-w-xl rounded-xl border border-border bg-card p-3 text-card-foreground shadow-sm sm:p-4"
       role="status"
       aria-live="polite"
+      aria-label="Processing in background. Your conversation is still active."
     >
-      <BrainCircuit className="size-4 shrink-0 animate-pulse" aria-hidden />
-      <span>Agent is working</span>
-      <span aria-hidden>·</span>
-      <span className="font-mono text-xs tabular-nums">{timeStr}</span>
+      <div className="flex items-start gap-3">
+        <div className="relative flex size-9 shrink-0 items-center justify-center rounded-lg bg-foreground text-background">
+          <BrainCircuit
+            className="size-4 motion-safe:animate-pulse"
+            aria-hidden="true"
+          />
+          <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-background ring-2 ring-foreground motion-safe:animate-pulse" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-semibold leading-5">Processing</p>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              <span className="size-1.5 rounded-full bg-foreground motion-safe:animate-pulse" />
+              Background
+            </span>
+          </div>
+          <p className="mt-0.5 text-pretty text-xs leading-5 text-muted-foreground sm:text-sm">
+            Your conversation is still active. The result will appear here automatically.
+          </p>
+          <span className="mt-3 inline-flex rounded-md bg-muted px-2 py-1 font-mono text-xs tabular-nums text-muted-foreground">
+            {formatElapsed(elapsed)}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
