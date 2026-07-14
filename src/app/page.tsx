@@ -7,9 +7,6 @@ import {
   Circle,
   ClipboardList,
   Coins,
-  FileText,
-  Image as ImageIcon,
-  Mic,
   Paperclip,
   Send,
   Sparkles,
@@ -41,30 +38,6 @@ const features = [
   },
   {
     number: "03",
-    title: "AI Image Studio",
-    description:
-      "Create production-ready visuals, concepts, and illustrations with next-generation image models.",
-    icon: ImageIcon,
-    href: "/ai-image",
-  },
-  {
-    number: "04",
-    title: "Natural Text-to-Speech",
-    description:
-      "Transform scripts into natural, human-like voiceovers for demos, content, and product experiences.",
-    icon: Mic,
-    href: "/ai-speech",
-  },
-  {
-    number: "05",
-    title: "AI Copywriter",
-    description:
-      "Produce clear long-form content, campaign copy, and documentation without losing your voice.",
-    icon: FileText,
-    href: "/ai-text",
-  },
-  {
-    number: "06",
     title: "One Credit System",
     description:
       "Use one transparent balance across every model with detailed, real-time usage tracking.",
@@ -77,7 +50,7 @@ const faqs = [
   {
     question: "What is Celiuz AI Studio?",
     answer:
-      "Celiuz AI Studio is one workspace for AI chat, image generation, PRD creation, copywriting, and text-to-speech. One account and one credit balance gives you access to the full suite.",
+      "Celiuz AI Studio is one workspace for AI chat and PRD creation. One account and one credit balance gives you access to the full suite.",
   },
   {
     question: "How does the credit system work?",
@@ -135,9 +108,6 @@ function ProductPreview() {
               </span>
               <span className="flex items-center gap-2 px-3 py-2.5 text-muted-foreground">
                 <ClipboardList className="size-4" /> PRD Builder
-              </span>
-              <span className="flex items-center gap-2 px-3 py-2.5 text-muted-foreground">
-                <ImageIcon className="size-4" /> Image Studio
               </span>
             </nav>
           </div>
@@ -246,7 +216,7 @@ export default async function LandingPage() {
             </div>
             <div className="border-l border-foreground pl-5 lg:pb-2">
               <p className="text-pretty text-base leading-relaxed text-muted-foreground">
-                Chat, code, write, design, and ship with a focused suite of AI tools built for people who make things.
+                Chat, code, and ship with a focused suite of AI tools built for people who make things.
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row lg:flex-col">
                 <Link href={user ? appLink : "/signup"} className="inline-flex items-center justify-between bg-foreground px-5 py-3.5 text-sm font-bold text-background transition-opacity hover:opacity-75">
@@ -264,7 +234,7 @@ export default async function LandingPage() {
 
       <section className="border-b border-foreground bg-foreground text-background" aria-label="Platform capabilities">
         <div className="mx-auto grid max-w-7xl grid-cols-2 divide-x divide-background/25 px-4 sm:grid-cols-4 sm:px-6 lg:px-8">
-          {[['06', 'AI tools'], ['01', 'Credit balance'], ['24/7', 'Always available'], ['BYOK', 'Keys supported']].map(([value, label]) => (
+          {[['03', 'AI tools'], ['01', 'Credit balance'], ['24/7', 'Always available'], ['BYOK', 'Keys supported']].map(([value, label]) => (
             <div key={label} className="px-3 py-7 text-center sm:px-6">
               <p className="font-mono text-xl font-bold sm:text-2xl">{value}</p>
               <p className="mt-1 text-[9px] uppercase tracking-[0.15em] text-background/60 sm:text-[10px]">{label}</p>
@@ -278,7 +248,7 @@ export default async function LandingPage() {
           <div className="grid gap-8 border-b border-foreground pb-10 lg:grid-cols-2">
             <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">[ 01 — Tool suite ]</p>
             <div>
-              <h2 className="text-balance text-4xl font-extrabold leading-none tracking-[-0.05em] sm:text-6xl">Six tools. One clear workflow.</h2>
+              <h2 className="text-balance text-4xl font-extrabold leading-none tracking-[-0.05em] sm:text-6xl">Three tools. One clear workflow.</h2>
               <p className="mt-5 max-w-xl leading-relaxed text-muted-foreground">Stop switching tabs and subscriptions. Move from research to production in one connected workspace.</p>
             </div>
           </div>
@@ -312,7 +282,7 @@ export default async function LandingPage() {
             <div>
               <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">[ 02 — Pricing ]</p>
               <h2 className="mt-6 text-balance text-4xl font-extrabold leading-none tracking-[-0.05em] sm:text-6xl">Pay for output, not empty seats.</h2>
-              <p className="mt-5 max-w-md leading-relaxed text-muted-foreground">One credit balance for text, images, speech, and agent workflows. Start free and upgrade when your work scales.</p>
+              <p className="mt-5 max-w-md leading-relaxed text-muted-foreground">One credit balance for chat, PRD, and agent workflows. Start free and upgrade when your work scales.</p>
             </div>
             <div className="grid md:grid-cols-2">
               <article className="flex min-h-[460px] flex-col justify-between border border-foreground bg-background p-7">

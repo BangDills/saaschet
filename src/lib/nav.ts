@@ -1,8 +1,5 @@
 import {
   MessageSquare,
-  FileText,
-  Image as ImageIcon,
-  Mic,
   Settings,
   CreditCard,
   History,
@@ -29,9 +26,6 @@ const sidebarNavItems: NavItem[] = [
   { label: "Manage Users", href: "/users", icon: Users, adminOnly: true },
   { label: "AI Agent", href: "/ai-chat", icon: MessageSquare },
   { label: "PRD Generator", href: "/prd-generator", icon: ClipboardList },
-  { label: "AI Text Generator", href: "/ai-text", icon: FileText },
-  { label: "AI Image Generator", href: "/ai-image", icon: ImageIcon },
-  { label: "AI Text to Speech", href: "/ai-speech", icon: Mic },
   { label: "History", href: "/history", icon: History },
 ];
 
