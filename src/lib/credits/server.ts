@@ -37,6 +37,8 @@ export type CreditSnapshot = {
   /** UTC ms when the counter next resets. */
   resetsAt: number;
   totalUsed: number;
+  /** UTC ms when the pro trial expires, or null (no expiry / not pro). */
+  tierExpiresAt: number | null;
 };
 
 function todayUtcDate(): string {
@@ -61,7 +63,9 @@ export async function getCreditSnapshot(
 
   const { data: row } = await admin
     .from("user_credits")
-    .select("tier, daily_limit, used_today, day_started_on, total_used")
+    .select(
+      "tier, daily_limit, used_today, day_started_on, total_used, tier_expires_at",
+    )
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -69,6 +73,7 @@ export async function getCreditSnapshot(
   let dailyLimit = DEFAULT_DAILY_LIMIT;
   let usedToday = 0;
   let totalUsed = 0;
+  let tierExpiresAt: number | null = null;
 
   if (!row) {
     // Backfill missing row (older users predating migration 2).
@@ -77,6 +82,29 @@ export async function getCreditSnapshot(
     tier = (row.tier as Tier) ?? "free";
     dailyLimit = row.daily_limit ?? TIER_LIMITS[tier];
     totalUsed = Number(row.total_used ?? 0);
+
+    // Pro trial expiry: if the pro window has passed, auto-downgrade to free
+    // (no expiry) and reset the daily limit to the free tier. A null
+    // tier_expires_at means permanent (legacy pro users from before 0008).
+    const expiresRaw = row.tier_expires_at as string | null;
+    if (tier === "pro" && expiresRaw) {
+      const expiresMs = new Date(expiresRaw).getTime();
+      tierExpiresAt = expiresMs;
+      if (Date.now() >= expiresMs) {
+        tier = "free";
+        dailyLimit = TIER_LIMITS.free;
+        tierExpiresAt = null;
+        await admin
+          .from("user_credits")
+          .update({
+            tier: "free",
+            daily_limit: TIER_LIMITS.free,
+            tier_expires_at: null,
+          })
+          .eq("user_id", userId);
+      }
+    }
+
     if (row.day_started_on === todayUtcDate()) {
       usedToday = row.used_today ?? 0;
     } else {
@@ -99,6 +127,7 @@ export async function getCreditSnapshot(
     remaining: Math.max(0, dailyLimit - usedToday),
     resetsAt: tomorrowUtcMs(),
     totalUsed,
+    tierExpiresAt,
   };
 }
 

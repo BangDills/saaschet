@@ -54,11 +54,11 @@ const PLANS: {
   {
     tier: "pro",
     name: "Pro",
-    price: "$19",
-    description: "For power users and teams",
+    price: "Rp10.000",
+    description: "24-hour trial — promo pembukaan minggu ini",
     limit: 1000,
     features: [
-      "1,000 credits per day",
+      "1,000 credits per 24 hours",
       "AI Chat with all models",
       "Web search integration",
       "GitHub repo context",
@@ -71,6 +71,12 @@ const PLANS: {
     accent: "from-amber-500 to-orange-600",
   },
 ];
+
+const WHATSAPP_PROMO_URL =
+  "https://wa.me/6281414185065?text=" +
+  encodeURIComponent(
+    "Halo admin Celiuz AI, saya mau aktifkan Pro harian (Rp10.000). Email akun saya: ",
+  );
 
 function fmtResetsIn(resetsAt: number): string {
   const ms = Math.max(0, resetsAt - Date.now());
@@ -200,7 +206,9 @@ export function SubscriptionPlans({
               <CardContent>
                 <div className="mb-4">
                   <span className="text-4xl font-bold">{plan.price}</span>
-                  <span className="text-muted-foreground">/month</span>
+                  <span className="text-muted-foreground">
+                    {plan.tier === "pro" ? "/24 jam" : "/month"}
+                  </span>
                 </div>
 
                 <p className="mb-3 text-sm font-semibold">
@@ -222,10 +230,18 @@ export function SubscriptionPlans({
                 <div className="mt-6">
                   {isCurrent ? (
                     <Button variant="outline" className="w-full" disabled>
-                      Current plan
+                      {plan.tier === "pro" ? "Pro aktif 24 jam" : "Current plan"}
                     </Button>
+                  ) : plan.tier === "pro" ? (
+                    <a href={WHATSAPP_PROMO_URL} target="_blank" rel="noreferrer">
+                      <Button className="w-full">
+                        <Crown className="mr-2 size-4" />
+                        Aktifkan Pro · Rp10.000
+                      </Button>
+                    </a>
                   ) : (
                     <Button
+                      variant="outline"
                       className="w-full"
                       onClick={() => switchTier(plan.tier)}
                       disabled={switching}
@@ -233,7 +249,7 @@ export function SubscriptionPlans({
                       {switching ? (
                         <Loader2 className="mr-2 size-4 animate-spin" />
                       ) : null}
-                      {plan.tier === "pro" ? "Upgrade to Pro" : "Switch to Free"}
+                      Switch to Free
                     </Button>
                   )}
                 </div>
@@ -244,8 +260,8 @@ export function SubscriptionPlans({
       </div>
 
       <p className="text-center text-xs text-muted-foreground">
-        Plans switch instantly. No payment required during beta — Pro is free
-        while we build out the platform.
+        Pro adalah trial 24 jam. Klik &quot;Aktifkan Pro&quot; untuk lanjut ke
+        WhatsApp admin, bayar Rp10.000, lalu admin aktifkan Pro Anda selama 24 jam.
       </p>
     </div>
   );

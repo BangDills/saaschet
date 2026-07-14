@@ -15,6 +15,8 @@ export type RealUserRow = {
   githubUsername: string | null;
   provider: string;
   tier: "free" | "pro";
+  tierExpiresAt: string | null;
+  tierExpired: boolean;
   totalUsed: number;
   createdAt: string;
   lastSignIn: string | null;
@@ -22,18 +24,36 @@ export type RealUserRow = {
 
 const PAGE_SIZE = 8;
 
-function TierBadge({ tier }: { tier: "free" | "pro" }) {
+function TierBadge({
+  tier,
+  tierExpiresAt,
+  expired,
+}: {
+  tier: "free" | "pro";
+  tierExpiresAt: string | null;
+  expired: boolean;
+}) {
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
-        tier === "pro"
+        tier === "pro" && !expired
           ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
           : "bg-muted text-muted-foreground",
       )}
     >
       {tier === "pro" && <Crown className="size-2.5" />}
-      {tier}
+      {expired ? "pro·expired" : tier}
+      {tier === "pro" && tierExpiresAt && !expired && (
+        <span className="font-normal normal-case opacity-70">
+          · until {new Date(tierExpiresAt).toLocaleString("en-US", {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </span>
+      )}
     </span>
   );
 }
@@ -69,17 +89,16 @@ export function UsersTable({ users }: { users: RealUserRow[] }) {
   const [batchLoading, setBatchLoading] = React.useState(false);
 
   const totalPages = Math.ceil(users.length / PAGE_SIZE);
-  const pageRows = users.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  // Clamp page in render so shrinking data never points past the last page
+  // (avoids a setState-in-effect).
+  const safePage = totalPages > 0 ? Math.min(page, totalPages - 1) : 0;
+  const pageRows = users.slice(
+    safePage * PAGE_SIZE,
+    safePage * PAGE_SIZE + PAGE_SIZE,
+  );
 
   const allOnPageSelected =
     pageRows.length > 0 && pageRows.every((r) => selected.has(r.id));
-
-  // Reset page if data filtered out
-  React.useEffect(() => {
-    if (page >= totalPages && totalPages > 0) {
-      setPage(totalPages - 1);
-    }
-  }, [users.length, totalPages, page]);
 
   // Click outside listener to close row action menu
   React.useEffect(() => {
@@ -207,7 +226,7 @@ export function UsersTable({ users }: { users: RealUserRow[] }) {
               disabled={batchLoading}
               onClick={handleBatchUpgrade}
             >
-              Make Pro
+              Make Pro 24h
             </Button>
             <Button
               variant="outline"
@@ -318,7 +337,11 @@ export function UsersTable({ users }: { users: RealUserRow[] }) {
                         <ProviderBadge provider={row.provider} />
                       </td>
                       <td className="px-3 py-3">
-                        <TierBadge tier={row.tier} />
+                        <TierBadge
+                          tier={row.tier}
+                          tierExpiresAt={row.tierExpiresAt}
+                          expired={row.tierExpired}
+                        />
                       </td>
                       <td className="px-3 py-3 text-right tabular-nums font-mono text-muted-foreground">
                         {row.totalUsed.toLocaleString()}
@@ -352,7 +375,7 @@ export function UsersTable({ users }: { users: RealUserRow[] }) {
                               onClick={() => handleToggleTier(row.id, row.tier)}
                               className="flex w-full items-center px-2.5 py-1.5 text-left text-xs font-medium rounded-md hover:bg-accent text-foreground transition-colors"
                             >
-                              {row.tier === "pro" ? "Make Free" : "Make Pro"}
+                              {row.tier === "pro" ? "Make Free" : "Aktifkan Pro 24h"}
                             </button>
                             <button
                               onClick={() => handleDeleteUser(row.id)}
@@ -379,7 +402,7 @@ export function UsersTable({ users }: { users: RealUserRow[] }) {
             <Button
               variant="outline"
               size="sm"
-              disabled={page === 0}
+              disabled={safePage === 0}
               onClick={() => setPage((p) => Math.max(0, p - 1))}
             >
               Previous
@@ -387,7 +410,7 @@ export function UsersTable({ users }: { users: RealUserRow[] }) {
             <Button
               variant="outline"
               size="sm"
-              disabled={page >= totalPages - 1}
+              disabled={safePage >= totalPages - 1}
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
             >
               Next

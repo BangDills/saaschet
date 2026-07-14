@@ -38,7 +38,7 @@ export default async function UsersPage() {
   // Also fetch credits info for each user.
   const { data: credits } = await admin
     .from("user_credits")
-    .select("user_id, tier, used_today, daily_limit, total_used");
+    .select("user_id, tier, used_today, daily_limit, total_used, tier_expires_at");
 
   const creditMap = new Map(
     (credits ?? []).map((c) => [c.user_id, c]),
@@ -47,6 +47,9 @@ export default async function UsersPage() {
   const rows: RealUserRow[] = (authUsers ?? []).map((u) => {
     const profile = profileMap.get(u.id);
     const credit = creditMap.get(u.id);
+    const tierExpiresAt = (credit?.tier_expires_at as string | null) ?? null;
+    const tier =
+      (credit?.tier as "free" | "pro") ?? "free";
     return {
       id: u.id,
       email: u.email ?? "",
@@ -54,7 +57,15 @@ export default async function UsersPage() {
       avatarUrl: profile?.avatar_url ?? null,
       githubUsername: profile?.github_username ?? null,
       provider: u.app_metadata?.provider ?? "email",
-      tier: (credit?.tier as "free" | "pro") ?? "free",
+      tier,
+      tierExpiresAt,
+      // Server component: Date.now() is per-request, fine here. The lint rule
+      // can't tell server vs client components apart.
+      tierExpired:
+        tier === "pro" &&
+        !!tierExpiresAt &&
+        // eslint-disable-next-line react-hooks/purity
+        Date.now() >= new Date(tierExpiresAt).getTime(),
       totalUsed: Number(credit?.total_used ?? 0),
       createdAt: u.created_at,
       lastSignIn: u.last_sign_in_at ?? null,

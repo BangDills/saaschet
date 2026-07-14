@@ -6,6 +6,9 @@ import { revalidatePath } from "next/cache";
 
 /**
  * Updates a user's tier and daily limit using the service role admin client.
+ * Pro is a 24-hour trial: tier_expires_at is set to now + 24h on activation,
+ * cleared on downgrade to free. getCreditSnapshot auto-downgrades to free
+ * once the window passes.
  */
 export async function updateUserTierAction(targetUserId: string, tier: "free" | "pro") {
   const supabase = await createClient();
@@ -26,10 +29,12 @@ export async function updateUserTierAction(targetUserId: string, tier: "free" | 
 
   const admin = createAdminClient();
   const dailyLimit = tier === "pro" ? 1000 : 50;
+  const tierExpiresAt =
+    tier === "pro" ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null;
 
   const { error } = await admin
     .from("user_credits")
-    .update({ tier, daily_limit: dailyLimit })
+    .update({ tier, daily_limit: dailyLimit, tier_expires_at: tierExpiresAt })
     .eq("user_id", targetUserId);
 
   if (error) {
