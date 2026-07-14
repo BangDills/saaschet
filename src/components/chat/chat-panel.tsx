@@ -10,7 +10,63 @@ import { StreamingPill } from "./streaming-pill";
 import { ProcessingIndicator } from "./processing-indicator";
 import { fireCreditsRefresh } from "@/components/dashboard/credits-meter";
 import { OpenAIConnectDialog } from "./openai-connect-dialog";
-import { ArrowDown } from "lucide-react";
+import { AlertCircle, ArrowDown, Clock3, RefreshCcw, WifiOff } from "lucide-react";
+
+type RecoveryError = {
+  title: string;
+  description: string;
+  action: string;
+  kind: "network" | "rate-limit" | "provider" | "generic";
+};
+
+function getRecoveryError(error: Error): RecoveryError {
+  const message = error.message.toLowerCase();
+  if (
+    message.includes("failed to fetch") ||
+    message.includes("network") ||
+    message.includes("connection") ||
+    message.includes("offline")
+  ) {
+    return {
+      title: "Koneksi terputus",
+      description: "Periksa koneksi internet Anda. Pesan terakhir tetap aman dan dapat dicoba kembali.",
+      action: "Coba lagi",
+      kind: "network",
+    };
+  }
+  if (
+    message.includes("429") ||
+    message.includes("rate limit") ||
+    message.includes("quota") ||
+    message.includes("limit reached")
+  ) {
+    return {
+      title: "Batas model tercapai",
+      description: "Provider sedang membatasi permintaan. Tunggu sebentar, lalu coba respons ini lagi.",
+      action: "Coba lagi",
+      kind: "rate-limit",
+    };
+  }
+  if (
+    message.includes("provider") ||
+    message.includes("inference") ||
+    message.includes("api key") ||
+    message.includes("temporarily unavailable")
+  ) {
+    return {
+      title: "Model tidak dapat merespons",
+      description: "Provider model sedang bermasalah. Anda dapat mencoba lagi tanpa mengirim ulang pesan.",
+      action: "Ulangi respons",
+      kind: "provider",
+    };
+  }
+  return {
+    title: "Respons gagal dibuat",
+    description: error.message || "Terjadi kendala saat membuat respons. Silakan coba lagi.",
+    action: "Coba lagi",
+    kind: "generic",
+  };
+}
 
 function partsToText(parts: UIMessage["parts"] | undefined): string {
   if (!parts) return "";
@@ -150,7 +206,16 @@ export function ChatPanel({
       .catch(() => {});
   }, []);
 
-  const { messages, setMessages, sendMessage, status, stop, error } = useChat({
+  const {
+    messages,
+    setMessages,
+    sendMessage,
+    regenerate,
+    clearError,
+    status,
+    stop,
+    error,
+  } = useChat({
     id: conversationId,
     messages: toUIMessages(initialMessages),
     transport,
@@ -408,12 +473,15 @@ export function ChatPanel({
     [],
   );
 
+  const lastSubmittedTextRef = React.useRef("");
+
   function handleSubmit(
     text: string,
     file?: { mediaType: string; base64: string; name: string } | null,
   ) {
     if ((!text.trim() && !file) || isStreaming) return;
 
+    lastSubmittedTextRef.current = text;
     isNearBottomRef.current = true;
     setShowScrollToLatest(false);
 
@@ -438,6 +506,13 @@ export function ChatPanel({
   // without sending immediately or losing the text when the layout changes.
   const [draft, setDraft] = React.useState("");
   const [focusRequestKey, setFocusRequestKey] = React.useState(0);
+
+  // Restore only an empty composer after a failed send; never overwrite edits
+  // the user made while the request was in flight.
+  React.useEffect(() => {
+    if (!error || !lastSubmittedTextRef.current) return;
+    setDraft((current) => current || lastSubmittedTextRef.current);
+  }, [error]);
 
   const fillComposer = React.useCallback((suggestion: string) => {
     setDraft(suggestion);
@@ -486,6 +561,19 @@ export function ChatPanel({
   const lastVisibleMessage = visibleMessages[visibleMessages.length - 1];
   const showFollowUps =
     !isStreaming && !error && lastVisibleMessage?.role === "assistant";
+  const recoveryError = error ? getRecoveryError(error) : null;
+  const RecoveryIcon =
+    recoveryError?.kind === "network"
+      ? WifiOff
+      : recoveryError?.kind === "rate-limit"
+        ? Clock3
+        : AlertCircle;
+
+  const retryFailedTurn = React.useCallback(() => {
+    if (isStreaming) return;
+    clearError();
+    void regenerate();
+  }, [clearError, isStreaming, regenerate]);
 
   const inputProps = {
     onSubmit: handleSubmit,
@@ -515,7 +603,7 @@ export function ChatPanel({
         <>
           <div ref={scrollRef} className="relative flex-1 overflow-y-auto">
             <div ref={messagesRef} className="mx-auto w-full max-w-3xl px-4 pb-28 pt-4 sm:px-6">
-              {visibleMessages.map((m, messageIndex) => {
+              {visibleMessages.map((m) => {
                 const isLast =
                   m.id === messages[messages.length - 1]?.id;
                 const isStreamingThis =
@@ -529,13 +617,10 @@ export function ChatPanel({
                       streaming={isStreamingThis}
                       onToolActionPrompt={handleToolActionPrompt}
                       onRetry={
-                        !isStreaming
+                        !isStreaming && isLast
                           ? () => {
-                              const previousUser = visibleMessages
-                                .slice(0, messageIndex)
-                                .findLast((message) => message.role === "user");
-                              const retryText = partsToText(previousUser?.parts);
-                              if (retryText) sendMessage({ text: retryText });
+                              clearError();
+                              void regenerate({ messageId: m.id });
                             }
                           : undefined
                       }
@@ -583,12 +668,31 @@ export function ChatPanel({
                   was restored from DB and server is still working */}
               {isServerProcessing && !isStreaming && <ProcessingIndicator />}
 
-              {error && (
-                <div className="mx-4 my-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
-                  <strong className="font-semibold">Error:</strong>{" "}
-                  <span className={error.message.includes("tidak support Vision") ? "font-bold" : ""}>
-                    {error.message}
-                  </span>
+              {recoveryError && (
+                <div
+                  role="alert"
+                  className="my-3 flex items-start gap-3 rounded-xl border border-destructive/25 bg-destructive/5 p-3 text-sm"
+                >
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+                    <RecoveryIcon className="size-4" aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-foreground">
+                      {recoveryError.title}
+                    </p>
+                    <p className="mt-0.5 text-pretty leading-5 text-muted-foreground">
+                      {recoveryError.description}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={retryFailedTurn}
+                      disabled={isStreaming}
+                      className="mt-2 inline-flex h-8 items-center gap-2 rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                    >
+                      <RefreshCcw className="size-3.5" aria-hidden="true" />
+                      {recoveryError.action}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

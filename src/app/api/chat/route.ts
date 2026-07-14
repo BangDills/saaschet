@@ -178,6 +178,8 @@ const MAX_AGENT_STALL_RECOVERIES = 2;
 type ChatRequestBody = {
   messages: UIMessage[];
   model?: string;
+  trigger?: "submit-message" | "regenerate-message" | "resume-stream";
+  messageId?: string;
   /** UUID generated client-side; server uses it to upsert the conversation row. */
   conversationId: string;
   /** When true, run web search on the latest user message and prepend results. */
@@ -459,6 +461,7 @@ export async function POST(req: Request) {
 
   const messages = body.messages ?? [];
   const modelId = body.model || defaultModelId;
+  const isRegeneration = body.trigger === "regenerate-message";
   const wantsWebSearch = body.webSearch === true;
   const conversationId = body.conversationId;
   const repoSlug = body.repo?.trim() || null;
@@ -567,16 +570,51 @@ export async function POST(req: Request) {
     }
   }
 
-  const { error: userMsgErr } = await supabase.from("messages").insert({
-    conversation_id: conversationId,
-    role: "user",
-    content: dbContent,
-  });
-  if (userMsgErr) {
-    return NextResponse.json(
-      { error: `Failed to save user message: ${userMsgErr.message}` },
-      { status: 500 },
-    );
+  if (isRegeneration) {
+    // Regeneration reuses the existing user turn. Remove only the latest
+    // persisted assistant response so the replacement does not duplicate it.
+    const { data: latestPersistedMessage, error: latestMessageErr } = await supabase
+      .from("messages")
+      .select("id, role")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestMessageErr) {
+      return NextResponse.json(
+        { error: `Failed to prepare retry: ${latestMessageErr.message}` },
+        { status: 500 },
+      );
+    }
+
+    // A failed turn already ends with its persisted user message, so there is
+    // no assistant row to replace. This also preserves the preceding response.
+    if (latestPersistedMessage?.role === "assistant") {
+      const { error: deleteAssistantErr } = await supabase
+        .from("messages")
+        .delete()
+        .eq("id", latestPersistedMessage.id)
+        .eq("conversation_id", conversationId);
+      if (deleteAssistantErr) {
+        return NextResponse.json(
+          { error: `Failed to replace response: ${deleteAssistantErr.message}` },
+          { status: 500 },
+        );
+      }
+    }
+  } else {
+    const { error: userMsgErr } = await supabase.from("messages").insert({
+      conversation_id: conversationId,
+      role: "user",
+      content: dbContent,
+    });
+    if (userMsgErr) {
+      return NextResponse.json(
+        { error: `Failed to save user message: ${userMsgErr.message}` },
+        { status: 500 },
+      );
+    }
   }
 
   // ── Build memory context from recent conversations ──────────────────
@@ -970,7 +1008,9 @@ When the user asks about library APIs, setup, migrations, or version-specific be
         }
       });
     } else {
-      textContent = (m as any).content || "";
+      const legacyMessage = m as UIMessage & { content?: unknown };
+      textContent =
+        typeof legacyMessage.content === "string" ? legacyMessage.content : "";
     }
 
     // 2. Parse any markdown images embedded in the text (e.g. from restored Supabase content)
