@@ -8,15 +8,11 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/profile/tier  { tier: "free" | "pro" }
  *
- * Switches the signed-in user between Free (50/day) and Pro (1000/day).
- * No payment yet — this is a self-service toggle for the demo. Calls
- * the Postgres function `set_user_tier` which runs with security
- * definer and self-gates on auth.uid() so users can only modify their
- * own row.
- *
- * When real payments are wired in (Phase 5 / Stripe), this route will
- * become webhook-only and the in-app "Upgrade to Pro" button will hit
- * Stripe Checkout instead.
+ * Self-serve tier switch — but only the downgrade to Free is allowed.
+ * Pro is a paid 24h trial activated by an admin (after WhatsApp payment)
+ * via updateUserTierAction, so this endpoint blocks tier:"pro" to stop
+ * self-activation via curl/script. Calls the `set_user_tier` RPC, which
+ * self-gates on auth.uid() so users can only modify their own row.
  */
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -39,6 +35,19 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { error: "tier must be 'free' or 'pro'" },
       { status: 400 },
+    );
+  }
+
+  // Self-serve can only downgrade to Free. Pro is a paid 24h trial activated
+  // by an admin after WhatsApp payment — block direct self-activation here so
+  // the endpoint can't be abused via curl/script.
+  if (tier === "pro") {
+    return NextResponse.json(
+      {
+        error:
+          "Pro hanya bisa diaktifkan admin setelah pembayaran. Hubungi admin via WhatsApp.",
+      },
+      { status: 403 },
     );
   }
 
