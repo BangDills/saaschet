@@ -48,9 +48,9 @@ const features = [
 
 const faqs = [
   {
-    question: "Apa itu Celiuz AI Studio?",
+    question: "Apa itu Celiuz AI?",
     answer:
-      "Celiuz AI Studio adalah satu workspace untuk chat AI dan pembuatan PRD. Satu akun dan satu saldo kredit memberi Anda akses ke seluruh fitur.",
+      "Celiuz AI adalah satu workspace untuk chat AI dan pembuatan PRD. Satu akun dan satu saldo kredit memberi Anda akses ke seluruh fitur.",
   },
   {
     question: "Bagaimana sistem kredit bekerja?",
@@ -66,7 +66,7 @@ const faqs = [
 
 function Brand() {
   return (
-    <Link href="/" className="group flex items-center gap-3" aria-label="Celiuz AI Studio home">
+    <Link href="/" className="group flex items-center gap-3" aria-label="Celiuz AI home">
       <CeliuzLogo className="rounded-none transition-transform group-hover:-translate-y-0.5" />
       <span className="text-sm font-extrabold tracking-[-0.03em] sm:text-base">CELIUZ AI</span>
     </Link>
@@ -345,7 +345,7 @@ export default async function LandingPage() {
       <footer className="border-t border-background/20 bg-foreground text-background">
         <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
           <Brand />
-          <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-background/45">© 2026 Celiuz AI Studio. Dibuat untuk para pembuat.</p>
+          <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-background/45">© 2026 Celiuz AI. Buat yang suka bikin sesuatu.</p>
         </div>
       </footer>
     </main>
