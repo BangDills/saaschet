@@ -168,6 +168,13 @@ export function ChatInput({
       return;
     }
 
+    // Cap uploads at 10 MB — larger images bloat the request, eat credits,
+    // and often exceed the provider's context window anyway.
+    if (file.size > 10 * 1024 * 1024) {
+      alert("Image is larger than 10 MB. Please pick a smaller file.");
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const base64 = event.target?.result as string;
