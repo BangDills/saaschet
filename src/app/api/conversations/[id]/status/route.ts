@@ -45,7 +45,11 @@ export async function GET(
     .maybeSingle();
 
   if (convErr) {
-    return NextResponse.json({ error: convErr.message }, { status: 500 });
+    console.error("[conversations/status] get failed:", convErr.message);
+    return NextResponse.json(
+      { error: "Failed to load conversation status." },
+      { status: 500 },
+    );
   }
   if (!conv) {
     return NextResponse.json(
@@ -82,7 +86,11 @@ export async function GET(
     .eq("conversation_id", id);
 
   if (countErr) {
-    return NextResponse.json({ error: countErr.message }, { status: 500 });
+    console.error("[conversations/status] count failed:", countErr.message);
+    return NextResponse.json(
+      { error: "Failed to load conversation status." },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({

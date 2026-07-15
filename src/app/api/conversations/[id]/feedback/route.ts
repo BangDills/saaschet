@@ -27,7 +27,10 @@ async function getOwnedConversation(id: string) {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (error) return { error: error.message, status: 500, supabase };
+  if (error) {
+    console.error("[feedback] ownership check failed:", error.message);
+    return { error: "Failed to load conversation." as const, status: 500, supabase };
+  }
   if (!conversation) {
     return { error: "Conversation not found" as const, status: 404, supabase };
   }
@@ -75,7 +78,11 @@ export async function GET(
     .eq("messages.conversation_id", id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[feedback] list failed:", error.message);
+    return NextResponse.json(
+      { error: "Failed to load feedback." },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({
@@ -119,7 +126,11 @@ export async function PUT(
     body.messageId,
   );
   if (resolved.error) {
-    return NextResponse.json({ error: resolved.error.message }, { status: 500 });
+    console.error("[feedback] resolve assistant message failed:", resolved.error.message);
+    return NextResponse.json(
+      { error: "Failed to locate assistant message." },
+      { status: 500 },
+    );
   }
   if (!resolved.messageId) {
     return NextResponse.json(
@@ -139,7 +150,11 @@ export async function PUT(
   );
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[feedback] upsert failed:", error.message);
+    return NextResponse.json(
+      { error: "Failed to save feedback." },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({
@@ -171,7 +186,11 @@ export async function DELETE(
     body?.messageId,
   );
   if (resolved.error) {
-    return NextResponse.json({ error: resolved.error.message }, { status: 500 });
+    console.error("[feedback] resolve assistant message failed:", resolved.error.message);
+    return NextResponse.json(
+      { error: "Failed to locate assistant message." },
+      { status: 500 },
+    );
   }
   if (!resolved.messageId) {
     return NextResponse.json({ ok: true });
@@ -184,7 +203,11 @@ export async function DELETE(
     .eq("user_id", ownership.user.id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[feedback] delete failed:", error.message);
+    return NextResponse.json(
+      { error: "Failed to delete feedback." },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({ ok: true, messageId: resolved.messageId });

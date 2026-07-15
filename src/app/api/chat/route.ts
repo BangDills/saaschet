@@ -544,8 +544,9 @@ export async function POST(req: Request) {
       status: "processing",
     });
     if (insertErr) {
+      console.error("[chat] create conversation failed:", insertErr.message);
       return NextResponse.json(
-        { error: `Failed to create conversation: ${insertErr.message}` },
+        { error: "Failed to create conversation." },
         { status: 500 },
       );
     }
@@ -587,8 +588,9 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (latestMessageErr) {
+      console.error("[chat] retry prepare failed:", latestMessageErr.message);
       return NextResponse.json(
-        { error: `Failed to prepare retry: ${latestMessageErr.message}` },
+        { error: "Failed to prepare retry." },
         { status: 500 },
       );
     }
@@ -602,8 +604,9 @@ export async function POST(req: Request) {
         .eq("id", latestPersistedMessage.id)
         .eq("conversation_id", conversationId);
       if (deleteAssistantErr) {
+        console.error("[chat] replace response failed:", deleteAssistantErr.message);
         return NextResponse.json(
-          { error: `Failed to replace response: ${deleteAssistantErr.message}` },
+          { error: "Failed to replace response." },
           { status: 500 },
         );
       }
@@ -615,8 +618,9 @@ export async function POST(req: Request) {
       content: dbContent,
     });
     if (userMsgErr) {
+      console.error("[chat] save user message failed:", userMsgErr.message);
       return NextResponse.json(
-        { error: `Failed to save user message: ${userMsgErr.message}` },
+        { error: "Failed to save user message." },
         { status: 500 },
       );
     }

@@ -53,8 +53,9 @@ export async function POST(req: Request) {
 
   const { data, error } = await supabase.rpc("set_user_tier", { p_tier: tier });
   if (error) {
+    console.error("[profile/tier] set_user_tier failed:", error.message);
     return NextResponse.json(
-      { error: `Failed to switch tier: ${error.message}` },
+      { error: "Failed to switch tier." },
       { status: 500 },
     );
   }

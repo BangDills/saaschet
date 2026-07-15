@@ -46,7 +46,11 @@ export async function GET(
     .maybeSingle();
 
   if (convErr) {
-    return NextResponse.json({ error: convErr.message }, { status: 500 });
+    console.error("[conversations] get failed:", convErr.message);
+    return NextResponse.json(
+      { error: "Failed to load conversation." },
+      { status: 500 },
+    );
   }
   if (!conv) {
     return NextResponse.json(
@@ -62,7 +66,11 @@ export async function GET(
     .order("created_at", { ascending: true });
 
   if (msgsErr) {
-    return NextResponse.json({ error: msgsErr.message }, { status: 500 });
+    console.error("[conversations] messages get failed:", msgsErr.message);
+    return NextResponse.json(
+      { error: "Failed to load conversation." },
+      { status: 500 },
+    );
   }
 
   const c = conv as ConversationRow;
@@ -141,7 +149,11 @@ export async function PATCH(
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[conversations] patch failed:", error.message);
+    return NextResponse.json(
+      { error: "Failed to update conversation." },
+      { status: 500 },
+    );
   }
   if (!data) {
     return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
@@ -184,7 +196,11 @@ export async function DELETE(
     .eq("user_id", user.id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[conversations] delete failed:", error.message);
+    return NextResponse.json(
+      { error: "Failed to delete conversation." },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({ ok: true });

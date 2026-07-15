@@ -49,11 +49,15 @@ export async function GET() {
       repos,
     });
   } catch (err) {
+    console.error(
+      "[github/repos] fetch failed:",
+      err instanceof Error ? err.message : String(err),
+    );
     return NextResponse.json(
       {
         githubConnected: true,
         repos: [],
-        error: err instanceof Error ? err.message : "Failed to fetch repos",
+        error: "Failed to fetch repos from GitHub.",
       },
       { status: 502 },
     );

@@ -34,8 +34,9 @@ export async function PATCH(req: Request) {
       .eq("id", user.id);
 
     if (error) {
+      console.error("[profile] update name failed:", error.message);
       return NextResponse.json(
-        { error: `Failed to update name: ${error.message}` },
+        { error: "Failed to update name." },
         { status: 500 },
       );
     }
@@ -53,8 +54,9 @@ export async function PATCH(req: Request) {
       password: body.password,
     });
     if (error) {
+      console.error("[profile] update password failed:", error.message);
       return NextResponse.json(
-        { error: `Failed to update password: ${error.message}` },
+        { error: "Failed to update password." },
         { status: 500 },
       );
     }

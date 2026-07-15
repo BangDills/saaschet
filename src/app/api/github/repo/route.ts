@@ -61,9 +61,12 @@ export async function GET(req: NextRequest) {
       fileCount: bundle.files.length,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error(
+      `[github/repo] fetch ${parsed.owner}/${parsed.name} failed:`,
+      err instanceof Error ? err.message : String(err),
+    );
     return NextResponse.json(
-      { error: `Failed to fetch ${parsed.owner}/${parsed.name}: ${message}` },
+      { error: `Failed to fetch ${parsed.owner}/${parsed.name}.` },
       { status: 502 },
     );
   }

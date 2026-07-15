@@ -36,7 +36,11 @@ export async function GET() {
     .order("updated_at", { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[conversations] list failed:", error.message);
+    return NextResponse.json(
+      { error: "Failed to load conversations." },
+      { status: 500 },
+    );
   }
 
   const rows = (data ?? []) as ConversationRow[];
