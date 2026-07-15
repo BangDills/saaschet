@@ -52,7 +52,7 @@ begin
     raise exception 'Unknown tier: %', p_tier;
   end if;
 
-  v_limit := case p_tier when 'pro' then 1000 else 50 end;
+  v_limit := case p_tier when 'pro' then 3000 else 50 end;
   v_expires := case when p_tier = 'pro' then now() + interval '24 hours' else null end;
 
   update public.user_credits c
@@ -108,7 +108,7 @@ begin
     raise exception 'Unknown tier: %', p_tier;
   end if;
 
-  v_limit := case p_tier when 'pro' then 1000 else 50 end;
+  v_limit := case p_tier when 'pro' then 3000 else 50 end;
   v_expires := case when p_tier = 'pro' then now() + interval '24 hours' else null end;
 
   update public.user_credits c

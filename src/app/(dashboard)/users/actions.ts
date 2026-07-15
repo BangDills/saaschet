@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { TIER_LIMITS } from "@/lib/credits/server";
 
 /**
  * Updates a user's tier and daily limit using the service role admin client.
@@ -28,7 +29,7 @@ export async function updateUserTierAction(targetUserId: string, tier: "free" | 
   }
 
   const admin = createAdminClient();
-  const dailyLimit = tier === "pro" ? 1000 : 50;
+  const dailyLimit = TIER_LIMITS[tier];
   const tierExpiresAt =
     tier === "pro" ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null;
 

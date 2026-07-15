@@ -26,7 +26,7 @@ export type Tier = "free" | "pro";
 
 export const TIER_LIMITS: Record<Tier, number> = {
   free: 50,
-  pro: 1000,
+  pro: 3000,
 };
 
 export type CreditSnapshot = {

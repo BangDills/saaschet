@@ -56,9 +56,9 @@ const PLANS: {
     name: "Pro",
     price: "Rp10.000",
     description: "24-hour trial — promo pembukaan minggu ini",
-    limit: 1000,
+    limit: 3000,
     features: [
-      "1,000 credits per 24 hours",
+      "3,000 credits per 24 hours",
       "AI Chat with all models",
       "Web search integration",
       "GitHub repo context",
