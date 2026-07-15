@@ -6,7 +6,9 @@
 -- Why: match_memories is SECURITY DEFINER (bypasses RLS) and filters
 -- `WHERE m.user_id = p_user_id`, but never checks that p_user_id is the
 -- caller. An authenticated user could pass another user's id and read
--- their stored memories (facts, preferences). Add an ownership check.
+-- their stored memories (facts, preferences). Add an ownership check
+-- that only applies to client callers — the service role (server, used
+-- for memory extraction) has no auth.uid() and bypasses it.
 -- ============================================================================
 
 create or replace function public.match_memories (
@@ -25,7 +27,9 @@ security definer
 set search_path = public
 as $$
 begin
-  if p_user_id is distinct from auth.uid() then
+  -- Client callers must query their own memories. The service role (server,
+  -- used for memory extraction) has no auth.uid() and bypasses this check.
+  if auth.uid() is not null and p_user_id is distinct from auth.uid() then
     raise exception 'Not authorized: can only query your own memories';
   end if;
 
