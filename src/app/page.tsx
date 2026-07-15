@@ -21,26 +21,26 @@ export const dynamic = "force-dynamic";
 const features = [
   {
     number: "01",
-    title: "Interactive AI Agent",
+    title: "AI Agent Interaktif",
     description:
-      "Work with advanced models that can reason, use tools, manage codebases, and turn an idea into working code.",
+      "Bekerja dengan model canggih yang bisa menalar, memakai tools, mengelola codebase, dan mengubah ide menjadi kode yang jalan.",
     icon: Bot,
     href: "/ai-chat",
-    badge: "Flagship",
+    badge: "Andalan",
   },
   {
     number: "02",
-    title: "PRD Generator",
+    title: "Generator PRD",
     description:
-      "Turn a rough brief into a structured, implementation-ready product requirements document in minutes.",
+      "Ubah brief kasar menjadi dokumen product requirements yang terstruktur dan siap diimplementasikan dalam hitungan menit.",
     icon: ClipboardList,
     href: "/prd-generator",
   },
   {
     number: "03",
-    title: "One Credit System",
+    title: "Satu Sistem Kredit",
     description:
-      "Use one transparent balance across every model with detailed, real-time usage tracking.",
+      "Pakai satu saldo transparan untuk semua model dengan pelacakan pemakaian real-time yang detail.",
     icon: Coins,
     href: "/profile",
   },
@@ -48,24 +48,24 @@ const features = [
 
 const faqs = [
   {
-    question: "What is Celiuz AI Studio?",
+    question: "Apa itu Celiuz AI Studio?",
     answer:
-      "Celiuz AI Studio is one workspace for AI chat and PRD creation. One account and one credit balance gives you access to the full suite.",
+      "Celiuz AI Studio adalah satu workspace untuk chat AI dan pembuatan PRD. Satu akun dan satu saldo kredit memberi Anda akses ke seluruh fitur.",
   },
   {
-    question: "How does the credit system work?",
+    question: "Bagaimana sistem kredit bekerja?",
     answer:
-      "Each generation uses credits based on the model and task. Your usage is visible in real time, so you always know what you are spending and can top up only when needed.",
+      "Setiap generasi memakai kredit sesuai model dan tugas. Pemakaian Anda terlihat real-time, jadi Anda selalu tahu berapa yang dihabiskan dan bisa top-up hanya saat dibutuhkan.",
   },
   {
-    question: "Can I bring my own API keys?",
+    question: "Bisa pakai API key sendiri?",
     answer:
-      "Yes. You can connect supported personal API keys from your profile and run eligible tasks using your own provider quota.",
+      "Ya. Anda bisa hubungkan API key pribadi yang didukung dari profil dan jalankan tugas yang eligible memakai kuota provider Anda sendiri.",
   },
   {
-    question: "Is there a free trial?",
+    question: "Ada uji coba gratis?",
     answer:
-      "Yes. New accounts receive starter credits so you can explore the core tools before choosing a paid plan.",
+      "Ya. Akun baru mendapat kredit awal agar Anda bisa menjelajahi fitur inti sebelum memilih paket berbayar.",
   },
 ];
 
@@ -91,7 +91,7 @@ function ProductPreview() {
           workspace.celiuz.ai / agent
         </span>
         <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em]">
-          <span className="size-1.5 bg-foreground" /> Live
+          <span className="size-1.5 bg-foreground" /> Langsung
         </span>
       </div>
 
@@ -100,7 +100,7 @@ function ProductPreview() {
           <div className="flex flex-col gap-6">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Workspace</p>
-              <p className="mt-2 text-sm font-bold">Product launch</p>
+              <p className="mt-2 text-sm font-bold">Peluncuran produk</p>
             </div>
             <nav className="flex flex-col gap-1 text-xs" aria-label="Workspace preview">
               <span className="flex items-center gap-2 bg-foreground px-3 py-2.5 font-semibold text-background">
@@ -113,7 +113,7 @@ function ProductPreview() {
           </div>
           <div className="border-t border-border pt-4">
             <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wider">
-              <span>Credits</span><span>8,420</span>
+              <span>Kredit</span><span>8.420</span>
             </div>
             <div className="mt-2 h-1 bg-muted"><div className="h-full w-3/4 bg-foreground" /></div>
           </div>
@@ -123,25 +123,25 @@ function ProductPreview() {
           <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6">
             <div>
               <p className="text-xs font-bold">Celiuz Agent</p>
-              <p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">GLM 5.2 · Tools enabled</p>
+              <p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">GLM 5.2 · Tools aktif</p>
             </div>
             <span className="border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-wider">Auto</span>
           </div>
 
           <div className="flex flex-1 flex-col gap-5 p-4 sm:p-6">
             <div className="ml-auto max-w-[84%] bg-foreground px-4 py-3 text-sm leading-relaxed text-background sm:max-w-[70%]">
-              Build a launch plan for our new analytics dashboard. Include positioning, milestones, and a landing page outline.
+              Buatkan rencana peluncuran untuk dashboard analitik baru kita. Sertakan positioning, milestone, dan kerangka landing page.
             </div>
             <div className="max-w-[92%] border-l-2 border-foreground pl-4 sm:max-w-[78%]">
               <div className="mb-2 flex items-center gap-2">
                 <Sparkles className="size-3.5" />
-                <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em]">Agent response</span>
+                <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em]">Respons agen</span>
               </div>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                I&apos;ll structure this into three focused phases and connect each milestone to a clear customer outcome.
+                Aku akan menyusun ini jadi tiga fase fokus dan menghubungkan tiap milestone ke hasil pelanggan yang jelas.
               </p>
               <div className="mt-4 grid grid-cols-3 border border-border text-center">
-                {["Position", "Build", "Launch"].map((step, index) => (
+                {["Posisi", "Bangun", "Luncur"].map((step, index) => (
                   <div key={step} className="border-r border-border px-2 py-3 last:border-r-0">
                     <span className="font-mono text-[9px] text-muted-foreground">0{index + 1}</span>
                     <p className="mt-1 text-[11px] font-bold">{step}</p>
@@ -152,12 +152,12 @@ function ProductPreview() {
           </div>
 
           <div className="m-4 mt-0 border border-foreground bg-background p-3 sm:m-6 sm:mt-0">
-            <p className="text-xs text-muted-foreground">Ask Celiuz to build, write, research, or create...</p>
+            <p className="text-xs text-muted-foreground">Minta Celiuz membangun, menulis, meneliti, atau membuat...</p>
             <div className="mt-4 flex items-center justify-between">
-              <button type="button" aria-label="Attach file" className="flex size-8 items-center justify-center border border-border text-muted-foreground">
+              <button type="button" aria-label="Lampirkan file" className="flex size-8 items-center justify-center border border-border text-muted-foreground">
                 <Paperclip className="size-3.5" />
               </button>
-              <button type="button" aria-label="Send message" className="flex size-8 items-center justify-center bg-foreground text-background">
+              <button type="button" aria-label="Kirim pesan" className="flex size-8 items-center justify-center bg-foreground text-background">
                 <Send className="size-3.5" />
               </button>
             </div>
@@ -188,14 +188,14 @@ export default async function LandingPage() {
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Brand />
           <nav className="hidden items-center gap-7 text-xs font-bold uppercase tracking-[0.12em] md:flex" aria-label="Primary navigation">
-            <a href="#features" className="transition-opacity hover:opacity-50">Tools</a>
-            <a href="#pricing" className="transition-opacity hover:opacity-50">Pricing</a>
+            <a href="#features" className="transition-opacity hover:opacity-50">Fitur</a>
+            <a href="#pricing" className="transition-opacity hover:opacity-50">Harga</a>
             <a href="#faqs" className="transition-opacity hover:opacity-50">FAQ</a>
           </nav>
           <div className="flex items-center gap-1 sm:gap-2">
-            {!user && <Link href="/login" className="hidden px-3 py-2 text-xs font-bold uppercase tracking-wider sm:inline-flex">Log in</Link>}
+            {!user && <Link href="/login" className="hidden px-3 py-2 text-xs font-bold uppercase tracking-wider sm:inline-flex">Masuk</Link>}
             <Link href={user ? appLink : "/signup"} className="inline-flex items-center gap-2 bg-foreground px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-background transition-opacity hover:opacity-75">
-              {user ? "Open app" : "Start free"}<ArrowRight className="size-3.5" />
+              {user ? "Buka app" : "Mulai gratis"}<ArrowRight className="size-3.5" />
             </Link>
           </div>
         </div>
@@ -208,22 +208,22 @@ export default async function LandingPage() {
             <div>
               <div className="mb-6 flex items-center gap-3 font-mono text-[10px] font-bold uppercase tracking-[0.2em]">
                 <span className="inline-flex size-6 items-center justify-center bg-foreground text-background"><Zap className="size-3" /></span>
-                One workspace. Every creative workflow.
+                Satu workspace. Semua alur kerja kreatif.
               </div>
               <h1 className="max-w-5xl text-balance text-5xl font-extrabold leading-[0.98] tracking-[-0.045em] sm:text-7xl lg:text-[6.6rem]">
-                From idea to output, without the busywork.
+                Dari ide jadi hasil, tanpa pekerjaan ribet.
               </h1>
             </div>
             <div className="border-l border-foreground pl-5 lg:pb-2">
               <p className="text-pretty text-base leading-relaxed text-muted-foreground">
-                Chat, code, and ship with a focused suite of AI tools built for people who make things.
+                Chat, ngoding, dan shipping dengan rangkaian tool AI yang fokus, dibuat untuk orang yang membangun sesuatu.
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row lg:flex-col">
                 <Link href={user ? appLink : "/signup"} className="inline-flex items-center justify-between bg-foreground px-5 py-3.5 text-sm font-bold text-background transition-opacity hover:opacity-75">
-                  Start building free <ArrowRight className="size-4" />
+                  Mulai bangun gratis <ArrowRight className="size-4" />
                 </Link>
                 <a href="#features" className="inline-flex items-center justify-between border border-foreground bg-background px-5 py-3.5 text-sm font-bold transition-colors hover:bg-foreground hover:text-background">
-                  Explore the tools <span className="font-mono text-xs">↓</span>
+                  Jelajahi fitur <span className="font-mono text-xs">↓</span>
                 </a>
               </div>
             </div>
@@ -234,7 +234,7 @@ export default async function LandingPage() {
 
       <section className="border-b border-foreground bg-foreground text-background" aria-label="Platform capabilities">
         <div className="mx-auto grid max-w-7xl grid-cols-2 divide-x divide-background/25 px-4 sm:grid-cols-4 sm:px-6 lg:px-8">
-          {[['03', 'AI tools'], ['01', 'Credit balance'], ['24/7', 'Always available'], ['BYOK', 'Keys supported']].map(([value, label]) => (
+          {[['03', 'Tool AI'], ['01', 'Saldo kredit'], ['24/7', 'Selalu tersedia'], ['BYOK', 'Key didukung']].map(([value, label]) => (
             <div key={label} className="px-3 py-7 text-center sm:px-6">
               <p className="font-mono text-xl font-bold sm:text-2xl">{value}</p>
               <p className="mt-1 text-[9px] uppercase tracking-[0.15em] text-background/60 sm:text-[10px]">{label}</p>
@@ -246,10 +246,10 @@ export default async function LandingPage() {
       <section id="features" className="border-b border-foreground py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid gap-8 border-b border-foreground pb-10 lg:grid-cols-2">
-            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">[ 01 — Tool suite ]</p>
+            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">[ 01 — Rangkaian tool ]</p>
             <div>
-              <h2 className="text-balance text-4xl font-extrabold leading-none tracking-[-0.05em] sm:text-6xl">Three tools. One clear workflow.</h2>
-              <p className="mt-5 max-w-xl leading-relaxed text-muted-foreground">Stop switching tabs and subscriptions. Move from research to production in one connected workspace.</p>
+              <h2 className="text-balance text-4xl font-extrabold leading-none tracking-[-0.05em] sm:text-6xl">Tiga tool. Satu alur kerja jelas.</h2>
+              <p className="mt-5 max-w-xl leading-relaxed text-muted-foreground">Berhenti ganti tab dan langganan. Pindah dari riset ke produksi dalam satu workspace yang terhubung.</p>
             </div>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3">
@@ -267,7 +267,7 @@ export default async function LandingPage() {
                       {feature.badge && <span className="border border-current px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-wider">{feature.badge}</span>}
                     </div>
                     <p className="text-sm leading-relaxed text-muted-foreground group-hover:text-background/65">{feature.description}</p>
-                    <span className="mt-5 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider">Open tool <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" /></span>
+                    <span className="mt-5 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider">Buka tool <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" /></span>
                   </div>
                 </Link>
               );
@@ -280,35 +280,35 @@ export default async function LandingPage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid gap-8 lg:grid-cols-[0.75fr_1.25fr]">
             <div>
-              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">[ 02 — Pricing ]</p>
-              <h2 className="mt-6 text-balance text-4xl font-extrabold leading-none tracking-[-0.05em] sm:text-6xl">Pay for output, not empty seats.</h2>
-              <p className="mt-5 max-w-md leading-relaxed text-muted-foreground">One credit balance for chat, PRD, and agent workflows. Start free and upgrade when your work scales.</p>
+              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">[ 02 — Harga ]</p>
+              <h2 className="mt-6 text-balance text-4xl font-extrabold leading-none tracking-[-0.05em] sm:text-6xl">Bayar untuk hasil, bukan kursi kosong.</h2>
+              <p className="mt-5 max-w-md leading-relaxed text-muted-foreground">Satu saldo kredit untuk chat, PRD, dan alur kerja agen. Mulai gratis dan upgrade saat pekerjaan Anda berkembang.</p>
             </div>
             <div className="grid md:grid-cols-2">
               <article className="flex min-h-[460px] flex-col justify-between border border-foreground bg-background p-7">
                 <div>
                   <p className="font-mono text-[10px] uppercase tracking-[0.18em]">Starter</p>
-                  <p className="mt-5 text-5xl font-extrabold tracking-[-0.06em]">$0</p>
-                  <p className="mt-2 text-sm text-muted-foreground">No card required. Yours forever.</p>
+                  <p className="mt-5 text-5xl font-extrabold tracking-[-0.06em]">Rp0</p>
+                  <p className="mt-2 text-sm text-muted-foreground">Tanpa kartu. Milik Anda selamanya.</p>
                   <ul className="mt-8 flex flex-col gap-4 text-sm">
-                    {["Starter credit allocation", "Standard chat models", "Access to all core tools", "Community support"].map((item) => <li key={item} className="flex items-start gap-3"><Check className="mt-0.5 size-4 shrink-0" />{item}</li>)}
+                    {["Alokasi kredit awal", "Model chat standar", "Akses semua fitur inti", "Dukungan komunitas"].map((item) => <li key={item} className="flex items-start gap-3"><Check className="mt-0.5 size-4 shrink-0" />{item}</li>)}
                   </ul>
                 </div>
-                <Link href="/signup" className="mt-8 inline-flex items-center justify-between border border-foreground px-4 py-3 text-sm font-bold hover:bg-foreground hover:text-background">Create free account <ArrowRight className="size-4" /></Link>
+                <Link href="/signup" className="mt-8 inline-flex items-center justify-between border border-foreground px-4 py-3 text-sm font-bold hover:bg-foreground hover:text-background">Buat akun gratis <ArrowRight className="size-4" /></Link>
               </article>
               <article className="flex min-h-[460px] flex-col justify-between bg-foreground p-7 text-background">
                 <div>
                   <div className="flex items-center justify-between">
                     <p className="font-mono text-[10px] uppercase tracking-[0.18em]">Pro</p>
-                    <span className="border border-background/40 px-2 py-1 font-mono text-[9px] uppercase tracking-wider">Most popular</span>
+                    <span className="border border-background/40 px-2 py-1 font-mono text-[9px] uppercase tracking-wider">Paling populer</span>
                   </div>
-                  <p className="mt-5 text-5xl font-extrabold tracking-[-0.06em]">$9<span className="text-base tracking-normal text-background/50"> / mo</span></p>
-                  <p className="mt-2 text-sm text-background/55">For creators shipping every week.</p>
+                  <p className="mt-5 text-5xl font-extrabold tracking-[-0.06em]">Rp10.000<span className="text-base tracking-normal text-background/50"> / 24 jam</span></p>
+                  <p className="mt-2 text-sm text-background/55">Untuk kreator yang shipping tiap minggu.</p>
                   <ul className="mt-8 flex flex-col gap-4 text-sm">
-                    {["Premium model access", "Large monthly credit pool", "Bring your own API keys", "Priority task processing"].map((item) => <li key={item} className="flex items-start gap-3"><Check className="mt-0.5 size-4 shrink-0" />{item}</li>)}
+                    {["Akses model premium", "Kolam kredit harian besar", "Pakai API key sendiri", "Prioritas pemrosesan tugas"].map((item) => <li key={item} className="flex items-start gap-3"><Check className="mt-0.5 size-4 shrink-0" />{item}</li>)}
                   </ul>
                 </div>
-                <Link href="/signup" className="mt-8 inline-flex items-center justify-between bg-background px-4 py-3 text-sm font-bold text-foreground transition-opacity hover:opacity-80">Start with Pro <ArrowRight className="size-4" /></Link>
+                <Link href="/signup" className="mt-8 inline-flex items-center justify-between bg-background px-4 py-3 text-sm font-bold text-foreground transition-opacity hover:opacity-80">Mulai dengan Pro <ArrowRight className="size-4" /></Link>
               </article>
             </div>
           </div>
@@ -319,7 +319,7 @@ export default async function LandingPage() {
         <div className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-[0.65fr_1.35fr] lg:px-8">
           <div>
             <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">[ 03 — FAQ ]</p>
-            <h2 className="mt-6 text-4xl font-extrabold tracking-[-0.05em] sm:text-5xl">Good questions, clear answers.</h2>
+            <h2 className="mt-6 text-4xl font-extrabold tracking-[-0.05em] sm:text-5xl">Pertanyaan bagus, jawaban jelas.</h2>
           </div>
           <div className="border-t border-foreground">
             {faqs.map((faq, index) => (
@@ -339,10 +339,10 @@ export default async function LandingPage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid items-end gap-10 lg:grid-cols-[1fr_auto]">
             <div>
-              <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-background/55"><Terminal className="size-4" /> Ready when you are</div>
-              <h2 className="mt-6 max-w-4xl text-balance text-5xl font-extrabold leading-[0.94] tracking-[-0.06em] sm:text-7xl">Make the next thing, faster.</h2>
+              <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-background/55"><Terminal className="size-4" /> Siap kapan pun Anda</div>
+              <h2 className="mt-6 max-w-4xl text-balance text-5xl font-extrabold leading-[0.94] tracking-[-0.06em] sm:text-7xl">Buat hal berikutnya, lebih cepat.</h2>
             </div>
-            <Link href={user ? appLink : "/signup"} className="inline-flex min-w-56 items-center justify-between bg-background px-6 py-4 font-bold text-foreground transition-opacity hover:opacity-80">Start building <ArrowRight className="size-5" /></Link>
+            <Link href={user ? appLink : "/signup"} className="inline-flex min-w-56 items-center justify-between bg-background px-6 py-4 font-bold text-foreground transition-opacity hover:opacity-80">Mulai bangun <ArrowRight className="size-5" /></Link>
           </div>
         </div>
       </section>
@@ -350,7 +350,7 @@ export default async function LandingPage() {
       <footer className="border-t border-background/20 bg-foreground text-background">
         <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
           <Brand />
-          <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-background/45">© 2026 Celiuz AI Studio. Built for makers.</p>
+          <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-background/45">© 2026 Celiuz AI Studio. Dibuat untuk para pembuat.</p>
         </div>
       </footer>
     </main>
