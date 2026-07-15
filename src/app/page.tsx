@@ -58,11 +58,6 @@ const faqs = [
       "Setiap generasi memakai kredit sesuai model dan tugas. Pemakaian Anda terlihat real-time, jadi Anda selalu tahu berapa yang dihabiskan dan bisa top-up hanya saat dibutuhkan.",
   },
   {
-    question: "Bisa pakai API key sendiri?",
-    answer:
-      "Ya. Anda bisa hubungkan API key pribadi yang didukung dari profil dan jalankan tugas yang eligible memakai kuota provider Anda sendiri.",
-  },
-  {
     question: "Ada uji coba gratis?",
     answer:
       "Ya. Akun baru mendapat kredit awal agar Anda bisa menjelajahi fitur inti sebelum memilih paket berbayar.",
@@ -234,7 +229,7 @@ export default async function LandingPage() {
 
       <section className="border-b border-foreground bg-foreground text-background" aria-label="Platform capabilities">
         <div className="mx-auto grid max-w-7xl grid-cols-2 divide-x divide-background/25 px-4 sm:grid-cols-4 sm:px-6 lg:px-8">
-          {[['03', 'Tool AI'], ['01', 'Saldo kredit'], ['24/7', 'Selalu tersedia'], ['BYOK', 'Key didukung']].map(([value, label]) => (
+          {[['03', 'Tool AI'], ['01', 'Saldo kredit'], ['24/7', 'Selalu tersedia'], ['24 jam', 'Trial Pro']].map(([value, label]) => (
             <div key={label} className="px-3 py-7 text-center sm:px-6">
               <p className="font-mono text-xl font-bold sm:text-2xl">{value}</p>
               <p className="mt-1 text-[9px] uppercase tracking-[0.15em] text-background/60 sm:text-[10px]">{label}</p>
@@ -305,7 +300,7 @@ export default async function LandingPage() {
                   <p className="mt-5 text-5xl font-extrabold tracking-[-0.06em]">Rp10.000<span className="text-base tracking-normal text-background/50"> / 24 jam</span></p>
                   <p className="mt-2 text-sm text-background/55">Untuk kreator yang shipping tiap minggu.</p>
                   <ul className="mt-8 flex flex-col gap-4 text-sm">
-                    {["Akses model premium", "Kolam kredit harian besar", "Pakai API key sendiri", "Prioritas pemrosesan tugas"].map((item) => <li key={item} className="flex items-start gap-3"><Check className="mt-0.5 size-4 shrink-0" />{item}</li>)}
+                    {["Akses model premium", "Kolam kredit harian besar", "Agen penuh (baca + tulis + PR)", "Prioritas pemrosesan tugas"].map((item) => <li key={item} className="flex items-start gap-3"><Check className="mt-0.5 size-4 shrink-0" />{item}</li>)}
                   </ul>
                 </div>
                 <Link href="/signup" className="mt-8 inline-flex items-center justify-between bg-background px-4 py-3 text-sm font-bold text-foreground transition-opacity hover:opacity-80">Mulai dengan Pro <ArrowRight className="size-4" /></Link>
