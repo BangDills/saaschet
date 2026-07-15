@@ -82,6 +82,7 @@ Assistant Response: "${cleanAssistant}"`;
         model: fireworksProvider("accounts/fireworks/models/deepseek-v4-flash"),
         system: STRUCTURED_EXTRACTION_SYSTEM,
         prompt,
+        maxOutputTokens: 2000,
         onError: ({ error }) => {
           console.error("[structured-memory-extractor] streamText error details:", error);
         },

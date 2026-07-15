@@ -10,6 +10,7 @@ type CreditSnapshot = {
   remaining: number;
   resetsAt: number;
   totalUsed: number;
+  tierExpiresAt?: number | null;
 };
 
 const REFRESH_EVENT = "celiuz:credits:refresh";
@@ -26,8 +27,16 @@ function fmtResetsIn(resetsAt: number): string {
   const totalMins = Math.round(ms / 60_000);
   const hours = Math.floor(totalMins / 60);
   const mins = totalMins % 60;
-  if (hours > 0) return `${hours}h ${mins}m`;
+  if (hours > 0) return `${hours}j ${mins}m`;
   return `${mins}m`;
+}
+
+function fmtExpiresIn(expiresAt: number): string {
+  const ms = Math.max(0, expiresAt - Date.now());
+  const hours = Math.floor(ms / 3_600_000);
+  const mins = Math.round((ms % 3_600_000) / 60_000);
+  if (hours > 0) return `${hours}j ${mins}m lagi`;
+  return `${mins}m lagi`;
 }
 
 /**
@@ -79,18 +88,25 @@ export function CreditsMeter() {
   const pct = Math.min(100, Math.round((snap.usedToday / snap.dailyLimit) * 100));
   const isLow = snap.remaining <= 5;
   const isEmpty = snap.remaining <= 0;
+  const proExpiresIn =
+    snap.tier === "pro" && snap.tierExpiresAt
+      ? fmtExpiresIn(snap.tierExpiresAt)
+      : null;
 
   return (
     <div
       className="rounded-xl border border-sidebar-border bg-card p-3"
-      title={`Resets in ~${fmtResetsIn(snap.resetsAt)} (midnight UTC)`}
+      title={`Reset dalam ~${fmtResetsIn(snap.resetsAt)} (tengah malam UTC)`}
     >
       <div className="mb-2 flex items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-1.5 font-semibold">
-          <span>Credits</span>
+          <span>Kredit</span>
           {snap.tier === "pro" && (
-            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
-              Pro
+            <span
+              className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+              title={proExpiresIn ? `Pro aktif: ${proExpiresIn}` : undefined}
+            >
+              Pro{proExpiresIn ? ` · ${proExpiresIn}` : ""}
             </span>
           )}
         </div>

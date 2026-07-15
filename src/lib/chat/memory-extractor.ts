@@ -66,6 +66,7 @@ export async function extractAndSaveMemories(
         model: fireworksProvider("accounts/fireworks/models/deepseek-v4-flash"),
         system: MEMORY_EXTRACTION_SYSTEM,
         prompt,
+        maxOutputTokens: 2000,
         onError: ({ error }) => {
           console.error("[memory-extractor] streamText error details:", error);
         },
