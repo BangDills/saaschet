@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createOpenAI } from "@ai-sdk/openai";
 import {
   streamText,
@@ -1117,13 +1117,17 @@ ${recoveryInstruction}`;
             );
           }
 
-          // ── Async memory extraction (non-blocking, fire-and-forget) ──
-          // Vector memory extraction (uses local Transformers.js embeddings)
+          // ── Async memory extraction (non-blocking, runs after response) ──
+          // Wrapped in after() so Vercel keeps the function alive to finish
+          // the background extraction instead of killing it when the stream
+          // closes. Fire-and-forget inside after() — errors are caught.
           if (userText && text) {
             try {
-              extractAndSaveMemories(userId, userText, text).catch((err) => {
-                console.error("[chat] memory extraction failed:", err);
-              });
+              after(() =>
+                extractAndSaveMemories(userId, userText, text).catch((err) => {
+                  console.error("[chat] memory extraction failed:", err);
+                }),
+              );
             } catch (err) {
               console.error("[chat] memory extraction initiation failed:", err);
             }
@@ -1132,9 +1136,11 @@ ${recoveryInstruction}`;
           // Structured JSONB profile extraction (uses Fireworks LLM if available)
           if (process.env.FIREWORKS_API_KEY && userText && text) {
             try {
-              extractAndSaveStructuredMemory(userId, userText, text).catch((err) => {
-                console.error("[chat] structured memory extraction failed:", err);
-              });
+              after(() =>
+                extractAndSaveStructuredMemory(userId, userText, text).catch((err) => {
+                  console.error("[chat] structured memory extraction failed:", err);
+                }),
+              );
             } catch (err) {
               console.error("[chat] structured memory extraction initiation failed:", err);
             }
