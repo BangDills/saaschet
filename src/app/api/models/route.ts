@@ -4,7 +4,6 @@ import {
   vendorOrder,
   isAgentCapable,
   isMultimodal,
-  codexModels,
 } from "@/lib/chat/models";
 import type { ModelInfo } from "@/lib/chat/types";
 
@@ -146,8 +145,8 @@ export async function GET() {
       ...fireworksModelsStatic.filter((m) => !liveIds.has(m.id)),
     ];
 
-    // Merge: Fireworks models first (default order), then Codex.
-    const merged = [...finalFireworks, ...codexModels];
+    // Merge: Fireworks models first (default order).
+    const merged = [...finalFireworks];
 
     return NextResponse.json({
       models: merged.sort(sortByVendor),

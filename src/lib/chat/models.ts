@@ -46,9 +46,6 @@ export function isNonChatModel(id: string): boolean {
  * good at code generation and understanding.
  */
 export const agentCapableModels = new Set([
-  // OpenAI Codex (ChatGPT subscription)
-  "codex/gpt-5.5",
-
   // Fireworks AI — all support function-calling per Fireworks docs (verified)
   "accounts/fireworks/models/glm-5p2",
   "accounts/fireworks/models/kimi-k2p7-code",
@@ -67,7 +64,6 @@ export function isAgentCapable(modelId: string): boolean {
  * Model IDs that support vision/multimodal input.
  */
 export const multimodalModels = new Set([
-  "codex/gpt-5.5",
   "accounts/fireworks/models/qwen3p7-plus",
   "accounts/fireworks/models/minimax-m3",
   "accounts/fireworks/models/kimi-k2p7-code",
@@ -79,19 +75,15 @@ export function isMultimodal(modelId: string): boolean {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
- * Multi-provider routing helpers
+ * Provider routing helpers.
  *
- * Model IDs use a prefix convention: "provider/model-id" (e.g. "codex/gpt-5.5").
- * Fireworks model IDs already include the "accounts/fireworks/models/" path
- * and need no extra prefix — resolveProvider detects them by that path.
- * Models without a recognized prefix route to Fireworks (the default provider).
+ * Fireworks is the only provider. Model IDs include the
+ * "accounts/fireworks/models/" path; resolveProvider detects them by it.
  * ────────────────────────────────────────────────────────────────────── */
 
-type ProviderName = "fireworks" | "codex";
+type ProviderName = "fireworks";
 
-const PROVIDER_PREFIXES: Record<string, ProviderName> = {
-  "codex/": "codex",
-};
+const PROVIDER_PREFIXES: Record<string, ProviderName> = {};
 
 /** Resolve which provider a model routes through. */
 export function resolveProvider(modelId: string): ProviderName {
@@ -113,14 +105,12 @@ export function stripProviderPrefix(modelId: string): string {
 /** Base URLs for each provider. */
 export const PROVIDER_BASE_URLS: Record<ProviderName, string> = {
   fireworks: "https://api.fireworks.ai/inference/v1",
-  codex: "https://chatgpt.com/backend-api/codex",
 };
 
 /**
  * Per-model max output tokens, from Fireworks docs. A request whose
  * max_tokens exceeds the model's cap is rejected or clamped, so we cap
- * our requested maxOutputTokens to these values. Codex is excluded
- * (chat route doesn't set maxOutputTokens for it).
+ * our requested maxOutputTokens to these values.
  */
 export const MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
   "accounts/fireworks/models/glm-5p2": 131072,
@@ -144,25 +134,7 @@ export function maxOutputFor(
 /** Environment variable names for each provider's API key. */
 export const PROVIDER_ENV_KEYS: Record<ProviderName, string> = {
   fireworks: "FIREWORKS_API_KEY",
-  codex: "", // Uses per-user OAuth tokens, not a server-side env key
 };
-
-/**
- * OpenAI Codex models — require the user to connect their ChatGPT account
- * via OAuth Device Code flow. Always included in the model list.
- */
-export const codexModels: ModelInfo[] = [
-  {
-    id: "codex/gpt-5.5",
-    label: "GPT-5.5",
-    vendor: "OpenAI",
-    tag: "ChatGPT subscription",
-    agentCapable: true,
-    provider: "codex",
-    requiresAuth: true,
-    multimodal: true,
-  },
-];
 
 /**
  * Curated default model catalog for Fireworks AI.
@@ -226,9 +198,6 @@ export const defaultModels: ModelInfo[] = [
     multimodal: true,
     provider: "fireworks",
   },
-
-  // ── OpenAI Codex (requires ChatGPT subscription OAuth) ──
-  ...codexModels,
 ];
 
 export const defaultModelId = defaultModels[0].id;

@@ -21,7 +21,6 @@ import {
   isAgentCapable,
   maxOutputFor,
 } from "@/lib/chat/models";
-import { codexCompatFetch } from "@/lib/chat/codex-compat";
 import { searchWeb, formatSearchResults } from "@/lib/chat/web-search";
 import { deriveTitle } from "@/lib/chat/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -40,12 +39,6 @@ import {
   recordSpend,
   OutOfCreditsError,
 } from "@/lib/credits/server";
-import {
-  refreshAccessToken,
-  needsRefresh,
-  expiresAt,
-} from "@/lib/openai/codex-auth";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { searchMemories } from "@/lib/chat/memory";
 import { extractAndSaveMemories } from "@/lib/chat/memory-extractor";
 import { getStructuredMemory, formatStructuredMemory } from "@/lib/chat/structured-memory";
@@ -511,7 +504,7 @@ export async function POST(req: Request) {
   // ── Look up GitHub token + OpenAI tokens (used by context fetch + agent tools) ──
   const { data: profile } = await supabase
     .from("profiles")
-    .select("github_token, openai_access_token, openai_refresh_token, openai_token_expires")
+    .select("github_token")
     .eq("id", userId)
     .maybeSingle();
   const githubToken: string | undefined = profile?.github_token ?? undefined;
@@ -854,77 +847,22 @@ When the user asks about library APIs, setup, migrations, or version-specific be
     : context7Tools;
 
   // ── Stream the model response ────────────────────────────────────────
-  // Route to the correct provider based on model prefix.
+  // Route to the correct provider based on model id.
   const providerName = resolveProvider(modelId);
 
-  let resolvedKey: string | undefined;
+  // Use the server-side env key for the provider (Fireworks).
+  const envKey = PROVIDER_ENV_KEYS[providerName];
+  const resolvedKey = process.env[envKey];
 
-  if (providerName === "codex") {
-    // ── Codex: use the user's own ChatGPT OAuth token ──
-    if (!profile?.openai_access_token) {
-      return NextResponse.json(
-        {
-          error:
-            "This model requires you to connect your ChatGPT account. Go to Profile → Extensions to connect.",
-          code: "openai_auth_required",
-        },
-        { status: 403 },
-      );
-    }
-
-    let accessToken = profile.openai_access_token as string;
-    const refreshToken = (profile.openai_refresh_token as string) || "";
-    const tokenExpires = (profile.openai_token_expires as string) || null;
-
-    // Auto-refresh expired tokens
-    if (needsRefresh(tokenExpires) && refreshToken) {
-      try {
-        const newTokens = await refreshAccessToken(refreshToken);
-        accessToken = newTokens.access_token;
-
-        // Persist the new tokens
-        const admin = createAdminClient();
-        await admin
-          .from("profiles")
-          .update({
-            openai_access_token: newTokens.access_token,
-            openai_refresh_token: newTokens.refresh_token,
-            openai_token_expires: expiresAt(newTokens.expires_in),
-          })
-          .eq("id", userId);
-      } catch (err) {
-        console.error("[chat] Codex token refresh failed:", err);
-        return NextResponse.json(
-          {
-            error:
-              "Your ChatGPT session has expired. Please reconnect in Profile → Extensions.",
-            code: "openai_auth_expired",
-          },
-          { status: 401 },
-        );
-      }
-    }
-
-    resolvedKey = accessToken;
-  } else {
-    // ── Standard provider: use server-side env key ──
-    const envKey = PROVIDER_ENV_KEYS[providerName];
-    resolvedKey = process.env[envKey];
-
-    if (!resolvedKey) {
-      return NextResponse.json(
-        { error: `${envKey} is not set. Add it to your environment variables.` },
-        { status: 500 },
-      );
-    }
+  if (!resolvedKey) {
+    return NextResponse.json(
+      { error: `${envKey} is not set. Add it to your environment variables.` },
+      { status: 500 },
+    );
   }
 
   function canUseModel(candidateModelId: string): boolean {
     const candidateProvider = resolveProvider(candidateModelId);
-    if (candidateProvider === "codex") {
-      return candidateModelId === modelId && !!resolvedKey;
-    }
-
     const envKey = PROVIDER_ENV_KEYS[candidateProvider];
     return !!process.env[envKey];
   }
@@ -949,19 +887,11 @@ When the user asks about library APIs, setup, migrations, or version-specific be
     const candidateProvider = resolveProvider(candidateModelId);
     const candidateResolvedModelId = stripProviderPrefix(candidateModelId);
 
-    let candidateKey: string | undefined;
-    let candidateBaseURL: string;
-
-    if (candidateProvider === "codex") {
-      candidateKey = resolvedKey;
-      candidateBaseURL = PROVIDER_BASE_URLS[candidateProvider];
-    } else {
-      const envKey = PROVIDER_ENV_KEYS[candidateProvider];
-      candidateKey = process.env[envKey];
-      candidateBaseURL =
-        process.env[`${envKey.replace("_API_KEY", "_BASE_URL")}`] ||
-        PROVIDER_BASE_URLS[candidateProvider];
-    }
+    const envKey = PROVIDER_ENV_KEYS[candidateProvider];
+    const candidateKey = process.env[envKey];
+    const candidateBaseURL =
+      process.env[`${envKey.replace("_API_KEY", "_BASE_URL")}`] ||
+      PROVIDER_BASE_URLS[candidateProvider];
 
     if (!candidateKey) {
       throw new Error(`No API key configured for ${candidateProvider}`);
@@ -970,8 +900,6 @@ When the user asks about library APIs, setup, migrations, or version-specific be
     const candidateOpenAI = createOpenAI({
       baseURL: candidateBaseURL,
       apiKey: candidateKey,
-      // Codex has a stricter Responses API contract than api.openai.com.
-      ...(candidateProvider === "codex" ? { fetch: codexCompatFetch } : {}),
     });
 
     return {
@@ -1133,27 +1061,10 @@ The previous model attempt was interrupted by provider rate limits before it cou
 ${recoveryInstruction}`;
 
       return streamText({
-        model:
-          candidate.providerName === "codex"
-            ? candidate.provider.responses(candidate.resolvedModelId)
-            : candidate.provider.chat(candidate.resolvedModelId),
+        model: candidate.provider.chat(candidate.resolvedModelId),
         system: recoverySystem,
         messages: modelMessages,
-        ...(candidate.providerName === "codex"
-          ? {}
-          : { maxOutputTokens: maxOutputFor(candidateModelId, maxOutputTokens) }),
-        ...(candidate.providerName === "codex"
-          ? {
-              providerOptions: {
-                openai: {
-                  store: false,
-                  reasoningEffort: "medium",
-                  reasoningSummary: "auto",
-                  forceReasoning: true,
-                },
-              },
-            }
-          : {}),
+        maxOutputTokens: maxOutputFor(candidateModelId, maxOutputTokens),
         // Keep retries conservative. Provider 429/quota errors are retryable to
         // the SDK, but repeating them can quickly turn one user action into many
         // failed attempts. Override with AI_CHAT_MAX_RETRIES only if needed.

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, Check, Link, Lock } from "lucide-react";
+import { ChevronDown, Check } from "lucide-react";
 import type { ModelInfo } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -9,7 +9,6 @@ const LOBE_ICON_BASE =
   "https://unpkg.com/@lobehub/icons-static-svg@latest/icons";
 
 const PROVIDER_LOGOS: Record<string, string> = {
-  OpenAI: `${LOBE_ICON_BASE}/openai.svg`,
   DeepSeek: `${LOBE_ICON_BASE}/deepseek-color.svg`,
   Kimi: `${LOBE_ICON_BASE}/kimi.svg`,
   GLM: `${LOBE_ICON_BASE}/chatglm-color.svg`,
@@ -49,10 +48,6 @@ export type ModelSelectorProps = {
   variant?: "compact" | "default";
   /** When true, non-agent-capable models are dimmed. */
   agentMode?: boolean;
-  /** Whether the user has connected their OpenAI account. */
-  openaiConnected?: boolean;
-  /** Callback when user clicks "Connect" on a requiresAuth model. */
-  onConnectOpenAI?: () => void;
 };
 
 export function ModelSelector({
@@ -61,8 +56,6 @@ export function ModelSelector({
   onChange,
   variant = "compact",
   agentMode = false,
-  openaiConnected = false,
-  onConnectOpenAI,
 }: ModelSelectorProps) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -118,10 +111,6 @@ export function ModelSelector({
                 key={m.id}
                 type="button"
                 onClick={() => {
-                  if (m.requiresAuth && !openaiConnected) {
-                    onConnectOpenAI?.();
-                    return;
-                  }
                   onChange(m.id);
                   setOpen(false);
                 }}
@@ -135,12 +124,6 @@ export function ModelSelector({
                 <span className="min-w-0 flex-1 truncate font-medium">{m.label}</span>
                 {m.free && !active && (
                   <span className="text-[8px] font-semibold uppercase text-muted-foreground">Free</span>
-                )}
-                {m.requiresAuth && !openaiConnected && (
-                  <Lock className="size-3 shrink-0 text-muted-foreground" />
-                )}
-                {m.requiresAuth && openaiConnected && !active && (
-                  <Link className="size-3 shrink-0 text-muted-foreground" />
                 )}
                 <Check
                   className={cn(

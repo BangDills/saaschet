@@ -36,14 +36,10 @@ export type ChatInputProps = {
   agentMode: boolean;
   /** layout variant */
   variant?: "default" | "centered";
-  /** Whether user has connected their OpenAI account. */
-  openaiConnected?: boolean;
   /** GitHub Agent access mode for the connected repo. */
   githubAccessMode?: "unknown" | "read_only" | "full";
   /** Connected GitHub username, if available. */
   githubUsername?: string | null;
-  /** Callback to open the OpenAI connect dialog. */
-  onConnectOpenAI?: () => void;
   /** Controlled composer draft shared with prompt suggestions. */
   draft: string;
   onDraftChange: (value: string) => void;
@@ -75,10 +71,8 @@ export function ChatInput({
   repo,
   onRepoChange,
   agentMode,
-  openaiConnected,
   githubAccessMode = "unknown",
   githubUsername,
-  onConnectOpenAI,
   draft,
   onDraftChange,
   focusRequestKey = 0,
@@ -283,8 +277,6 @@ export function ChatInput({
               onModelChange(nextModelId);
             }}
             agentMode={agentMode}
-            openaiConnected={openaiConnected}
-            onConnectOpenAI={onConnectOpenAI}
           />
         </div>
       </div>

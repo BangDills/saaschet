@@ -13,7 +13,6 @@ import { ChatInput } from "./chat-input";
 import { StreamingPill } from "./streaming-pill";
 import { ProcessingIndicator } from "./processing-indicator";
 import { fireCreditsRefresh } from "@/components/dashboard/credits-meter";
-import { OpenAIConnectDialog } from "./openai-connect-dialog";
 import { AlertCircle, ArrowDown, Clock3, RefreshCcw, WifiOff } from "lucide-react";
 import useSWR from "swr";
 
@@ -181,19 +180,6 @@ export function ChatPanel({
       }),
     [],
   );
-
-  // ── OpenAI connection state ──────────────────────────────────────────
-  const [openaiConnected, setOpenaiConnected] = React.useState(false);
-  const [showOpenAIDialog, setShowOpenAIDialog] = React.useState(false);
-
-  React.useEffect(() => {
-    fetch("/api/openai/status")
-      .then((r) => r.json())
-      .then((d: { connected?: boolean }) => {
-        if (d.connected) setOpenaiConnected(true);
-      })
-      .catch(() => {});
-  }, []);
 
   // ── GitHub agent access state ─────────────────────────────────────────
   const [githubAccessMode, setGithubAccessMode] =
@@ -688,10 +674,8 @@ export function ChatPanel({
     repo,
     onRepoChange,
     agentMode,
-    openaiConnected,
     githubAccessMode,
     githubUsername,
-    onConnectOpenAI: () => setShowOpenAIDialog(true),
     draft,
     onDraftChange: setDraft,
     focusRequestKey,
@@ -850,13 +834,6 @@ export function ChatPanel({
           <div className="shrink-0 pb-20 sm:pb-8" />
         </div>
       )}
-
-      {/* OpenAI Connect Dialog */}
-      <OpenAIConnectDialog
-        open={showOpenAIDialog}
-        onClose={() => setShowOpenAIDialog(false)}
-        onConnected={() => setOpenaiConnected(true)}
-      />
     </div>
   );
 }
