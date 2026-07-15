@@ -127,6 +127,93 @@ body {
   mask-image: linear-gradient(to bottom, black, transparent 90%);
 }
 
+/* Motion foundation: restrained ease-out curves, short durations. */
+:root {
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* Scroll-choreographed reveal. JS toggles data-revealed via IntersectionObserver. */
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 0.6s var(--ease-out-quart),
+    transform 0.6s var(--ease-out-expo);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+.reveal[data-revealed="true"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Physical press feedback for primary actions. */
+.press {
+  transition:
+    transform 0.15s var(--ease-out-quart),
+    opacity 0.2s var(--ease-out-quart),
+    background-color 0.2s var(--ease-out-quart),
+    color 0.2s var(--ease-out-quart),
+    box-shadow 0.25s var(--ease-out-quart);
+}
+
+.press:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+/* Product preview: hard shadow compresses slightly on hover, like a plate settling. */
+.preview-plate {
+  box-shadow: 8px 8px 0 0 var(--foreground);
+  transition:
+    transform 0.45s var(--ease-out-expo),
+    box-shadow 0.45s var(--ease-out-expo);
+}
+
+@media (min-width: 640px) {
+  .preview-plate {
+    box-shadow: 14px 14px 0 0 var(--foreground);
+  }
+}
+
+@media (hover: hover) {
+  .preview-plate:hover {
+    transform: translate(3px, 3px);
+    box-shadow: 5px 5px 0 0 var(--foreground);
+  }
+
+  @media (min-width: 640px) {
+    .preview-plate:hover {
+      box-shadow: 10px 10px 0 0 var(--foreground);
+    }
+  }
+}
+
+/* FAQ answer settles in when opened. */
+details[open] > .faq-answer {
+  animation: faq-in 0.35s var(--ease-out-quart) both;
+}
+
+@keyframes faq-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
 :focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 3px;
