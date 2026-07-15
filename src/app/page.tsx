@@ -64,6 +64,47 @@ const faqs = [
   },
 ];
 
+const LOBE = "https://unpkg.com/@lobehub/icons-static-svg@latest/icons";
+
+const MODELS = [
+  {
+    name: "GLM 5.2",
+    logo: `${LOBE}/chatglm-color.svg`,
+    tagline: "Model andalan untuk Agent Mode. Penalaran kuat, andal memanggil tool, dan jago ngoding.",
+    badge: "Agen · Default",
+  },
+  {
+    name: "Kimi 2.7 Code",
+    logo: `${LOBE}/kimi-color.svg`,
+    tagline: "Spesialis kode. Cepat memahami codebase dan menulis kode yang bersih.",
+    badge: "Strong Coder",
+  },
+  {
+    name: "DeepSeek V4 Pro",
+    logo: `${LOBE}/deepseek-color.svg`,
+    tagline: "Model reasoning kelas berat. Cocok untuk tugas kompleks dan multi-langkah.",
+    badge: "Reasoning Pro",
+  },
+  {
+    name: "DeepSeek V4 Flash",
+    logo: `${LOBE}/deepseek-color.svg`,
+    tagline: "Varian cepat dan ringan. Respons instan untuk chat sehari-hari.",
+    badge: "Fast",
+  },
+  {
+    name: "Qwen 3.7 Plus",
+    logo: `${LOBE}/qwen-color.svg`,
+    tagline: "Seimbang antara kecepatan dan kualitas. Andal untuk tugas umum.",
+    badge: "Speed & Quality",
+  },
+  {
+    name: "MiniMax M3",
+    logo: `${LOBE}/minimax-color.svg`,
+    tagline: "Model serbaguna dengan hasil stabil di berbagai tipe pertanyaan.",
+    badge: "Balanced",
+  },
+];
+
 function Brand() {
   return (
     <Link href="/" className="group flex items-center gap-3" aria-label="Celiuz AI home">
@@ -267,6 +308,31 @@ export default async function LandingPage() {
                 </Link>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      <section id="models" className="border-b border-foreground py-20 sm:py-28">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid gap-8 border-b border-foreground pb-10 lg:grid-cols-2">
+            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">[ 02 — Model ]</p>
+            <div>
+              <h2 className="text-balance text-4xl font-extrabold leading-none tracking-[-0.05em] sm:text-6xl">Model terbaik, satu platform.</h2>
+              <p className="mt-5 max-w-xl leading-relaxed text-muted-foreground">Celiuz memakai model-model berkualitas dari Fireworks AI. Anda bayar untuk hasilnya, bukan mengelola banyak langganan API.</p>
+            </div>
+          </div>
+          <div className="grid gap-px bg-foreground sm:grid-cols-2 lg:grid-cols-3">
+            {MODELS.map((m) => (
+              <div key={m.name} className="flex flex-col gap-4 bg-background p-6 sm:p-7">
+                <div className="flex items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={m.logo} alt="" className="size-8 shrink-0 object-contain" />
+                  <h3 className="text-lg font-extrabold tracking-[-0.03em]">{m.name}</h3>
+                </div>
+                <p className="text-sm leading-relaxed text-muted-foreground">{m.tagline}</p>
+                <span className="mt-auto font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{m.badge}</span>
+              </div>
+            ))}
           </div>
         </div>
       </section>
