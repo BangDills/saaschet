@@ -204,16 +204,23 @@ const MD_COMPONENTS: Components = {
   li: ({ children }: { children?: React.ReactNode }) => (
     <li className="my-1 leading-6">{children}</li>
   ),
-  a: ({ children, href }: { children?: React.ReactNode; href?: string }) => (
-    <a
-      href={href}
-      className="text-primary underline underline-offset-2 hover:opacity-80"
-      target="_blank"
-      rel="noreferrer"
-    >
-      {children}
-    </a>
-  ),
+  a: ({ children, href }: { children?: React.ReactNode; href?: string }) => {
+    // Only allow safe URL schemes; block javascript:/data:/vbscript: etc.
+    const safe =
+      !href ||
+      /^(https?:|mailto:|tel:|\/|#|\.)/i.test(href) ||
+      !href.includes(":");
+    return (
+      <a
+        href={safe ? href : undefined}
+        className="text-primary underline underline-offset-2 hover:opacity-80"
+        target="_blank"
+        rel="noreferrer"
+      >
+        {children}
+      </a>
+    );
+  },
   h1: ({ children }: { children?: React.ReactNode }) => (
     <h1 className="mb-2 mt-5 text-lg font-semibold tracking-tight first:mt-0">{children}</h1>
   ),
