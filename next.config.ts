@@ -30,6 +30,9 @@ const securityHeaders: { key: string; value: string }[] = [
 ];
 
 const nextConfig: NextConfig = {
+  // Build a self-contained server (.next/standalone) for Docker/Coolify deploys
+  // — bundles only runtime deps so the image stays small and starts fast.
+  output: "standalone",
   async headers() {
     return [
       {
