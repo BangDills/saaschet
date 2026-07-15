@@ -247,7 +247,7 @@ export default async function LandingPage() {
                 Satu workspace. Semua alur kerja kreatif.
               </div>
               <h1 className="max-w-5xl text-balance text-5xl font-extrabold leading-[0.98] tracking-[-0.045em] sm:text-7xl lg:text-[6.6rem]">
-                Dari ide jadi hasil, tanpa pekerjaan ribet.
+                Dari konsep ke kode, dari ide jadi kreasi.
               </h1>
             </div>
             <div className="border-l border-foreground pl-5 lg:pb-2">
