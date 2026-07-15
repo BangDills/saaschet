@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { CeliuzLogo } from "@/components/celiuz-logo";
+import { Reveal } from "@/components/landing/reveal";
 
 export const dynamic = "force-dynamic";
 
@@ -116,7 +117,7 @@ function Brand() {
 
 function ProductPreview() {
   return (
-    <div className="relative mx-auto w-full max-w-6xl border border-foreground bg-background shadow-[8px_8px_0_0_var(--foreground)] sm:shadow-[14px_14px_0_0_var(--foreground)]">
+    <div className="preview-plate relative mx-auto w-full max-w-6xl border border-foreground bg-background">
       <div className="flex items-center justify-between border-b border-foreground px-3 py-3 sm:px-5">
         <div className="flex items-center gap-2" aria-hidden="true">
           <Circle className="size-2.5 fill-foreground" />
@@ -230,8 +231,8 @@ export default async function LandingPage() {
           </nav>
           <div className="flex items-center gap-1 sm:gap-2">
             {!user && <Link href="/login" className="hidden px-3 py-2 text-xs font-bold uppercase tracking-wider sm:inline-flex">Masuk</Link>}
-            <Link href={user ? appLink : "/signup"} className="inline-flex items-center gap-2 bg-foreground px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-background transition-opacity hover:opacity-75">
-              {user ? "Buka app" : "Mulai gratis"}<ArrowRight className="size-3.5" />
+            <Link href={user ? appLink : "/signup"} className="press group/nav inline-flex items-center gap-2 bg-foreground px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-background hover:opacity-85">
+              {user ? "Buka app" : "Mulai gratis"}<ArrowRight className="size-3.5 transition-transform duration-300 ease-out group-hover/nav:translate-x-0.5" />
             </Link>
           </div>
         </div>
@@ -241,7 +242,7 @@ export default async function LandingPage() {
         <div className="mono-grid absolute inset-0 opacity-60" aria-hidden="true" />
         <div className="relative mx-auto max-w-7xl px-4 pb-16 pt-14 sm:px-6 sm:pb-24 sm:pt-20 lg:px-8">
           <div className="grid items-end gap-10 lg:grid-cols-[1fr_320px]">
-            <div>
+            <Reveal>
               <div className="mb-6 flex items-center gap-3 font-mono text-[10px] font-bold uppercase tracking-[0.2em]">
                 <span className="inline-flex size-6 items-center justify-center bg-foreground text-background"><Zap className="size-3" /></span>
                 Satu workspace. Semua alur kerja kreatif.
@@ -249,22 +250,22 @@ export default async function LandingPage() {
               <h1 className="max-w-5xl text-balance text-5xl font-extrabold leading-[0.98] tracking-[-0.045em] sm:text-7xl lg:text-[6.6rem]">
                 Dari konsep ke kode, dari ide jadi kreasi.
               </h1>
-            </div>
-            <div className="border-l border-foreground pl-5 lg:pb-2">
+            </Reveal>
+            <Reveal delay={120} className="border-l border-foreground pl-5 lg:pb-2">
               <p className="text-pretty text-base leading-relaxed text-muted-foreground">
                 Chat, ngoding, dan shipping dengan rangkaian tool AI yang fokus, dibuat untuk orang yang membangun sesuatu.
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row lg:flex-col">
-                <Link href={user ? appLink : "/signup"} className="inline-flex items-center justify-between bg-foreground px-5 py-3.5 text-sm font-bold text-background transition-opacity hover:opacity-75">
-                  Mulai bangun gratis <ArrowRight className="size-4" />
+                <Link href={user ? appLink : "/signup"} className="press group/cta inline-flex items-center justify-between bg-foreground px-5 py-3.5 text-sm font-bold text-background hover:opacity-85">
+                  Mulai bangun gratis <ArrowRight className="size-4 transition-transform duration-300 ease-out group-hover/cta:translate-x-1" />
                 </Link>
-                <a href="#features" className="inline-flex items-center justify-between border border-foreground bg-background px-5 py-3.5 text-sm font-bold transition-colors hover:bg-foreground hover:text-background">
+                <a href="#features" className="press inline-flex items-center justify-between border border-foreground bg-background px-5 py-3.5 text-sm font-bold hover:bg-foreground hover:text-background">
                   Jelajahi fitur <span className="font-mono text-xs">↓</span>
                 </a>
               </div>
-            </div>
+            </Reveal>
           </div>
-          <div className="mt-14 sm:mt-20"><ProductPreview /></div>
+          <Reveal delay={200} className="mt-14 sm:mt-20"><ProductPreview /></Reveal>
         </div>
       </section>
 
@@ -281,31 +282,33 @@ export default async function LandingPage() {
 
       <section id="features" className="border-b border-foreground py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid gap-8 border-b border-foreground pb-10 lg:grid-cols-2">
+          <Reveal className="grid gap-8 border-b border-foreground pb-10 lg:grid-cols-2">
             <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">[ 01 — Rangkaian tool ]</p>
             <div>
               <h2 className="text-balance text-4xl font-extrabold leading-none tracking-[-0.05em] sm:text-6xl">Tiga tool. Satu alur kerja jelas.</h2>
               <p className="mt-5 max-w-xl leading-relaxed text-muted-foreground">Berhenti ganti tab dan langganan. Pindah dari riset ke produksi dalam satu workspace yang terhubung.</p>
             </div>
-          </div>
+          </Reveal>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((feature) => {
+            {features.map((feature, index) => {
               const Icon = feature.icon;
               return (
-                <Link key={feature.number} href={user ? feature.href : "/login"} className="group -ml-px -mt-px flex min-h-72 flex-col justify-between border border-foreground p-6 transition-colors hover:bg-foreground hover:text-background sm:p-7">
-                  <div className="flex items-start justify-between">
-                    <span className="font-mono text-xs">{feature.number}</span>
-                    <Icon className="size-6 transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-110" />
-                  </div>
-                  <div>
-                    <div className="mb-3 flex items-center gap-2">
-                      <h3 className="text-xl font-extrabold tracking-[-0.03em]">{feature.title}</h3>
-                      {feature.badge && <span className="border border-current px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-wider">{feature.badge}</span>}
+                <Reveal key={feature.number} delay={index * 90}>
+                  <Link href={user ? feature.href : "/login"} className="group -ml-px -mt-px flex min-h-72 flex-col justify-between border border-foreground p-6 transition-colors duration-300 ease-out hover:bg-foreground hover:text-background active:bg-foreground active:text-background sm:p-7">
+                    <div className="flex items-start justify-between">
+                      <span className="font-mono text-xs">{feature.number}</span>
+                      <Icon className="size-6 transition-transform duration-500 [transition-timing-function:var(--ease-out-expo)] group-hover:-rotate-6 group-hover:scale-110" />
                     </div>
-                    <p className="text-sm leading-relaxed text-muted-foreground group-hover:text-background/65">{feature.description}</p>
-                    <span className="mt-5 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider">Buka tool <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" /></span>
-                  </div>
-                </Link>
+                    <div>
+                      <div className="mb-3 flex items-center gap-2">
+                        <h3 className="text-xl font-extrabold tracking-[-0.03em]">{feature.title}</h3>
+                        {feature.badge && <span className="border border-current px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-wider">{feature.badge}</span>}
+                      </div>
+                      <p className="text-sm leading-relaxed text-muted-foreground transition-colors duration-300 group-hover:text-background/65">{feature.description}</p>
+                      <span className="mt-5 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider">Buka tool <ArrowRight className="size-3.5 transition-transform duration-300 ease-out group-hover:translate-x-1" /></span>
+                    </div>
+                  </Link>
+                </Reveal>
               );
             })}
           </div>
@@ -314,16 +317,16 @@ export default async function LandingPage() {
 
       <section id="models" className="border-b border-foreground py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid gap-8 border-b border-foreground pb-10 lg:grid-cols-2">
+          <Reveal className="grid gap-8 border-b border-foreground pb-10 lg:grid-cols-2">
             <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">[ 02 — Model ]</p>
             <div>
               <h2 className="text-balance text-4xl font-extrabold leading-none tracking-[-0.05em] sm:text-6xl">Model terbaik, satu platform.</h2>
               <p className="mt-5 max-w-xl leading-relaxed text-muted-foreground">Celiuz memakai model-model berkualitas, untuk memaksimalkan kinerja kode dalam pekerjaan Anda.</p>
             </div>
-          </div>
+          </Reveal>
           <div className="grid gap-px bg-foreground sm:grid-cols-2 lg:grid-cols-3">
-            {MODELS.map((m) => (
-              <div key={m.name} className="flex flex-col gap-4 bg-background p-6 sm:p-7">
+            {MODELS.map((m, index) => (
+              <Reveal key={m.name} delay={index * 60} className="flex h-full flex-col gap-4 bg-background p-6 sm:p-7">
                 <div className="flex items-center gap-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={m.logo} alt="" className="size-8 shrink-0 object-contain" />
@@ -331,7 +334,7 @@ export default async function LandingPage() {
                 </div>
                 <p className="text-sm leading-relaxed text-muted-foreground">{m.tagline}</p>
                 <span className="mt-auto font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{m.badge}</span>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -340,13 +343,13 @@ export default async function LandingPage() {
       <section id="pricing" className="border-b border-foreground bg-muted py-20 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid gap-8 lg:grid-cols-[0.75fr_1.25fr]">
-            <div>
+            <Reveal>
               <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">[ 02 — Harga ]</p>
               <h2 className="mt-6 text-balance text-4xl font-extrabold leading-none tracking-[-0.05em] sm:text-6xl">Bayar untuk hasil, bukan kursi kosong.</h2>
               <p className="mt-5 max-w-md leading-relaxed text-muted-foreground">Satu saldo kredit untuk chat, PRD, dan alur kerja agen. Mulai gratis dan upgrade saat pekerjaan Anda berkembang.</p>
-            </div>
+            </Reveal>
             <div className="grid md:grid-cols-2">
-              <article className="flex min-h-[460px] flex-col justify-between border border-foreground bg-background p-7">
+              <Reveal delay={80}><article className="flex h-full min-h-[460px] flex-col justify-between border border-foreground bg-background p-7">
                 <div>
                   <p className="font-mono text-[10px] uppercase tracking-[0.18em]">Starter</p>
                   <p className="mt-5 text-5xl font-extrabold tracking-[-0.06em]">Rp0</p>
@@ -355,9 +358,9 @@ export default async function LandingPage() {
                     {["Alokasi kredit awal", "Model chat standar", "Akses semua fitur inti", "Dukungan komunitas"].map((item) => <li key={item} className="flex items-start gap-3"><Check className="mt-0.5 size-4 shrink-0" />{item}</li>)}
                   </ul>
                 </div>
-                <Link href="/signup" className="mt-8 inline-flex items-center justify-between border border-foreground px-4 py-3 text-sm font-bold hover:bg-foreground hover:text-background">Buat akun gratis <ArrowRight className="size-4" /></Link>
-              </article>
-              <article className="flex min-h-[460px] flex-col justify-between bg-foreground p-7 text-background">
+                <Link href="/signup" className="press mt-8 inline-flex items-center justify-between border border-foreground px-4 py-3 text-sm font-bold hover:bg-foreground hover:text-background">Buat akun gratis <ArrowRight className="size-4" /></Link>
+              </article></Reveal>
+              <Reveal delay={160}><article className="flex h-full min-h-[460px] flex-col justify-between bg-foreground p-7 text-background">
                 <div>
                   <div className="flex items-center justify-between">
                     <p className="font-mono text-[10px] uppercase tracking-[0.18em]">Pro</p>
@@ -369,8 +372,8 @@ export default async function LandingPage() {
                     {["Akses model premium", "Kolam kredit harian besar", "Agen penuh (baca + tulis + PR)", "Prioritas pemrosesan tugas"].map((item) => <li key={item} className="flex items-start gap-3"><Check className="mt-0.5 size-4 shrink-0" />{item}</li>)}
                   </ul>
                 </div>
-                <Link href="/signup" className="mt-8 inline-flex items-center justify-between bg-background px-4 py-3 text-sm font-bold text-foreground transition-opacity hover:opacity-80">Mulai dengan Pro <ArrowRight className="size-4" /></Link>
-              </article>
+                <Link href="/signup" className="press mt-8 inline-flex items-center justify-between bg-background px-4 py-3 text-sm font-bold text-foreground hover:opacity-85">Mulai dengan Pro <ArrowRight className="size-4" /></Link>
+              </article></Reveal>
             </div>
           </div>
         </div>
@@ -378,32 +381,34 @@ export default async function LandingPage() {
 
       <section id="faqs" className="border-b border-foreground py-20 sm:py-28">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-[0.65fr_1.35fr] lg:px-8">
-          <div>
+          <Reveal>
             <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">[ 03 — FAQ ]</p>
             <h2 className="mt-6 text-4xl font-extrabold tracking-[-0.05em] sm:text-5xl">Pertanyaan bagus, jawaban jelas.</h2>
-          </div>
-          <div className="border-t border-foreground">
+          </Reveal>
+          <Reveal delay={100} className="border-t border-foreground">
             {faqs.map((faq, index) => (
               <details key={faq.question} className="group border-b border-foreground">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-5 py-6 [&::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-5 py-6 transition-colors duration-200 hover:text-muted-foreground [&::-webkit-details-marker]:hidden">
                   <span className="flex items-start gap-4 text-base font-bold sm:text-lg"><span className="font-mono text-[10px] text-muted-foreground">0{index + 1}</span>{faq.question}</span>
-                  <ChevronDown className="size-4 shrink-0 transition-transform group-open:rotate-180" />
+                  <ChevronDown className="size-4 shrink-0 transition-transform duration-300 [transition-timing-function:var(--ease-out-expo)] group-open:rotate-180" />
                 </summary>
-                <p className="max-w-2xl pb-6 pl-9 text-sm leading-relaxed text-muted-foreground sm:text-base">{faq.answer}</p>
+                <p className="faq-answer max-w-2xl pb-6 pl-9 text-sm leading-relaxed text-muted-foreground sm:text-base">{faq.answer}</p>
               </details>
             ))}
-          </div>
+          </Reveal>
         </div>
       </section>
 
       <section className="bg-foreground py-20 text-background sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid items-end gap-10 lg:grid-cols-[1fr_auto]">
-            <div>
+            <Reveal>
               <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-background/55"><Terminal className="size-4" /> Siap kapan pun Anda</div>
               <h2 className="mt-6 max-w-4xl text-balance text-5xl font-extrabold leading-[0.94] tracking-[-0.06em] sm:text-7xl">Buat hal berikutnya, lebih cepat.</h2>
-            </div>
-            <Link href={user ? appLink : "/signup"} className="inline-flex min-w-56 items-center justify-between bg-background px-6 py-4 font-bold text-foreground transition-opacity hover:opacity-80">Mulai bangun <ArrowRight className="size-5" /></Link>
+            </Reveal>
+            <Reveal delay={140}>
+              <Link href={user ? appLink : "/signup"} className="press group/final inline-flex min-w-56 items-center justify-between bg-background px-6 py-4 font-bold text-foreground hover:opacity-85">Mulai bangun <ArrowRight className="size-5 transition-transform duration-300 ease-out group-hover/final:translate-x-1" /></Link>
+            </Reveal>
           </div>
         </div>
       </section>
