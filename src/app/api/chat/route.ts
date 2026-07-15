@@ -337,8 +337,8 @@ function formatInferenceError(err: unknown): { message: string; status: number; 
     const wait = retryAfterSeconds(apiErr?.responseHeaders);
     return {
       message: wait
-        ? `Model provider rate limit reached. Please wait about ${wait} seconds, then try again.`
-        : "Model provider rate limit reached. Please wait a moment, then try again.",
+        ? `Server lagi sibuk nih. Coba lagi sekitar ${wait} detik ya.`
+        : "Server lagi sibuk nih. Coba lagi sebentar ya.",
       status: 429,
       code: "provider_rate_limited",
     };
@@ -346,7 +346,7 @@ function formatInferenceError(err: unknown): { message: string; status: number; 
 
   if (statusCode === 401 || statusCode === 403) {
     return {
-      message: "Model provider rejected the API credentials. Check the selected model's API key or reconnect the account.",
+      message: "API key model ditolak. Cek konfigurasi atau hubungi admin.",
       status: statusCode,
       code: "provider_auth_failed",
     };
@@ -354,14 +354,14 @@ function formatInferenceError(err: unknown): { message: string; status: number; 
 
   if (statusCode && statusCode >= 500) {
     return {
-      message: "Model provider is temporarily unavailable. Please try again shortly.",
+      message: "Model lagi tidak tersedia sebentar. Coba lagi ya.",
       status: 502,
       code: "provider_unavailable",
     };
   }
 
   return {
-    message: `Inference failed: ${rawMessage}`,
+    message: "Maaf, ada gangguan pas memproses. Coba lagi ya.",
     status: 502,
     code: "inference_failed",
   };

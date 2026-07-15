@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, Check } from "lucide-react";
+import { ChevronDown, Check, Eye, Sparkles } from "lucide-react";
 import type { ModelInfo } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -122,6 +122,17 @@ export function ModelSelector({
               >
                 <ProviderLogo vendor={m.vendor} />
                 <span className="min-w-0 flex-1 truncate font-medium">{m.label}</span>
+                {m.agentCapable && (
+                  <Sparkles className="size-3 shrink-0 text-violet-500" aria-label="Agent" />
+                )}
+                {m.multimodal && (
+                  <Eye className="size-3 shrink-0 text-muted-foreground" aria-label="Vision" />
+                )}
+                {m.tag && !active && (
+                  <span className="shrink-0 text-[8px] font-medium uppercase text-muted-foreground">
+                    {m.tag}
+                  </span>
+                )}
                 {m.free && !active && (
                   <span className="text-[8px] font-semibold uppercase text-muted-foreground">Free</span>
                 )}
