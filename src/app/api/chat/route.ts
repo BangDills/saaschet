@@ -1082,6 +1082,9 @@ ${recoveryInstruction}`;
         // the SDK, but repeating them can quickly turn one user action into many
         // failed attempts. Override with AI_CHAT_MAX_RETRIES only if needed.
         maxRetries: chatMaxRetries(),
+        // Stop generation when the client disconnects (navigation/cancel) so
+        // we don't keep burning credits + provider quota for an unseen reply.
+        abortSignal: req.signal,
         // Agent mode: enable tools + multi-step loop. Cap at 15 steps to stay
         // within rate limits while still handling multi-file tasks.
         ...(tools
