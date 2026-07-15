@@ -68,7 +68,7 @@ function Brand() {
   return (
     <Link href="/" className="group flex items-center gap-3" aria-label="Celiuz AI Studio home">
       <CeliuzLogo className="rounded-none transition-transform group-hover:-translate-y-0.5" />
-      <span className="text-sm font-extrabold tracking-[-0.03em] sm:text-base">CELIUZ / AI</span>
+      <span className="text-sm font-extrabold tracking-[-0.03em] sm:text-base">CELIUZ AI</span>
     </Link>
   );
 }
