@@ -25,29 +25,35 @@ const PLANS: Array<{
     id: "free",
     name: "Free",
     limit: 50,
-    price: "Rp 0 / bulan",
+    price: "Rp 0 / hari",
     icon: Sparkles,
     perks: [
-      "50 credits per day",
-      "All chat models",
-      "Agent Mode (read + write GitHub)",
+      "50 kredit per hari",
+      "Semua model chat",
+      "Agent Mode (baca + tulis GitHub)",
       "Web search & repo connect",
     ],
   },
   {
     id: "pro",
     name: "Pro",
-    limit: 1000,
-    price: "Demo (no payment)",
+    limit: 3000,
+    price: "Rp 10.000 / 24 jam",
     icon: Crown,
     perks: [
-      "1,000 credits per day",
-      "Everything in Free",
-      "Priority for long agent runs",
-      "Higher-context responses",
+      "3.000 kredit per 24 jam",
+      "Semua di Free",
+      "Prioritas untuk agent run panjang",
+      "Respons konteks lebih besar",
     ],
   },
 ];
+
+const WHATSAPP_PROMO_URL =
+  "https://wa.me/6281414185065?text=" +
+  encodeURIComponent(
+    "Halo admin Celiuz AI, saya mau aktifkan Pro harian (Rp10.000). Email akun saya: ",
+  );
 
 export type ProfileTierSwitcherProps = {
   initialTier: Tier;
@@ -95,9 +101,8 @@ export function ProfileTierSwitcher({
       <CardHeader>
         <CardTitle>Plan & credits</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Used <span className="font-medium text-foreground">{usedToday}</span>{" "}
-          credits today. No payment integration yet — switching tiers takes
-          effect immediately for testing.
+          Terpakai <span className="font-medium text-foreground">{usedToday}</span>{" "}
+          kredit hari ini.
         </p>
       </CardHeader>
       <CardContent>
@@ -155,27 +160,31 @@ export function ProfileTierSwitcher({
                   ))}
                 </ul>
 
-                <button
-                  type="button"
-                  onClick={() => switchTo(plan.id)}
-                  disabled={isCurrent || !!pending}
-                  className={cn(
-                    "inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-colors",
-                    isCurrent
-                      ? "cursor-default bg-muted text-muted-foreground"
-                      : plan.id === "pro"
-                        ? "bg-primary text-primary-foreground hover:opacity-90"
-                        : "border border-border bg-card hover:bg-accent",
-                    "disabled:cursor-not-allowed disabled:opacity-60",
-                  )}
-                >
-                  {isPending && <Loader2 className="size-4 animate-spin" />}
-                  {isCurrent
-                    ? "Current plan"
-                    : plan.id === "pro"
-                      ? "Upgrade to Pro"
-                      : "Switch to Free"}
-                </button>
+                {isCurrent ? (
+                  <div className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-muted text-sm font-semibold text-muted-foreground">
+                    {plan.id === "pro" ? "Pro aktif 24 jam" : "Paket saat ini"}
+                  </div>
+                ) : plan.id === "pro" ? (
+                  <a href={WHATSAPP_PROMO_URL} target="_blank" rel="noreferrer">
+                    <button
+                      type="button"
+                      className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                    >
+                      <Crown className="size-4" />
+                      Aktifkan Pro · Rp10.000
+                    </button>
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => switchTo(plan.id)}
+                    disabled={!!pending}
+                    className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-border bg-card text-sm font-semibold transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isPending && <Loader2 className="size-4 animate-spin" />}
+                    Ganti ke Free
+                  </button>
+                )}
               </div>
             );
           })}
