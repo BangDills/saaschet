@@ -350,7 +350,7 @@ export default async function LandingPage() {
                 <div>
                   <p className="font-mono text-[10px] uppercase tracking-[0.18em]">Starter</p>
                   <p className="mt-5 text-5xl font-extrabold tracking-[-0.06em]">Rp0</p>
-                  <p className="mt-2 text-sm text-muted-foreground">Tanpa kartu. Milik Anda selamanya.</p>
+                  <p className="mt-2 text-sm text-muted-foreground">Gratis terus. Setiap hari.</p>
                   <ul className="mt-8 flex flex-col gap-4 text-sm">
                     {["Alokasi kredit awal", "Model chat standar", "Akses semua fitur inti", "Dukungan komunitas"].map((item) => <li key={item} className="flex items-start gap-3"><Check className="mt-0.5 size-4 shrink-0" />{item}</li>)}
                   </ul>
@@ -364,7 +364,7 @@ export default async function LandingPage() {
                     <span className="border border-background/40 px-2 py-1 font-mono text-[9px] uppercase tracking-wider">Paling populer</span>
                   </div>
                   <p className="mt-5 text-5xl font-extrabold tracking-[-0.06em]">Rp10.000<span className="text-base tracking-normal text-background/50"> / 24 jam</span></p>
-                  <p className="mt-2 text-sm text-background/55">Untuk kreator yang shipping tiap minggu.</p>
+                  <p className="mt-2 text-sm text-background/55">Untuk Anda yang butuh kerja extra.</p>
                   <ul className="mt-8 flex flex-col gap-4 text-sm">
                     {["Akses model premium", "Kolam kredit harian besar", "Agen penuh (baca + tulis + PR)", "Prioritas pemrosesan tugas"].map((item) => <li key={item} className="flex items-start gap-3"><Check className="mt-0.5 size-4 shrink-0" />{item}</li>)}
                   </ul>
