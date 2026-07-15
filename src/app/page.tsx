@@ -318,7 +318,7 @@ export default async function LandingPage() {
             <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">[ 02 — Model ]</p>
             <div>
               <h2 className="text-balance text-4xl font-extrabold leading-none tracking-[-0.05em] sm:text-6xl">Model terbaik, satu platform.</h2>
-              <p className="mt-5 max-w-xl leading-relaxed text-muted-foreground">Celiuz memakai model-model berkualitas dari Fireworks AI. Anda bayar untuk hasilnya, bukan mengelola banyak langganan API.</p>
+              <p className="mt-5 max-w-xl leading-relaxed text-muted-foreground">Celiuz memakai model-model berkualitas, untuk memaksimalkan kinerja kode dalam pekerjaan Anda.</p>
             </div>
           </div>
           <div className="grid gap-px bg-foreground sm:grid-cols-2 lg:grid-cols-3">
