@@ -790,8 +790,9 @@ export function ChatPanel({
           </div>
 
           <div ref={composerRef} className="sticky bottom-0 z-10 shrink-0 bg-background px-4 py-3">
-            {/* Fade edge: messages blur out into the composer instead of a hard line. */}
-            <div className="pointer-events-none absolute inset-x-0 -top-8 h-8 bg-gradient-to-b from-transparent to-background" aria-hidden="true" />
+            {/* Messages fade out into the top of the composer — content vanishes
+                partway down rather than hitting a hard line or bleeding past. */}
+            <div className="pointer-events-none absolute inset-x-0 -top-10 h-16 bg-gradient-to-b from-transparent via-background/60 to-background" aria-hidden="true" />
             {showScrollToLatest && (
               <button
                 type="button"
@@ -802,7 +803,9 @@ export function ChatPanel({
                 <ArrowDown className="size-4" />
               </button>
             )}
-            <ChatInput {...inputProps} />
+            <div className="relative">
+              <ChatInput {...inputProps} />
+            </div>
           </div>
         </>
       ) : (
