@@ -38,7 +38,7 @@ export default async function DashboardLayout({
     .toUpperCase();
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar
         displayName={displayName}
         initials={initials}
@@ -46,9 +46,9 @@ export default async function DashboardLayout({
         avatarUrl={profile?.avatar_url ?? null}
         role={role}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar initials={initials} role={role} />
-        <main className="flex-1 px-3 py-3 sm:px-6 sm:py-6 lg:px-8">{children}</main>
+        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-6 sm:py-6 lg:px-8">{children}</main>
       </div>
     </div>
   );
