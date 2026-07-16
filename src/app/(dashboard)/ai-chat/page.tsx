@@ -382,7 +382,7 @@ export default function AIChatPage() {
       </div>
 
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <ChatPanel key={active.conversationId} conversationId={active.conversationId} initialMessages={active.initialMessages} modelId={modelId} models={models} onModelChange={setModelId} webSearch={webSearch} onWebSearchChange={setWebSearch} repo={repo} onRepoChange={setRepo} agentMode={agentMode} onAssistantFinish={reloadConversations} />
+        <ChatPanel key={active.conversationId} conversationId={active.conversationId} initialMessages={active.initialMessages} modelId={modelId} models={models} onModelChange={setModelId} webSearch={webSearch || agentMode} onWebSearchChange={setWebSearch} repo={repo} onRepoChange={setRepo} agentMode={agentMode} onAssistantFinish={reloadConversations} />
       </section>
 
       {deleteTarget && (

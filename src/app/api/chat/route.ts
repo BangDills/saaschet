@@ -476,13 +476,14 @@ export async function POST(req: Request) {
   const modelId =
     body.model && knownModelIds.has(body.model) ? body.model : defaultModelId;
   const isRegeneration = body.trigger === "regenerate-message";
-  const wantsWebSearch = body.webSearch === true;
   const conversationId = body.conversationId;
   const repoSlug = body.repo?.trim() || null;
 
   // Agent mode is automatic: if the model supports tool calling AND
-  // a repo is connected, agent tools are enabled.
+  // a repo is connected, agent tools are enabled. Web search is always
+  // available in this mode through the agent's web_search tool.
   const wantsAgent = isAgentCapable(modelId) && !!repoSlug;
+  const wantsWebSearch = body.webSearch === true || wantsAgent;
 
   if (!conversationId) {
     return NextResponse.json(

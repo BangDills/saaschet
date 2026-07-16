@@ -252,11 +252,12 @@ export function ChatInput({
           <div className="flex min-w-0 items-center gap-0.5">
             <ToolbarToggle
               active={webSearch}
+              disabled={agentMode}
               onToggle={() => onWebSearchChange(!webSearch)}
-              title={webSearch ? "Disable web search" : "Enable web search"}
+              title={agentMode ? "Web search is always enabled in Agent mode" : webSearch ? "Disable web search" : "Enable web search"}
             >
               <Globe className="size-4" />
-              <span className="sr-only">{webSearch ? "Web search enabled" : "Web search disabled"}</span>
+              <span className="sr-only">{agentMode ? "Web search automatically enabled in Agent mode" : webSearch ? "Web search enabled" : "Web search disabled"}</span>
             </ToolbarToggle>
             <ToolbarButton
               title={isMultimodal ? "Attach image" : "This model does not support images"}
