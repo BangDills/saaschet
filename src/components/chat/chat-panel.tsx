@@ -736,7 +736,6 @@ export function ChatPanel({
                     charCount={pendingCharCount}
                     startedAt={streamStartedAt}
                     requestStatus={status === "submitted" ? "submitted" : "streaming"}
-                    onStop={stop}
                   />
                 )}
 

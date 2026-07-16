@@ -1,13 +1,12 @@
 "use client";
 
-import { Square } from "lucide-react";
-import { CeliuzLogo } from "@/components/celiuz-logo";
+import * as React from "react";
+import { BrainCircuit } from "lucide-react";
 
 export type StreamingPillProps = {
   charCount: number;
   startedAt: number;
   requestStatus: "submitted" | "streaming";
-  onStop?: () => void;
 };
 
 function getActivityLabel(
@@ -21,10 +20,23 @@ function getActivityLabel(
 
 export function StreamingPill({
   charCount,
+  startedAt,
   requestStatus,
-  onStop,
 }: StreamingPillProps) {
   const label = getActivityLabel(requestStatus, charCount);
+  const [elapsedSeconds, setElapsedSeconds] = React.useState(() =>
+    Math.max(0, Math.floor((Date.now() - startedAt) / 1000)),
+  );
+
+  React.useEffect(() => {
+    const updateElapsed = () => {
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+    };
+
+    updateElapsed();
+    const timer = window.setInterval(updateElapsed, 1000);
+    return () => window.clearInterval(timer);
+  }, [startedAt]);
 
   return (
     <div
@@ -33,24 +45,24 @@ export function StreamingPill({
       aria-live="polite"
       aria-label={`${label} response`}
     >
-      <CeliuzLogo className="size-5 rounded-md" />
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
+        <BrainCircuit
+          className="size-4 motion-safe:animate-pulse"
+          aria-hidden="true"
+        />
+      </span>
       <span className="font-medium text-foreground">{label}</span>
       <span className="flex items-center gap-1" aria-hidden="true">
         <span className="size-1 rounded-full bg-muted-foreground motion-safe:animate-pulse" />
         <span className="size-1 rounded-full bg-muted-foreground motion-safe:animate-pulse [animation-delay:150ms]" />
         <span className="size-1 rounded-full bg-muted-foreground motion-safe:animate-pulse [animation-delay:300ms]" />
       </span>
-
-      {onStop && (
-        <button
-          type="button"
-          onClick={onStop}
-          aria-label="Stop generation"
-          className="ml-1 inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Square className="size-2.5 fill-current" aria-hidden="true" />
-        </button>
-      )}
+      <span
+        className="ml-1 font-mono text-xs tabular-nums text-muted-foreground"
+        aria-label={`${elapsedSeconds} seconds elapsed`}
+      >
+        {elapsedSeconds}s
+      </span>
     </div>
   );
 }
