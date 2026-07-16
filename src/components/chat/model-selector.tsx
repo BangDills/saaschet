@@ -1,7 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, Check, Eye, Sparkles } from "lucide-react";
+import {
+  Bot,
+  BrainCircuit,
+  Check,
+  ChevronDown,
+  Code2,
+  Eye,
+  Gauge,
+  Scale,
+  Zap,
+} from "lucide-react";
 import type { ModelInfo } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +25,26 @@ const PROVIDER_LOGOS: Record<string, string> = {
   Qwen: `${LOBE_ICON_BASE}/qwen-color.svg`,
   MiniMax: `${LOBE_ICON_BASE}/minimax-color.svg`,
 };
+
+const TAG_ICONS = {
+  "Agent · Default": Bot,
+  "Strong Coder": Code2,
+  Balanced: Scale,
+  Fast: Zap,
+  "Reasoning Pro": BrainCircuit,
+  "Speed & Quality": Gauge,
+} as const;
+
+function ModelTagIcon({ tag }: { tag: string }) {
+  const Icon = TAG_ICONS[tag as keyof typeof TAG_ICONS] ?? Gauge;
+
+  return (
+    <span title={tag} className="flex shrink-0 text-muted-foreground">
+      <Icon className="size-3.5" aria-hidden="true" />
+      <span className="sr-only">{tag}</span>
+    </span>
+  );
+}
 
 function ProviderLogo({ vendor }: { vendor: string }) {
   const src = PROVIDER_LOGOS[vendor];
@@ -122,17 +152,13 @@ export function ModelSelector({
               >
                 <ProviderLogo vendor={m.vendor} />
                 <span className="min-w-0 flex-1 truncate font-medium">{m.label}</span>
-                {m.agentCapable && (
-                  <Sparkles className="size-3 shrink-0 text-violet-500" aria-label="Agent" />
-                )}
                 {m.multimodal && (
-                  <Eye className="size-3 shrink-0 text-muted-foreground" aria-label="Vision" />
-                )}
-                {m.tag && !active && (
-                  <span className="shrink-0 text-[8px] font-medium uppercase text-muted-foreground">
-                    {m.tag}
+                  <span title="Vision" className="flex shrink-0 text-muted-foreground">
+                    <Eye className="size-3.5" aria-hidden="true" />
+                    <span className="sr-only">Vision</span>
                   </span>
                 )}
+                {m.tag && !active && <ModelTagIcon tag={m.tag} />}
                 {m.free && !active && (
                   <span className="text-[8px] font-semibold uppercase text-muted-foreground">Free</span>
                 )}
