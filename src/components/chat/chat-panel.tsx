@@ -686,7 +686,7 @@ export function ChatPanel({
       {hasMessages ? (
         <>
           <div ref={scrollRef} className="relative flex-1 overflow-y-auto">
-            <div ref={messagesRef} className="mx-auto w-full max-w-3xl px-4 pb-28 pt-4 sm:px-6">
+            <div ref={messagesRef} className="mx-auto w-full max-w-3xl px-4 pb-4 pt-4 sm:px-6">
               {visibleMessages.map((m) => {
                 const isLast =
                   m.id === messages[messages.length - 1]?.id;
@@ -789,13 +789,15 @@ export function ChatPanel({
             </div>
           </div>
 
-          <div ref={composerRef} className="sticky bottom-0 z-10 shrink-0 border-t border-border/60 bg-background px-4 py-3">
+          <div ref={composerRef} className="sticky bottom-0 z-10 shrink-0 bg-background px-4 py-3">
+            {/* Fade edge: messages blur out into the composer instead of a hard line. */}
+            <div className="pointer-events-none absolute inset-x-0 -top-8 h-8 bg-gradient-to-b from-transparent to-background" aria-hidden="true" />
             {showScrollToLatest && (
               <button
                 type="button"
                 aria-label="Scroll to latest message"
                 onClick={() => scrollToLatest("smooth")}
-                className="absolute -top-12 left-1/2 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-sm transition-colors hover:bg-muted"
+                className="absolute -top-14 left-1/2 z-20 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-md transition-colors hover:bg-muted"
               >
                 <ArrowDown className="size-4" />
               </button>
