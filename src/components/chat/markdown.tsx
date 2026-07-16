@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
+import { createPortal } from "react-dom";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -272,7 +273,27 @@ const REMARK_PLUGINS = [remarkGfm];
 type CompactReference = {
   href: string;
   host: string;
+  title: string;
+  description: string;
 };
+
+function cleanReferenceTitle(value: string, host: string) {
+  const cleaned = value
+    .split("\n")
+    .filter(Boolean)
+    .at(-1)
+    ?.replace(/^\s*(?:[-*•]|\d+[.)]|\[\d+\])\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) return `Artikel dari ${host}`;
+
+  const separatorIndex = cleaned.search(/\s+[—–-]\s+/);
+  const possibleTitle =
+    separatorIndex >= 0 ? cleaned.slice(separatorIndex).replace(/^\s+[—–-]\s+/, "") : cleaned;
+
+  return possibleTitle.replace(/[*_`]/g, "").replace(/:$/, "").trim() || `Artikel dari ${host}`;
+}
 
 function splitReferences(content: string): {
   body: string;
@@ -287,20 +308,33 @@ function splitReferences(content: string): {
   }
 
   const referenceSection = content.slice(match.index + match[0].length);
-  const urls = referenceSection.match(/https?:\/\/[^\s)\]>]+/gi) ?? [];
+  const urlPattern = /https?:\/\/[^\s)\]>]+/gi;
   const seen = new Set<string>();
-  const references = urls.flatMap((rawUrl) => {
-    const href = rawUrl.replace(/[.,;:]+$/, "");
-    if (seen.has(href)) return [];
+  const references: CompactReference[] = [];
+  let urlMatch: RegExpExecArray | null;
+  let previousEnd = 0;
+
+  while ((urlMatch = urlPattern.exec(referenceSection)) !== null) {
+    const href = urlMatch[0].replace(/[.,;:]+$/, "");
+    const context = referenceSection.slice(previousEnd, urlMatch.index);
+    previousEnd = urlPattern.lastIndex;
+    if (seen.has(href)) continue;
 
     try {
       const url = new URL(href);
+      const host = url.hostname.replace(/^www\./, "");
+      const title = cleanReferenceTitle(context, host);
       seen.add(href);
-      return [{ href, host: url.hostname.replace(/^www\./, "") }];
+      references.push({
+        href,
+        host,
+        title,
+        description: `Baca sumber lengkap dari ${host} untuk melihat konteks dan informasi pendukungnya.`,
+      });
     } catch {
-      return [];
+      // Ignore invalid source URLs.
     }
-  });
+  }
 
   if (references.length === 0) {
     return { body: content, references: [] };
@@ -326,11 +360,33 @@ function SourceIcon({ reference }: { reference: CompactReference }) {
 }
 
 function CompactReferences({ references }: { references: CompactReference[] }) {
+  const [open, setOpen] = React.useState(false);
   const visibleReferences = references.slice(0, 3);
 
+  React.useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
   return (
-    <details className="not-prose group relative mt-4 w-fit max-w-full">
-      <summary className="flex cursor-pointer list-none items-center rounded-full px-1 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+    <div className="not-prose mt-4 w-fit max-w-full">
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex items-center rounded-full px-1 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-haspopup="dialog"
+      >
         <span
           className="flex items-center [&>*+*]:-ml-2"
           aria-hidden="true"
@@ -344,26 +400,58 @@ function CompactReferences({ references }: { references: CompactReference[] }) {
           <span className="ml-1 text-xs">+{references.length - 3}</span>
         )}
         <span className="sr-only">, tampilkan {references.length} referensi</span>
-      </summary>
+      </button>
 
-      <div className="absolute bottom-full left-0 z-50 mb-2 flex max-h-64 w-72 max-w-[calc(100vw-2rem)] flex-col gap-1 overflow-y-auto overscroll-contain rounded-2xl border border-border bg-background p-2 text-sm leading-normal text-foreground shadow-xl">
-        {references.map((reference, index) => (
-          <a
-            key={reference.href}
-            href={reference.href}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-2 rounded-xl px-2 py-2 text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      {open &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[100] flex items-end bg-foreground/25 backdrop-blur-[1px]"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setOpen(false);
+            }}
           >
-            <SourceIcon reference={reference} />
-            <span className="min-w-0 flex-1 truncate">{reference.host}</span>
-            <span className="text-xs tabular-nums text-muted-foreground">
-              {index + 1}
-            </span>
-          </a>
-        ))}
-      </div>
-    </details>
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="sources-dialog-title"
+              className="flex max-h-[82dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-border bg-background text-foreground shadow-2xl sm:mx-auto sm:max-w-2xl"
+            >
+              <div className="flex justify-center py-3">
+                <span className="h-1.5 w-16 rounded-full bg-border" />
+              </div>
+              <header className="border-b border-border px-5 pb-4">
+                <h2 id="sources-dialog-title" className="text-lg font-semibold">
+                  Sumber
+                </h2>
+              </header>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[max(2rem,env(safe-area-inset-bottom))]">
+                {references.map((reference) => (
+                  <a
+                    key={reference.href}
+                    href={reference.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex flex-col gap-2 border-b border-border py-5 last:border-b-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                  >
+                    <span className="flex items-center gap-2 text-base">
+                      <SourceIcon reference={reference} />
+                      <span className="truncate">{reference.host}</span>
+                    </span>
+                    <span className="text-pretty text-xl font-semibold leading-snug text-foreground">
+                      {reference.title}
+                    </span>
+                    <span className="line-clamp-3 text-sm leading-relaxed text-muted-foreground">
+                      {reference.description}
+                    </span>
+                  </a>
+                ))}
+              </div>
+            </section>
+          </div>,
+          document.body,
+        )}
+    </div>
   );
 }
 
