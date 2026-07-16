@@ -789,9 +789,7 @@ export function ChatPanel({
             </div>
           </div>
 
-          <div ref={composerRef} className="relative z-10 shrink-0 bg-background px-4 py-3">
-            {/* Fade edge: messages blur out into the composer instead of a hard line. */}
-            <div className="pointer-events-none absolute inset-x-0 -top-4 h-4 bg-gradient-to-b from-transparent to-background" aria-hidden="true" />
+          <div ref={composerRef} className="relative z-10 shrink-0 bg-background px-4 py-3 shadow-[0_-1px_0_0_var(--border)]">
             {showScrollToLatest && (
               <button
                 type="button"
