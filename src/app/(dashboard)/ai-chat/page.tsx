@@ -10,6 +10,7 @@ import {
   ChevronDown,
   History,
   Loader2,
+  Menu,
   MessageSquare,
   MoreHorizontal,
   Pencil,
@@ -274,18 +275,28 @@ export default function AIChatPage() {
 
   return (
     <div className="-mx-3 -my-3 flex h-full min-h-0 flex-col overflow-hidden sm:-mx-6 sm:-my-6 lg:-mx-8">
-      <div className="sticky top-0 z-20 flex items-center gap-2 bg-background px-4 py-2">
+      <div className="sticky top-0 z-20 flex items-center gap-2 border-b border-border bg-background px-3 py-2 sm:px-4">
+        <button
+          type="button"
+          aria-label="Open navigation menu"
+          onClick={() => window.dispatchEvent(new Event("celiuz:open-mobile-menu"))}
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
+        >
+          <Menu className="size-4" />
+        </button>
+
         <div ref={historyRef} className="relative">
           <button
             type="button"
+            aria-label="Conversation history"
             aria-expanded={historyOpen}
             aria-haspopup="dialog"
             onClick={() => setHistoryOpen((open) => !open)}
-            className={cn("flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm font-medium transition-colors", historyOpen ? "bg-accent text-accent-foreground" : "bg-background text-foreground hover:bg-accent/60")}
+            className={cn("flex size-9 items-center justify-center rounded-lg border border-border text-sm font-medium transition-colors sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-1.5", historyOpen ? "bg-accent text-accent-foreground" : "bg-background text-foreground hover:bg-accent/60")}
           >
             <History className="size-4" />
-            History
-            <ChevronDown className={cn("size-3.5 transition-transform", historyOpen && "rotate-180")} />
+            <span className="hidden sm:inline">History</span>
+            <ChevronDown className={cn("hidden size-3.5 transition-transform sm:block", historyOpen && "rotate-180")} />
           </button>
 
           {historyOpen && (
@@ -364,8 +375,9 @@ export default function AIChatPage() {
           )}
         </div>
 
-        <button type="button" onClick={startNewChat} className="flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <Plus className="size-4" />New chat
+        <button type="button" aria-label="Start new chat" onClick={startNewChat} className="flex size-9 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-1.5">
+          <Plus className="size-4" />
+          <span className="hidden sm:inline">New chat</span>
         </button>
       </div>
 

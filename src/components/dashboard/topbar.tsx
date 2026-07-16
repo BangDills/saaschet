@@ -40,6 +40,15 @@ export function Topbar({ initials, role = "user" }: TopbarProps) {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   React.useEffect(() => setProfileOpen(false), [pathname]);
 
+  React.useEffect(() => {
+    function openMobileMenu() {
+      setOpen(true);
+    }
+
+    window.addEventListener("celiuz:open-mobile-menu", openMobileMenu);
+    return () => window.removeEventListener("celiuz:open-mobile-menu", openMobileMenu);
+  }, []);
+
   // Close profile dropdown on outside click
   React.useEffect(() => {
     if (!profileOpen) return;
@@ -53,7 +62,12 @@ export function Topbar({ initials, role = "user" }: TopbarProps) {
   }, [profileOpen]);
 
   return (
-    <header className="sticky top-0 z-30 bg-background lg:bg-background">
+    <header
+      className={cn(
+        "sticky top-0 z-30 bg-background lg:bg-background",
+        pathname.startsWith("/ai-chat") && "hidden lg:block",
+      )}
+    >
       <div className="flex h-14 items-center justify-between gap-3 px-3 sm:h-auto sm:px-6 sm:py-3 lg:px-8">
         <div className="flex min-w-0 items-center gap-2.5">
           <Button
