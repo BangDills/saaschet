@@ -317,7 +317,7 @@ function SourceIcon({ reference }: { reference: CompactReference }) {
     <span className="relative inline-flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-background bg-muted text-[10px] font-semibold uppercase text-muted-foreground">
       {reference.host.charAt(0)}
       <img
-        src={`https://${reference.host}/favicon.ico`}
+        src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(reference.host)}&sz=64`}
         alt=""
         className="absolute inset-0 size-full bg-background object-cover"
       />
@@ -329,7 +329,7 @@ function CompactReferences({ references }: { references: CompactReference[] }) {
   const visibleReferences = references.slice(0, 3);
 
   return (
-    <details className="group relative mt-4 w-fit max-w-full">
+    <details className="not-prose group relative mt-4 w-fit max-w-full">
       <summary className="flex cursor-pointer list-none items-center rounded-full px-1 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
         <span
           className="flex items-center [&>*+*]:-ml-2"
@@ -346,7 +346,7 @@ function CompactReferences({ references }: { references: CompactReference[] }) {
         <span className="sr-only">, tampilkan {references.length} referensi</span>
       </summary>
 
-      <div className="absolute bottom-full left-0 z-10 mb-2 flex max-h-56 w-72 max-w-[calc(100vw-2rem)] flex-col gap-1 overflow-y-auto rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-lg">
+      <div className="absolute bottom-full left-0 z-50 mb-2 flex max-h-64 w-72 max-w-[calc(100vw-2rem)] flex-col gap-1 overflow-y-auto overscroll-contain rounded-2xl border border-border bg-background p-2 text-sm leading-normal text-foreground shadow-xl">
         {references.map((reference, index) => (
           <a
             key={reference.href}
