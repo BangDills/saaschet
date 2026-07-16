@@ -269,6 +269,75 @@ const MD_COMPONENTS: Components = {
 
 const REMARK_PLUGINS = [remarkGfm];
 
+type CompactReference = {
+  href: string;
+  host: string;
+};
+
+function splitReferences(content: string): {
+  body: string;
+  references: CompactReference[];
+} {
+  const headingPattern =
+    /(?:^|\n)(?:-{3,}\s*\n)?(?:#{1,6}\s*)?(?:\*\*)?(?:Referensi|References|Sumber)(?::)?(?:\*\*)?\s*(?:\n|$)/i;
+  const match = headingPattern.exec(content);
+
+  if (!match || match.index === undefined) {
+    return { body: content, references: [] };
+  }
+
+  const referenceSection = content.slice(match.index + match[0].length);
+  const urls = referenceSection.match(/https?:\/\/[^\s)\]>]+/gi) ?? [];
+  const seen = new Set<string>();
+  const references = urls.flatMap((rawUrl) => {
+    const href = rawUrl.replace(/[.,;:]+$/, "");
+    if (seen.has(href)) return [];
+
+    try {
+      const url = new URL(href);
+      seen.add(href);
+      return [{ href, host: url.hostname.replace(/^www\./, "") }];
+    } catch {
+      return [];
+    }
+  });
+
+  if (references.length === 0) {
+    return { body: content, references: [] };
+  }
+
+  return {
+    body: content.slice(0, match.index).trimEnd(),
+    references,
+  };
+}
+
+function CompactReferences({ references }: { references: CompactReference[] }) {
+  return (
+    <div
+      className="mt-4 flex items-center gap-2 border-t border-border pt-3"
+      aria-label="Referensi"
+    >
+      <span className="text-xs font-medium text-muted-foreground">Sumber</span>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {references.map((reference, index) => (
+          <a
+            key={reference.href}
+            href={reference.href}
+            target="_blank"
+            rel="noreferrer"
+            title={reference.host}
+            aria-label={`Buka sumber ${index + 1} dari ${reference.host}`}
+            className="inline-flex size-7 items-center justify-center rounded-full border border-border bg-muted text-[11px] font-semibold text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-foreground hover:text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {index + 1}
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const ReactMarkdownMemo = React.memo(
   function ReactMarkdownInner({ content }: { content: string }) {
     return (
@@ -290,6 +359,11 @@ export function Markdown({
   /** When true, child code blocks render cheap `<pre>` instead of Prism. */
   streaming?: boolean;
 }) {
+  const { body, references } = React.useMemo(
+    () => (streaming ? { body: children, references: [] } : splitReferences(children)),
+    [children, streaming],
+  );
+
   return (
     <div
       className={cn(
@@ -298,8 +372,9 @@ export function Markdown({
       )}
     >
       <StreamingContext.Provider value={streaming}>
-        <ReactMarkdownMemo content={children} />
+        <ReactMarkdownMemo content={body} />
       </StreamingContext.Provider>
+      {references.length > 0 && <CompactReferences references={references} />}
     </div>
   );
 }
