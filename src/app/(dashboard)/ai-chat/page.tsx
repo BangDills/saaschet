@@ -273,7 +273,7 @@ export default function AIChatPage() {
   }
 
   return (
-    <div className="-mx-3 -my-3 flex h-full min-h-0 flex-col sm:-mx-6 sm:-my-6 lg:-mx-8">
+    <div className="-mx-3 -my-3 flex h-full min-h-0 flex-col overflow-hidden sm:-mx-6 sm:-my-6 lg:-mx-8">
       <div className="sticky top-0 z-20 flex items-center gap-2 bg-background px-4 py-2">
         <div ref={historyRef} className="relative">
           <button
@@ -369,7 +369,7 @@ export default function AIChatPage() {
         </button>
       </div>
 
-      <section className="flex min-w-0 flex-1 flex-col">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <ChatPanel key={active.conversationId} conversationId={active.conversationId} initialMessages={active.initialMessages} modelId={modelId} models={models} onModelChange={setModelId} webSearch={webSearch} onWebSearchChange={setWebSearch} repo={repo} onRepoChange={setRepo} agentMode={agentMode} onAssistantFinish={reloadConversations} />
       </section>
 
