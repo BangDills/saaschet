@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveOrigin } from "@/lib/url";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +16,8 @@ export const dynamic = "force-dynamic";
  * rest of the app can call the provider's API on behalf of the user.
  */
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const origin = resolveOrigin(request);
+  const searchParams = new URL(request.url).searchParams;
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/ai-chat";
 

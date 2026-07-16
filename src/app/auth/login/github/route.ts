@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { resolveOrigin } from "@/lib/url";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,7 +32,8 @@ export const dynamic = "force-dynamic";
  * "Allow manual linking".
  */
 export async function GET(request: NextRequest) {
-  const { origin, searchParams } = new URL(request.url);
+  const origin = resolveOrigin(request);
+  const searchParams = new URL(request.url).searchParams;
   const next = searchParams.get("next") ?? "/ai-chat";
 
   const supabase = await createClient();
