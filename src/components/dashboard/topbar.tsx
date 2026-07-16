@@ -28,6 +28,7 @@ export type TopbarProps = {
 export function Topbar({ initials, role = "user" }: TopbarProps) {
   const title = useCurrentTitle();
   const pathname = usePathname();
+  const isChatPage = pathname.startsWith("/ai-chat");
   const [open, setOpen] = React.useState(false);
   const [profileOpen, setProfileOpen] = React.useState(false);
   const profileRef = React.useRef<HTMLDivElement>(null);
@@ -66,10 +67,16 @@ export function Topbar({ initials, role = "user" }: TopbarProps) {
       <div
         className={cn(
           "flex h-14 items-center justify-between gap-3 px-3 sm:h-auto sm:px-6 sm:py-3 lg:px-8",
-          pathname.startsWith("/ai-chat") && "hidden lg:flex",
+          isChatPage &&
+            "pointer-events-none absolute right-3 top-2 h-9 p-0 sm:h-9 sm:p-0 lg:pointer-events-auto lg:static lg:h-auto lg:px-8 lg:py-3",
         )}
       >
-        <div className="flex min-w-0 items-center gap-2.5">
+        <div
+          className={cn(
+            "flex min-w-0 items-center gap-2.5",
+            isChatPage && "hidden lg:flex",
+          )}
+        >
           <Button
             variant="outline"
             size="icon"
@@ -84,8 +91,15 @@ export function Topbar({ initials, role = "user" }: TopbarProps) {
           </h1>
         </div>
 
-        <div className="flex items-center gap-1.5">
-          <ThemeToggle />
+        <div
+          className={cn(
+            "flex items-center gap-1.5",
+            isChatPage && "pointer-events-auto",
+          )}
+        >
+          <div className={cn(isChatPage && "hidden lg:block")}>
+            <ThemeToggle />
+          </div>
 
           {/* Profile avatar dropdown */}
           <div
