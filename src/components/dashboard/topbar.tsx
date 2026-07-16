@@ -62,13 +62,13 @@ export function Topbar({ initials, role = "user" }: TopbarProps) {
   }, [profileOpen]);
 
   return (
-    <header
-      className={cn(
-        "sticky top-0 z-30 bg-background lg:bg-background",
-        pathname.startsWith("/ai-chat") && "hidden lg:block",
-      )}
-    >
-      <div className="flex h-14 items-center justify-between gap-3 px-3 sm:h-auto sm:px-6 sm:py-3 lg:px-8">
+    <header className="sticky top-0 z-30 bg-background lg:bg-background">
+      <div
+        className={cn(
+          "flex h-14 items-center justify-between gap-3 px-3 sm:h-auto sm:px-6 sm:py-3 lg:px-8",
+          pathname.startsWith("/ai-chat") && "hidden lg:flex",
+        )}
+      >
         <div className="flex min-w-0 items-center gap-2.5">
           <Button
             variant="outline"
