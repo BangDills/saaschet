@@ -209,14 +209,17 @@ export default async function LandingPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  let appLink = "/login";
+  // Landing lives on the root domain (Vercel) but the app + auth live on the
+  // app subdomain (Coolify). Send signup/login/entry there.
+  const APP_URL = "https://app.celiuz.my.id";
+  let appLink = `${APP_URL}/login`;
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .maybeSingle();
-    appLink = profile?.role === "admin" ? "/dashboard" : "/ai-chat";
+    appLink = `${APP_URL}${profile?.role === "admin" ? "/dashboard" : "/ai-chat"}`;
   }
 
   return (
@@ -230,7 +233,7 @@ export default async function LandingPage() {
             <a href="#faqs" className="transition-opacity hover:opacity-50">FAQ</a>
           </nav>
           <div className="flex items-center gap-1 sm:gap-2">
-            {!user && <Link href="/login" className="hidden px-3 py-2 text-xs font-bold uppercase tracking-wider sm:inline-flex">Masuk</Link>}
+            {!user && <Link href={`${APP_URL}/login`} className="hidden px-3 py-2 text-xs font-bold uppercase tracking-wider sm:inline-flex">Masuk</Link>}
             <Link href={user ? appLink : "/signup"} className="press group/nav inline-flex items-center gap-2 bg-foreground px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-background hover:opacity-85">
               {user ? "Buka app" : "Mulai gratis"}<ArrowRight className="size-3.5 transition-transform duration-300 ease-out group-hover/nav:translate-x-0.5" />
             </Link>
@@ -294,7 +297,7 @@ export default async function LandingPage() {
               const Icon = feature.icon;
               return (
                 <Reveal key={feature.number} delay={index * 90}>
-                  <Link href={user ? feature.href : "/login"} className="group -ml-px -mt-px flex min-h-72 flex-col justify-between border border-foreground p-6 transition-colors duration-300 ease-out hover:bg-foreground hover:text-background active:bg-foreground active:text-background sm:p-7">
+                  <Link href={user ? `${APP_URL}${feature.href}` : `${APP_URL}/login`} className="group -ml-px -mt-px flex min-h-72 flex-col justify-between border border-foreground p-6 transition-colors duration-300 ease-out hover:bg-foreground hover:text-background active:bg-foreground active:text-background sm:p-7">
                     <div className="flex items-start justify-between">
                       <span className="font-mono text-xs">{feature.number}</span>
                       <Icon className="size-6 transition-transform duration-500 [transition-timing-function:var(--ease-out-expo)] group-hover:-rotate-6 group-hover:scale-110" />
@@ -358,7 +361,7 @@ export default async function LandingPage() {
                     {["Alokasi kredit awal", "Model chat standar", "Akses semua fitur inti", "Dukungan komunitas"].map((item) => <li key={item} className="flex items-start gap-3"><Check className="mt-0.5 size-4 shrink-0" />{item}</li>)}
                   </ul>
                 </div>
-                <Link href="/signup" className="press mt-8 inline-flex items-center justify-between border border-foreground px-4 py-3 text-sm font-bold hover:bg-foreground hover:text-background">Buat akun gratis <ArrowRight className="size-4" /></Link>
+                <Link href={`${APP_URL}/signup`} className="press mt-8 inline-flex items-center justify-between border border-foreground px-4 py-3 text-sm font-bold hover:bg-foreground hover:text-background">Buat akun gratis <ArrowRight className="size-4" /></Link>
               </article></Reveal>
               <Reveal delay={160}><article className="flex h-full min-h-[460px] flex-col justify-between bg-foreground p-7 text-background">
                 <div>
@@ -372,7 +375,7 @@ export default async function LandingPage() {
                     {["Akses model premium", "Kolam kredit harian besar", "Agen penuh (baca + tulis + PR)", "Prioritas pemrosesan tugas"].map((item) => <li key={item} className="flex items-start gap-3"><Check className="mt-0.5 size-4 shrink-0" />{item}</li>)}
                   </ul>
                 </div>
-                <Link href="/signup" className="press mt-8 inline-flex items-center justify-between bg-background px-4 py-3 text-sm font-bold text-foreground hover:opacity-85">Mulai dengan Pro <ArrowRight className="size-4" /></Link>
+                <Link href={`${APP_URL}/signup`} className="press mt-8 inline-flex items-center justify-between bg-background px-4 py-3 text-sm font-bold text-foreground hover:opacity-85">Mulai dengan Pro <ArrowRight className="size-4" /></Link>
               </article></Reveal>
             </div>
           </div>
