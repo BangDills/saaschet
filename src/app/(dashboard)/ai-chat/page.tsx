@@ -273,7 +273,7 @@ export default function AIChatPage() {
   }
 
   return (
-    <div className="-mx-3 -my-3 flex h-[calc(100vh-3.5rem)] flex-col sm:-mx-6 sm:-my-6 sm:h-[calc(100vh-5rem)] lg:-mx-8">
+    <div className="-mx-3 -my-3 flex h-full min-h-0 flex-col sm:-mx-6 sm:-my-6 lg:-mx-8">
       <div className="relative z-10 flex items-center gap-2 bg-background px-4 py-2">
         <div ref={historyRef} className="relative">
           <button

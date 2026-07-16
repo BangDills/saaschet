@@ -789,7 +789,7 @@ export function ChatPanel({
             </div>
           </div>
 
-          <div ref={composerRef} className="relative shrink-0 border-t border-border/60 bg-background px-4 py-3">
+          <div ref={composerRef} className="sticky bottom-0 z-10 shrink-0 border-t border-border/60 bg-background px-4 py-3">
             {showScrollToLatest && (
               <button
                 type="button"
