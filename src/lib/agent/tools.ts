@@ -292,8 +292,9 @@ export function createAgentTools(ctx: AgentContext) {
 
     web_search: tool({
       description:
-        "Search the public web for up-to-date information not in the repo. " +
-        "Use this for documentation lookups, current events, package versions, etc.",
+        "Search the public web for current information outside the connected repository and library documentation. " +
+        "Use this for current events, announcements, ecosystem comparisons, package release status, and community information. " +
+        "For library or framework APIs, setup, migrations, and version-specific behavior, use the Context7 tools first.",
       inputSchema: schema<{ query: string }>({
         type: "object",
         properties: {
