@@ -312,29 +312,58 @@ function splitReferences(content: string): {
   };
 }
 
-function CompactReferences({ references }: { references: CompactReference[] }) {
+function SourceIcon({ reference }: { reference: CompactReference }) {
   return (
-    <div
-      className="mt-4 flex items-center gap-2 border-t border-border pt-3"
-      aria-label="Referensi"
-    >
-      <span className="text-xs font-medium text-muted-foreground">Sumber</span>
-      <div className="flex flex-wrap items-center gap-1.5">
+    <span className="relative inline-flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-background bg-muted text-[10px] font-semibold uppercase text-muted-foreground">
+      {reference.host.charAt(0)}
+      <img
+        src={`https://${reference.host}/favicon.ico`}
+        alt=""
+        className="absolute inset-0 size-full bg-background object-cover"
+      />
+    </span>
+  );
+}
+
+function CompactReferences({ references }: { references: CompactReference[] }) {
+  const visibleReferences = references.slice(0, 3);
+
+  return (
+    <details className="group relative mt-4 w-fit max-w-full">
+      <summary className="flex cursor-pointer list-none items-center rounded-full px-1 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+        <span
+          className="flex items-center [&>*+*]:-ml-2"
+          aria-hidden="true"
+        >
+          {visibleReferences.map((reference) => (
+            <SourceIcon key={reference.href} reference={reference} />
+          ))}
+        </span>
+        <span className="ml-2">Sumber</span>
+        {references.length > 3 && (
+          <span className="ml-1 text-xs">+{references.length - 3}</span>
+        )}
+        <span className="sr-only">, tampilkan {references.length} referensi</span>
+      </summary>
+
+      <div className="absolute bottom-full left-0 z-10 mb-2 flex max-h-56 w-72 max-w-[calc(100vw-2rem)] flex-col gap-1 overflow-y-auto rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-lg">
         {references.map((reference, index) => (
           <a
             key={reference.href}
             href={reference.href}
             target="_blank"
             rel="noreferrer"
-            title={reference.host}
-            aria-label={`Buka sumber ${index + 1} dari ${reference.host}`}
-            className="inline-flex size-7 items-center justify-center rounded-full border border-border bg-muted text-[11px] font-semibold text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-foreground hover:text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex items-center gap-2 rounded-xl px-2 py-2 text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            {index + 1}
+            <SourceIcon reference={reference} />
+            <span className="min-w-0 flex-1 truncate">{reference.host}</span>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {index + 1}
+            </span>
           </a>
         ))}
       </div>
-    </div>
+    </details>
   );
 }
 
