@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
       provider: "github",
       options: {
         redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
-        scopes: "read:user user:email repo",
+        scopes: "read:user user:email repo workflow",
         queryParams: {
           prompt: "consent",
         },
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
     provider: "github",
     options: {
       redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
-      scopes: "read:user user:email repo",
+      scopes: "read:user user:email repo workflow",
       queryParams: {
         prompt: "consent",
       },

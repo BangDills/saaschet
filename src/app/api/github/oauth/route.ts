@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: `${origin}/api/github/callback`,
-    scope: "read:user user:email repo",
+    scope: "read:user user:email repo workflow",
     state,
     prompt: "consent",
   });
