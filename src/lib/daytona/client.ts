@@ -3,7 +3,7 @@ import { Daytona } from "@daytona/sdk";
 let _client: Daytona | null = null;
 
 /**
- * Returns a singleton Daytona client.
+ * Returns a singleton sandbox client (powered by Daytona SDK).
  * Requires DAYTONA_API_KEY env var.
  * Uses DAYTONA_SERVER_URL when set, with DAYTONA_API_URL as a legacy alias.
  */
@@ -25,7 +25,7 @@ export function getDaytonaClient(): Daytona {
   const keyStart = apiKey.substring(0, 4);
   const keyEnd = apiKey.substring(apiKey.length - 4);
   console.info(
-    `[daytona-diag] Init Daytona client with URL: "${apiUrl}", Target: "${target}", Key: ${keyStart}...${keyEnd} (Len: ${apiKey.length})`
+    `[sandbox-diag] Init sandbox client with URL: "${apiUrl}", Target: "${target}", Key: ${keyStart}...${keyEnd} (Len: ${apiKey.length})`
   );
 
   _client = new Daytona({

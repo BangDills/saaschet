@@ -760,7 +760,7 @@ All GitHub write tools (\`write_file\`, \`write_files\`, \`edit_file\`, \`delete
 If a model attempt is interrupted by provider rate limits, the next attempt must inspect the current repo/branch state and continue from the work already completed instead of starting over.`;
   }
 
-  // Optionally add Daytona sandbox tools (code execution, terminal)
+  // Optionally add sandbox tools (code execution, terminal)
   let sandboxTools: ReturnType<typeof createSandboxTools> | undefined;
   const daytonaKey = process.env.DAYTONA_API_KEY;
 
@@ -770,7 +770,7 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
 
       // Sandbox creation priority:
       //  1. Snapshot (DAYTONA_SANDBOX_SNAPSHOT) — a pre-provisioned snapshot
-      //     you created in Daytona. Fast (cached), and the snapshot already
+      //     you created in the sandbox dashboard. Fast (cached), and the snapshot already
       //     carries its own resources (e.g. 4 vCPU / 8 GiB), so heavy builds
       //     like `next build` won't OOM. No image pull, no resource param.
       //  2. Image (DAYTONA_SANDBOX_IMAGE) — custom image + resource env.
@@ -793,7 +793,7 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
           },
           { timeout: 120 },
         );
-        console.log(`[daytona] Snapshot sandbox created: ${sandbox.id} (snapshot ${snapshotName})`);
+        console.log(`[sandbox] Snapshot sandbox created: ${sandbox.id} (snapshot ${snapshotName})`);
       } else if (sandboxImage) {
         sandbox = await daytona.create(
           {
@@ -808,10 +808,10 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
           { timeout: 300 },
         );
         console.log(
-          `[daytona] Image sandbox created: ${sandbox.id} (${cpu} CPU, ${memory}GB RAM, ${disk}GB disk)`,
+          `[sandbox] Image sandbox created: ${sandbox.id} (${cpu} CPU, ${memory}GB RAM, ${disk}GB disk)`,
         );
       } else {
-        // Fast, language-based instantiation using cached Daytona container
+        // Fast, language-based instantiation using cached sandbox container
         sandbox = await daytona.create(
           {
             language: "typescript",
@@ -821,7 +821,7 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
           },
           { timeout: 90 },
         );
-        console.log(`[daytona] Fast language-based sandbox created: ${sandbox.id} (default resources)`);
+        console.log(`[sandbox] Fast language-based sandbox created: ${sandbox.id} (default resources)`);
       }
 
       sandboxTools = createSandboxTools({
@@ -833,7 +833,7 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
 
       // Append sandbox info to system prompt
       system += `\n\n## Sandbox (Code Execution)
-You have a live sandbox environment powered by Daytona (${cpu} CPU cores, ${memory}GB RAM).
+You have a live sandbox environment (${cpu} CPU cores, ${memory}GB RAM).
 Available tools:
 - **run_command**: Execute any shell command (npm install, npm test, git, etc.)
 - **execute_code**: Run TypeScript/JavaScript code snippets
@@ -850,9 +850,9 @@ Available tools:
 The user's repo is automatically cloned when you first use a sandbox tool.
 Workflow: read code → create files (batch) → install deps → test → commit via GitHub.`;
     } catch (err) {
-      console.warn("[daytona] Sandbox creation failed, proceeding without:", err);
+      console.warn("[sandbox] Sandbox creation failed, proceeding without:", err);
       const errorMsg = err instanceof Error ? err.message : String(err);
-      system += `\n\n## Daytona Sandbox Initialization Error\nDaytona sandbox failed to initialize: "${errorMsg}". If the user asks to run a command or execute code, explain to them that the sandbox failed to initialize with this reason.`;
+      system += `\n\n## Sandbox Initialization Error\nSandbox failed to initialize: "${errorMsg}". If the user asks to run a command or execute code, explain to them that the sandbox failed to initialize with this reason.`;
     }
   }
 
@@ -1042,9 +1042,9 @@ When the user asks about library APIs, setup, migrations, or version-specific be
 
       try {
         await sandbox.delete();
-        console.log(`[daytona] Sandbox ${sandbox.id} deleted ${reason}`);
+        console.log(`[sandbox] Sandbox ${sandbox.id} deleted ${reason}`);
       } catch (err) {
-        console.warn("[daytona] Sandbox cleanup failed:", err);
+        console.warn("[sandbox] Sandbox cleanup failed:", err);
       }
     }
 

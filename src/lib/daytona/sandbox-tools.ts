@@ -29,7 +29,7 @@ function truncate(s: string, max = MAX_OUTPUT): string {
 }
 
 /**
- * Creates agent tools that execute inside a Daytona sandbox.
+ * Creates agent tools that execute inside a sandbox.
  */
 export function createSandboxTools(ctx: SandboxContext) {
   return {
@@ -380,8 +380,8 @@ async function cloneRepo(ctx: SandboxContext): Promise<void> {
       10,
     );
 
-    // 2. IMPORTANT: Unset the Daytona credential helper globally in the sandbox git config
-    // This stops the sandbox from trying to use Daytona's custom bearer auth which causes the
+    // 2. IMPORTANT: Unset the sandbox credential helper globally in the sandbox git config
+    // This stops the sandbox from trying to use the sandbox's custom bearer auth which causes the
     // "unauthorized: authentication failed: Bearer token is invalid" error.
     console.log(`[sandbox] Unsetting global git credential helper in sandbox`);
     await ctx.sandbox.process.executeCommand("git config --global --unset credential.helper");

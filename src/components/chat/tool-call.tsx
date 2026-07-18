@@ -24,6 +24,7 @@ import {
   Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { redactVendorPath } from "@/lib/url";
 
 export type ToolCallPart = {
   type: string; // "tool-list_files", "tool-read_file", "dynamic-tool", etc.
@@ -179,7 +180,7 @@ function getToolName(part: ToolCallPart): string {
 function extractFilePath(toolName: string, input: unknown): string | null {
   if (!input || typeof input !== "object") return null;
   const obj = input as Record<string, unknown>;
-  if (typeof obj.path === "string" && obj.path) return obj.path;
+  if (typeof obj.path === "string" && obj.path) return redactVendorPath(obj.path);
   return null;
 }
 
@@ -189,13 +190,13 @@ function summarizeInput(toolName: string, input: unknown): string {
   switch (toolName) {
     case "list_files":
     case "sandbox_list_files":
-      return typeof obj.path === "string" ? obj.path || "/" : "/";
+      return typeof obj.path === "string" ? redactVendorPath(obj.path) || "/" : "/";
     case "read_file":
     case "write_file":
     case "edit_file":
     case "sandbox_read_file":
     case "sandbox_write_file":
-      return typeof obj.path === "string" ? obj.path : "";
+      return typeof obj.path === "string" ? redactVendorPath(obj.path) : "";
     case "sandbox_write_files": {
       const files = Array.isArray(obj.files) ? obj.files : [];
       if (files.length === 0) return "";
@@ -212,7 +213,7 @@ function summarizeInput(toolName: string, input: unknown): string {
     case "serena_call_tool":
       return typeof obj.toolName === "string" ? obj.toolName : "";
     case "run_command":
-      return typeof obj.command === "string" ? `$ ${obj.command}` : "";
+      return typeof obj.command === "string" ? `$ ${redactVendorPath(obj.command)}` : "";
     case "execute_code":
       return "snippet";
     case "create_pull_request":

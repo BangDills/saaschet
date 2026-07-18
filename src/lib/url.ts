@@ -28,3 +28,15 @@ export function resolveOrigin(request: NextRequest): string {
 
   return new URL(request.url).origin;
 }
+
+/**
+ * Cosmetically redact the Daytona vendor path from a string that will be
+ * shown to the user (chat UI, tool-call display). The sandbox container's
+ * real home is /home/daytona/... — that path must stay literal in commands
+ * we actually execute, but it shouldn't leak the vendor name in what we
+ * render. This only rewrites the display string; never apply it to a command
+ * before execution.
+ */
+export function redactVendorPath(str: string): string {
+  return str.replace(/\/home\/daytona(\/|$)/g, "/home/sandbox$1");
+}
