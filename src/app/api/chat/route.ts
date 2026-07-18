@@ -766,9 +766,20 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
     try {
       const daytona = getDaytonaClient();
 
-      const sandboxImage = process.env.DAYTONA_SANDBOX_IMAGE;
-      let cpu = 1;
-      let memory = 2;
+      // Resource env (cpu/memory/disk). The Daytona SDK only accepts
+      // `resources` on the image-based create path, not the fast language
+      // path. So when higher-than-default resources are configured, use the
+      // image path (with the default ai-node image if none set) so they
+      // apply — otherwise builds like `next build` OOM. Default path stays
+      // fast/cheap for users who don't raise them.
+      const cpu = Number(process.env.DAYTONA_SANDBOX_CPU) || 1;
+      const memory = Number(process.env.DAYTONA_SANDBOX_MEMORY) || 2;
+      const disk = Number(process.env.DAYTONA_SANDBOX_DISK) || 5;
+      const needsResources =
+        cpu > 1 || memory > 2 || disk > 5;
+      const sandboxImage =
+        process.env.DAYTONA_SANDBOX_IMAGE ??
+        (needsResources ? "daytonaio/ai-node:22" : undefined);
 
       if (!sandboxImage) {
         // Fast, language-based instantiation using cached Daytona container
@@ -781,18 +792,8 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
           },
           { timeout: 90 },
         );
-        console.log(`[daytona] Fast language-based sandbox created: ${sandbox.id}`);
+        console.log(`[daytona] Fast language-based sandbox created: ${sandbox.id} (default resources)`);
       } else {
-        // Image-based creation for custom Docker image and resource allocation.
-        const rawCpu = Number(process.env.DAYTONA_SANDBOX_CPU) || 1;
-        const rawMemory = Number(process.env.DAYTONA_SANDBOX_MEMORY) || 2;
-        const rawDisk = Number(process.env.DAYTONA_SANDBOX_DISK) || 5;
-
-        // Hard Cap to prevent exceeding account limits
-        cpu = Math.min(rawCpu, 1);
-        memory = Math.min(rawMemory, 2);
-        const disk = Math.min(rawDisk, 5);
-
         sandbox = await daytona.create(
           {
             image: sandboxImage,
@@ -805,7 +806,7 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
           { timeout: 90 },
         );
         console.log(
-          `[daytona] Custom image sandbox created: ${sandbox.id} (${cpu} CPU, ${memory}GB RAM, ${disk}GB disk)`,
+          `[daytona] Image sandbox created: ${sandbox.id} (${cpu} CPU, ${memory}GB RAM, ${disk}GB disk)`,
         );
       }
 
