@@ -1101,12 +1101,13 @@ ${recoveryInstruction}`;
         // Stop generation when the client disconnects (navigation/cancel) so
         // we don't keep burning credits + provider quota for an unseen reply.
         abortSignal: req.signal,
-        // Agent mode: enable tools + multi-step loop. Cap at 15 steps to stay
-        // within rate limits while still handling multi-file tasks.
+        // Agent mode: enable tools + multi-step loop. Cap at 50 steps so
+        // complex tasks (multi-file build/fix loops) can finish instead of
+        // stopping mid-work at 15.
         ...(tools
           ? {
               tools,
-              stopWhen: stepCountIs(15),
+              stopWhen: stepCountIs(50),
               toolCallStreaming: true,
             }
           : {}),
