@@ -804,8 +804,9 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
             autoDeleteInterval: 0,
           },
           // Image-based sandboxes pull the Docker image first, which can take
-          // longer than the cached fast path — allow up to 3 minutes.
-          { timeout: 180 },
+          // longer than the cached fast path — allow up to 5 minutes for the
+          // first pull. Subsequent runs reuse the cached image and start fast.
+          { timeout: 300 },
         );
         console.log(
           `[daytona] Image sandbox created: ${sandbox.id} (${cpu} CPU, ${memory}GB RAM, ${disk}GB disk)`,
