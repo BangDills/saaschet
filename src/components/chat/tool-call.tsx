@@ -469,6 +469,11 @@ function ToolCallImpl({ part, onActionPrompt }: ToolCallProps) {
   const filePath = extractFilePath(toolName, part.input);
   const inputSummary = summarizeInput(toolName, part.input);
   const outputSummary = isDone ? summarizeOutput(toolName, part.output) : "";
+  // Collapsed state: hide shell-command/code previews inline. File paths
+  // (labels) stay; the full command/code is shown only when expanded.
+  const hideInlinePreview =
+    toolName === "run_command" || toolName === "execute_code";
+  const inlinePreview = hideInlinePreview ? "" : (filePath || inputSummary);
   const lineStats = isDone ? getLineStats(part.output) : null;
 
   const readFileMeta =
@@ -498,11 +503,11 @@ function ToolCallImpl({ part, onActionPrompt }: ToolCallProps) {
           <span className={cn("shrink-0 font-medium", isError ? "text-destructive" : "text-foreground")}>
             {isError ? `${meta.done} failed` : isRunning ? meta.running : meta.done}
           </span>
-          {(filePath || inputSummary) && (
-            <span className="min-w-0 truncate text-muted-foreground" title={filePath || inputSummary}>
-              {filePath || inputSummary}
+          {!open && inlinePreview ? (
+            <span className="min-w-0 truncate text-muted-foreground" title={inlinePreview}>
+              {inlinePreview}
             </span>
-          )}
+          ) : null}
         </div>
 
         <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
