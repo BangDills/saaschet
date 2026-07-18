@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { resolveOrigin } from "@/lib/url";
 import crypto from "crypto";
 
 export const runtime = "nodejs";
@@ -15,7 +16,7 @@ export const dynamic = "force-dynamic";
  * This allows multiple Celiuz AI users to connect the same GitHub account.
  */
 export async function GET(request: NextRequest) {
-  const { origin } = new URL(request.url);
+  const origin = resolveOrigin(request);
 
   const supabase = await createClient();
   const {
