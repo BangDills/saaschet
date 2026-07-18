@@ -766,34 +766,33 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
     try {
       const daytona = getDaytonaClient();
 
-      // Resource env (cpu/memory/disk). The Daytona SDK only accepts
-      // `resources` on the image-based create path, not the fast language
-      // path. So when higher-than-default resources are configured, use the
-      // image path (with the default ai-node image if none set) so they
-      // apply — otherwise builds like `next build` OOM. Default path stays
-      // fast/cheap for users who don't raise them.
+      // Sandbox creation priority:
+      //  1. Snapshot (DAYTONA_SANDBOX_SNAPSHOT) — a pre-provisioned snapshot
+      //     you created in Daytona. Fast (cached), and the snapshot already
+      //     carries its own resources (e.g. 4 vCPU / 8 GiB), so heavy builds
+      //     like `next build` won't OOM. No image pull, no resource param.
+      //  2. Image (DAYTONA_SANDBOX_IMAGE) — custom image + resource env.
+      //     Only use a real, pullable image; the SDK accepts resources here.
+      //  3. Fast language path — cached default container, small resources.
+      const snapshotName = process.env.DAYTONA_SANDBOX_SNAPSHOT;
+      const sandboxImage = process.env.DAYTONA_SANDBOX_IMAGE;
       const cpu = Number(process.env.DAYTONA_SANDBOX_CPU) || 1;
       const memory = Number(process.env.DAYTONA_SANDBOX_MEMORY) || 2;
       const disk = Number(process.env.DAYTONA_SANDBOX_DISK) || 5;
-      const needsResources =
-        cpu > 1 || memory > 2 || disk > 5;
-      const sandboxImage =
-        process.env.DAYTONA_SANDBOX_IMAGE ??
-        (needsResources ? "daytonaio/ai-node:22" : undefined);
 
-      if (!sandboxImage) {
-        // Fast, language-based instantiation using cached Daytona container
+      if (snapshotName) {
         sandbox = await daytona.create(
           {
+            snapshot: snapshotName,
             language: "typescript",
             envVars: { NODE_ENV: "development" },
-            autoStopInterval: 15,   // auto-stop after 15 min idle
-            autoDeleteInterval: 0,  // ephemeral: delete on stop
+            autoStopInterval: 15,
+            autoDeleteInterval: 0,
           },
-          { timeout: 90 },
+          { timeout: 120 },
         );
-        console.log(`[daytona] Fast language-based sandbox created: ${sandbox.id} (default resources)`);
-      } else {
+        console.log(`[daytona] Snapshot sandbox created: ${sandbox.id} (snapshot ${snapshotName})`);
+      } else if (sandboxImage) {
         sandbox = await daytona.create(
           {
             image: sandboxImage,
@@ -803,14 +802,24 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
             autoStopInterval: 15,
             autoDeleteInterval: 0,
           },
-          // Image-based sandboxes pull the Docker image first, which can take
-          // longer than the cached fast path — allow up to 5 minutes for the
-          // first pull. Subsequent runs reuse the cached image and start fast.
+          // Image-based sandboxes pull the image first — allow up to 5 min.
           { timeout: 300 },
         );
         console.log(
           `[daytona] Image sandbox created: ${sandbox.id} (${cpu} CPU, ${memory}GB RAM, ${disk}GB disk)`,
         );
+      } else {
+        // Fast, language-based instantiation using cached Daytona container
+        sandbox = await daytona.create(
+          {
+            language: "typescript",
+            envVars: { NODE_ENV: "development" },
+            autoStopInterval: 15,
+            autoDeleteInterval: 0,
+          },
+          { timeout: 90 },
+        );
+        console.log(`[daytona] Fast language-based sandbox created: ${sandbox.id} (default resources)`);
       }
 
       sandboxTools = createSandboxTools({
