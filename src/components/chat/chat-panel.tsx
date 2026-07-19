@@ -719,6 +719,12 @@ export function ChatPanel({
     const meta = lastVisibleMessage?.metadata as
       | { agentState?: AgentCompletionState }
       | undefined;
+    console.log("[quick-actions] resolve", {
+      hasMetadata: !!lastVisibleMessage?.metadata,
+      hasAgentState: !!meta?.agentState,
+      agentStateTaskType: meta?.agentState?.taskType,
+      lastRole: lastVisibleMessage?.role,
+    });
     return resolveActions(meta?.agentState);
   }, [lastVisibleMessage?.metadata]);
 
