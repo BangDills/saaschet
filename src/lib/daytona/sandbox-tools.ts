@@ -29,6 +29,94 @@ function truncate(s: string, max = MAX_OUTPUT): string {
 }
 
 /**
+ * Standard tool result contract. Every sandbox tool returns this shape so the
+ * model can't infer success from prose — it must read `success`. `stage` makes
+ * the workflow traceable; `error` is present only on failure. Field additions
+ * are additive (old fields like `output`/`exitCode` are kept where they were).
+ */
+type ToolResult = {
+  success: boolean;
+  stage: string;
+  exitCode?: number;
+  stdout?: string;
+  stderr?: string;
+  error?: string;
+  data?: unknown;
+  metadata?: Record<string, unknown>;
+};
+
+/**
+ * Run a shell command in the sandbox with stdout/stderr SPLIT and an explicit
+ * exit code. We wrap the command so its streams go to temp files, then print a
+ * sentinel `__EXIT__:<code>` on stdout that we parse — this is the only way to
+ * get a reliable exit code and separated streams from Daytona's executeCommand
+ * (which otherwise merges them into `result`).
+ *
+ * Never throws: any exception becomes { success:false, exitCode:-1, error }.
+ */
+async function runStructured(
+  ctx: SandboxContext,
+  command: string,
+  cwd: string | undefined,
+  timeout: number,
+  stage: string,
+): Promise<ToolResult> {
+  const startedAt = Date.now();
+  const outFile = `/tmp/_cmd_out_${startedAt}`;
+  const errFile = `/tmp/_cmd_err_${startedAt}`;
+  // 2>&1 would merge streams; keep them separate, then echo the exit code on
+  // stdout so we can parse it. The wrapped command runs in a subshell.
+  const wrapped = `(${command}) 1>${outFile} 2>${errFile}; echo "__EXIT__:$?"`;
+  try {
+    const resp = await ctx.sandbox.process.executeCommand(
+      wrapped,
+      cwd || "workspace/repo",
+      undefined,
+      timeout,
+    );
+    // The wrapper always exits 0 (echo succeeds). Parse the real exit code
+    // from the __EXIT__ sentinel in stdout.
+    const combined = resp.result || "";
+    const m = combined.match(/__EXIT__:(-?\d+)\s*$/);
+    const exitCode = m ? Number(m[1]) : resp.exitCode;
+    // Read the captured stdout/stderr files.
+    let stdout = "";
+    let stderr = "";
+    try {
+      const o = await ctx.sandbox.process.executeCommand(`cat ${outFile} 2>/dev/null; rm -f ${outFile} ${errFile}`);
+      stdout = o.result || "";
+    } catch {
+      /* best-effort cleanup */
+    }
+    try {
+      const e = await ctx.sandbox.process.executeCommand(`cat ${errFile} 2>/dev/null`);
+      stderr = e.result || "";
+    } catch {
+      /* ignore */
+    }
+    const success = exitCode === 0;
+    return {
+      success,
+      stage,
+      exitCode,
+      stdout: truncate(stdout),
+      stderr: truncate(stderr),
+      // keep legacy `output` for backward compat with any consumer
+      ...(success ? {} : { error: truncate(stderr || stdout || `Command exited ${exitCode}`) }),
+      metadata: { durationMs: Date.now() - startedAt, timestamp: startedAt },
+    } as ToolResult & { output?: string };
+  } catch (err) {
+    return {
+      success: false,
+      stage,
+      exitCode: -1,
+      error: err instanceof Error ? err.message : String(err),
+      metadata: { durationMs: Date.now() - startedAt, timestamp: startedAt },
+    };
+  }
+}
+
+/**
  * Creates agent tools that execute inside a sandbox.
  */
 export function createSandboxTools(ctx: SandboxContext) {
@@ -74,23 +162,15 @@ export function createSandboxTools(ctx: SandboxContext) {
         timeout?: number;
       }) => {
         await ensureCloned(ctx);
-        try {
-          const response = await ctx.sandbox.process.executeCommand(
-            command,
-            cwd || "workspace/repo",
-            undefined,
-            timeout || 30,
-          );
-          return {
-            exitCode: response.exitCode,
-            output: truncate(response.result || ""),
-          };
-        } catch (err) {
-          return {
-            exitCode: 1,
-            output: `Error: ${err instanceof Error ? err.message : String(err)}`,
-          };
-        }
+        const result = await runStructured(
+          ctx,
+          command,
+          cwd,
+          timeout || 30,
+          "run_command",
+        );
+        // Keep legacy `output` field for backward compatibility.
+        return { ...result, output: result.stdout ?? result.error ?? "" };
       },
     }),
 
@@ -123,21 +203,35 @@ export function createSandboxTools(ctx: SandboxContext) {
         code: string;
         timeout?: number;
       }) => {
+        const startedAt = Date.now();
         try {
           const response = await ctx.sandbox.process.codeRun(
             code,
             undefined,
             timeout || 15,
           );
+          const exitCode = response.exitCode;
+          const stdout = truncate(response.result || "");
+          const success = exitCode === 0;
           return {
-            exitCode: response.exitCode,
-            output: truncate(response.result || ""),
-          };
+            success,
+            stage: "execute_code",
+            exitCode,
+            stdout,
+            stderr: "",
+            ...(success ? {} : { error: stdout || `Code exited ${exitCode}` }),
+            output: stdout, // legacy field
+            metadata: { durationMs: Date.now() - startedAt, timestamp: startedAt },
+          } as ToolResult & { output: string };
         } catch (err) {
           return {
-            exitCode: 1,
-            output: `Error: ${err instanceof Error ? err.message : String(err)}`,
-          };
+            success: false,
+            stage: "execute_code",
+            exitCode: -1,
+            error: err instanceof Error ? err.message : String(err),
+            output: "",
+            metadata: { durationMs: Date.now() - startedAt, timestamp: startedAt },
+          } as ToolResult & { output: string };
         }
       },
     }),
@@ -159,18 +253,37 @@ export function createSandboxTools(ctx: SandboxContext) {
       }),
       execute: async ({ path }: { path: string }) => {
         await ensureCloned(ctx);
+        const startedAt = Date.now();
         try {
           const response = await ctx.sandbox.process.executeCommand(
             `cat "workspace/repo/${path}"`,
           );
           if (response.exitCode !== 0) {
-            return { error: `File not found or unreadable: ${path}` };
+            return {
+              success: false,
+              stage: "sandbox_read_file",
+              exitCode: response.exitCode,
+              error: `File not found or unreadable: ${path}`,
+              content: "",
+              metadata: { durationMs: Date.now() - startedAt, timestamp: startedAt, path },
+            } as ToolResult & { content: string };
           }
-          return { content: truncate(response.result || "") };
+          return {
+            success: true,
+            stage: "sandbox_read_file",
+            exitCode: 0,
+            content: truncate(response.result || ""),
+            metadata: { durationMs: Date.now() - startedAt, timestamp: startedAt, path },
+          } as ToolResult & { content: string };
         } catch (err) {
           return {
+            success: false,
+            stage: "sandbox_read_file",
+            exitCode: -1,
             error: `Failed to read ${path}: ${err instanceof Error ? err.message : String(err)}`,
-          };
+            content: "",
+            metadata: { durationMs: Date.now() - startedAt, timestamp: startedAt, path },
+          } as ToolResult & { content: string };
         }
       },
     }),
@@ -198,23 +311,54 @@ export function createSandboxTools(ctx: SandboxContext) {
       }),
       execute: async ({ path, content }: { path: string; content: string }) => {
         await ensureCloned(ctx);
+        const startedAt = Date.now();
         try {
           const fullPath = `workspace/repo/${path}`;
           const dir = fullPath.substring(0, fullPath.lastIndexOf("/"));
           if (dir) {
-            await ctx.sandbox.process.executeCommand(`mkdir -p "${dir}"`);
+            const mkdirRes = await ctx.sandbox.process.executeCommand(`mkdir -p "${dir}"`);
+            if (mkdirRes.exitCode !== 0) {
+              return {
+                success: false,
+                stage: "sandbox_write_file",
+                exitCode: mkdirRes.exitCode,
+                error: `Failed to create directory ${dir}: ${truncate(mkdirRes.result || "")}`,
+                path,
+                metadata: { durationMs: Date.now() - startedAt, timestamp: startedAt, path },
+              } as ToolResult & { path: string };
+            }
           }
           // Use base64 to safely transfer content with special chars
           const b64 = Buffer.from(content).toString("base64");
-          await ctx.sandbox.process.executeCommand(
+          const writeRes = await ctx.sandbox.process.executeCommand(
             `echo "${b64}" | base64 -d > "${fullPath}"`,
           );
-          return { success: true, path };
+          if (writeRes.exitCode !== 0) {
+            return {
+              success: false,
+              stage: "sandbox_write_file",
+              exitCode: writeRes.exitCode,
+              error: `Failed to write ${path}: ${truncate(writeRes.result || "")}`,
+              path,
+              metadata: { durationMs: Date.now() - startedAt, timestamp: startedAt, path },
+            } as ToolResult & { path: string };
+          }
+          return {
+            success: true,
+            stage: "sandbox_write_file",
+            exitCode: 0,
+            path,
+            metadata: { durationMs: Date.now() - startedAt, timestamp: startedAt, path },
+          } as ToolResult & { path: string };
         } catch (err) {
           return {
             success: false,
+            stage: "sandbox_write_file",
+            exitCode: -1,
             error: `Failed to write ${path}: ${err instanceof Error ? err.message : String(err)}`,
-          };
+            path,
+            metadata: { durationMs: Date.now() - startedAt, timestamp: startedAt, path },
+          } as ToolResult & { path: string };
         }
       },
     }),
@@ -427,6 +571,26 @@ async function cloneRepo(ctx: SandboxContext): Promise<void> {
         );
       }
       throw new Error(errorMsg);
+    }
+
+    // Set a repo-local git identity so commits/merges inside the sandbox
+    // never fail on "empty user.name/user.email". Repo-local (not global) so
+    // we don't rely on prior sandbox state. Values come from env with sane
+    // defaults.
+    const gitUser = process.env.SANDBOX_GIT_USER_NAME || "Celiuz Agent";
+    const gitEmail = process.env.SANDBOX_GIT_USER_EMAIL || "agent@celiuz.ai";
+    try {
+      await ctx.sandbox.process.executeCommand(
+        `git -C workspace/repo config user.name "${gitUser.replace(/"/g, '\\"')}"`,
+      );
+      await ctx.sandbox.process.executeCommand(
+        `git -C workspace/repo config user.email "${gitEmail.replace(/"/g, '\\"')}"`,
+      );
+      console.log(`[sandbox] git identity set (${gitUser} <${gitEmail}>)`);
+    } catch (configErr) {
+      // Non-fatal: log and continue. Commits may fail later if identity is
+      // required, and the tool result will surface that honestly.
+      console.warn(`[sandbox] git config set failed:`, configErr);
     }
 
     ctx.repoCloned = true;

@@ -10,6 +10,7 @@ import {
   RetryError,
   type UIMessage,
   type UIMessageChunk,
+  type StopCondition,
 } from "ai";
 import {
   defaultModelId,
@@ -51,6 +52,48 @@ export const dynamic = "force-dynamic";
 // a full landing page) can involve 10–20 tool calls which take time.
 export const maxDuration = 300;
 
+/**
+ * Fail-fast orchestration: stop the agent loop when a MUTATING tool returns
+ * success:false. Mutating tools (write/edit/delete/git/PR/run_command) change
+ * state — if one fails, dependent steps (push after failed merge, deploy after
+ * failed build) must not run. Read-only tools (read_file, list_files,
+ * search_code, web_search, context7_*) are NOT stop triggers so the model can
+ * keep diagnosing and retry with a different path.
+ *
+ * This is the orchestration guardrail behind the "Tool Result Authority"
+ * prompt section — the model can't talk its way past a real failure here.
+ */
+const MUTATING_TOOLS = new Set([
+  "run_command",
+  "execute_code",
+  "write_file",
+  "write_files",
+  "edit_file",
+  "delete_file",
+  "sandbox_write_file",
+  "sandbox_write_files",
+  "create_pull_request",
+]);
+
+const stopOnToolFailure: StopCondition<any> = ({ steps }) => {
+  for (const step of steps) {
+    for (const tr of step.toolResults ?? []) {
+      const toolName =
+        (tr as { toolName?: string }).toolName ?? "";
+      if (!MUTATING_TOOLS.has(toolName)) continue;
+      const output = (tr as { output?: unknown }).output;
+      if (
+        output &&
+        typeof output === "object" &&
+        "success" in output &&
+        (output as { success?: unknown }).success === false
+      ) {
+        return true; // halt the loop — a mutating tool failed
+      }
+    }
+  }
+  return false;
+};
 
 
 const DEFAULT_SYSTEM = `You are **Celiuz AI**, an advanced, intelligent assistant.
@@ -135,6 +178,16 @@ const AGENT_SYSTEM = `You are **Celiuz AI Agent** — an advanced AI coding assi
 - Never say you'll do something and then stop: phrases like "Let me verify...", "Mari verifikasi...", "I'll check next...", "Saya cek dulu..." must be followed by the actual tool call in the same turn — never end the turn right after them. If you wrote "let me X", do X now.
 - When the task is genuinely complete, say so explicitly and concisely ("Selesai. {apa yang dilakukan + bukti singkat}"). Then offer the natural next step or stop. Do not trail off with a pending "let me verify" if you have no intention of continuing.
 - For large tasks (full project, multi-file refactor): break into sequential phases — structure, implement, verify — and complete each phase fully before moving on. Use \`write_files\` once per phase to batch the commit.
+
+## Tool Result Authority (NON-NEGOTIABLE)
+Tool results are the single source of truth. You report them; you do not decide them.
+- **Read the structured result.** Every tool returns \`{ success, stage, exitCode?, stdout?, stderr?, error? }\`. Success is a boolean — do not infer it from prose in stdout/stderr.
+- **success=false OR exitCode !== 0 means the operation FAILED.** Never claim it succeeded. Say plainly that it failed and quote \`error\`/\`stderr\`.
+- **Do not report success from conversation.** If the user says "tadi sudah bisa", "di chat sebelumnya berhasil", or similar, that is NOT proof. Only a tool result with \`success=true\` counts. If it contradicts a tool result, the tool result wins.
+- **Verify before claiming.** Before stating that merge/push/build/deploy/install succeeded, you MUST have a tool result with \`success=true\` (e.g. \`run_command\` with exitCode 0). If you only ran part of it, say so — do not fill in the rest.
+- **Fail fast.** If a step failed, do NOT proceed to dependent steps. If merge failed, do not push. If build failed, do not deploy. Stop, report the failure with the tool's \`error\`, and ask for a decision.
+- **Retry only recoverable errors.** Retry network timeout, transient fetch, rate-limit. Do NOT retry: syntax error, permission denied, git conflict, invalid branch, missing identity — those need a fix, not a repeat. On retry, the LAST attempt's result is your answer.
+- **Do not invent Git/deploy/db state.** Do not assert "merged to main", "pushed", "deployed", "migrated" without a \`success=true\` tool result for that exact action. If unsure, run a verification command (\`git log\`, \`git rev-parse HEAD\`, \`git status\`) and report what it returns.
 
 ## Building Projects (IMPORTANT)
 When the user asks you to build a web page, app, tool, or any project:
@@ -1107,7 +1160,7 @@ ${recoveryInstruction}`;
         ...(tools
           ? {
               tools,
-              stopWhen: stepCountIs(50),
+              stopWhen: [stepCountIs(50), stopOnToolFailure],
               toolCallStreaming: true,
             }
           : {}),

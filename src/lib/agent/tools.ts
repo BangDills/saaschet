@@ -387,32 +387,43 @@ export function createAgentTools(ctx: AgentContext) {
         files: Array<{ path: string; content: string }>;
         commit_message: string;
       }) => {
-        const { branch, isEmptyRepo } = await ensureWorkBranch(writeToken);
-        const result = await putFiles(
-          owner,
-          name,
-          files,
-          branch,
-          commit_message,
-          writeToken,
-        );
-        return {
-          branch,
-          commit_sha: result.commitSha,
-          files_written: result.filesWritten,
-          paths: files.map((f) => f.path),
-  method: result.fallback,
-  lines_added: files.reduce(
-    (total, file) => total + (file.content.length === 0 ? 0 : file.content.split(/\r?\n/).length),
-    0,
-  ),
-  lines_deleted: 0,
-  ...(isEmptyRepo
-            ? {
-                note: "Repo was empty — committed directly to the default branch as the bootstrap commit. No pull request is needed; the work is already on the main branch.",
-              }
-            : {}),
-        };
+        try {
+          const { branch, isEmptyRepo } = await ensureWorkBranch(writeToken);
+          const result = await putFiles(
+            owner,
+            name,
+            files,
+            branch,
+            commit_message,
+            writeToken,
+          );
+          return {
+            success: true,
+            stage: "write_files",
+            branch,
+            commit_sha: result.commitSha,
+            files_written: result.filesWritten,
+            paths: files.map((f) => f.path),
+            method: result.fallback,
+            lines_added: files.reduce(
+              (total, file) => total + (file.content.length === 0 ? 0 : file.content.split(/\r?\n/).length),
+              0,
+            ),
+            lines_deleted: 0,
+            ...(isEmptyRepo
+              ? {
+                  note: "Repo was empty — committed directly to the default branch as the bootstrap commit. No pull request is needed; the work is already on the main branch.",
+                }
+              : {}),
+          };
+        } catch (err) {
+          return {
+            success: false,
+            stage: "write_files",
+            error: err instanceof Error ? err.message : String(err),
+            paths: files.map((f) => f.path),
+          };
+        }
       },
     }),
 
@@ -454,29 +465,40 @@ export function createAgentTools(ctx: AgentContext) {
         content: string;
         commit_message: string;
       }) => {
-        const { branch, isEmptyRepo } = await ensureWorkBranch(writeToken);
-        const result = await putFile(
-          owner,
-          name,
-          path,
-          content,
-          branch,
-          commit_message,
-          writeToken,
-        );
-        return {
-          path,
-          branch,
-          commit_sha: result.commitSha,
-          bytes_written: content.length,
-          lines_added: content.length === 0 ? 0 : content.split(/\r?\n/).length,
-          lines_deleted: 0,
-          ...(isEmptyRepo
-            ? {
-                note: "Repo was empty — committed directly to the default branch as the bootstrap commit. No pull request is needed; the work is already on the main branch.",
-              }
-            : {}),
-        };
+        try {
+          const { branch, isEmptyRepo } = await ensureWorkBranch(writeToken);
+          const result = await putFile(
+            owner,
+            name,
+            path,
+            content,
+            branch,
+            commit_message,
+            writeToken,
+          );
+          return {
+            success: true,
+            stage: "write_file",
+            path,
+            branch,
+            commit_sha: result.commitSha,
+            bytes_written: content.length,
+            lines_added: content.length === 0 ? 0 : content.split(/\r?\n/).length,
+            lines_deleted: 0,
+            ...(isEmptyRepo
+              ? {
+                  note: "Repo was empty — committed directly to the default branch as the bootstrap commit. No pull request is needed; the work is already on the main branch.",
+                }
+              : {}),
+          };
+        } catch (err) {
+          return {
+            success: false,
+            stage: "write_file",
+            error: err instanceof Error ? err.message : String(err),
+            path,
+          };
+        }
       },
     }),
 
@@ -531,82 +553,101 @@ export function createAgentTools(ctx: AgentContext) {
         replace: string;
         commit_message: string;
       }) => {
-        // Read from the work branch if it exists (so edits after a
-        // write_file in the same turn see the latest content), otherwise
-        // fall back to the default branch.
-        const baseRef = ctx.branchesCreated.has(ctx.workBranch)
-          ? ctx.workBranch
-          : await getDefaultBranch();
-        let original: { content: string; truncated: boolean };
         try {
-          original = await fetchFileContent(
+          // Read from the work branch if it exists (so edits after a
+          // write_file in the same turn see the latest content), otherwise
+          // fall back to the default branch.
+          const baseRef = ctx.branchesCreated.has(ctx.workBranch)
+            ? ctx.workBranch
+            : await getDefaultBranch();
+          let original: { content: string; truncated: boolean };
+          try {
+            original = await fetchFileContent(
+              owner,
+              name,
+              path,
+              baseRef,
+              writeToken,
+            );
+          } catch (err) {
+            return {
+              success: false,
+              stage: "edit_file",
+              error:
+                `Could not read ${path}: ` +
+                (err instanceof Error ? err.message : String(err)) +
+                ". Use list_files to confirm the path, or write_file to create a new file.",
+            };
+          }
+          if (original.truncated) {
+            return {
+              success: false,
+              stage: "edit_file",
+              error: `${path} is too large to safely edit (>60,000 chars). read_file can page through it with offset/limit, but edit_file requires the complete file to avoid corrupting unseen content. Use write_file with the full new content if you really need to change it.`,
+            };
+          }
+
+          const occurrences = original.content.split(find).length - 1;
+          if (occurrences === 0) {
+            return {
+              success: false,
+              stage: "edit_file",
+              error:
+                `'find' string not found in ${path}. Read the file first and ` +
+                `copy the exact substring (whitespace included) you want to replace.`,
+            };
+          }
+          if (occurrences > 1) {
+            return {
+              success: false,
+              stage: "edit_file",
+              error:
+                `'find' string matches ${occurrences} places in ${path}. Expand it ` +
+                `with surrounding context until it matches exactly once.`,
+            };
+          }
+
+          const newContent = original.content.replace(find, replace);
+          const countLines = (value: string) =>
+            value.length === 0 ? 0 : value.split(/\r?\n/).length;
+          const linesDeleted = countLines(find);
+          const linesAdded = countLines(replace);
+          const { branch, isEmptyRepo } = await ensureWorkBranch(writeToken);
+          const result = await putFile(
             owner,
             name,
             path,
-            baseRef,
+            newContent,
+            branch,
+            commit_message,
             writeToken,
           );
+
+          return {
+            success: true,
+            stage: "edit_file",
+            path,
+            branch,
+            commit_sha: result.commitSha,
+            bytes_changed: Math.abs(newContent.length - original.content.length),
+            lines_added: linesAdded,
+            lines_deleted: linesDeleted,
+            old_length: original.content.length,
+            new_length: newContent.length,
+            ...(isEmptyRepo
+              ? {
+                  note: "Repo was empty — committed directly to the default branch as the bootstrap commit. No pull request is needed.",
+                }
+              : {}),
+          };
         } catch (err) {
           return {
-            error:
-              `Could not read ${path}: ` +
-              (err instanceof Error ? err.message : String(err)) +
-              ". Use list_files to confirm the path, or write_file to create a new file.",
+            success: false,
+            stage: "edit_file",
+            error: err instanceof Error ? err.message : String(err),
+            path,
           };
         }
-        if (original.truncated) {
-          return {
-            error: `${path} is too large to safely edit (>60,000 chars). read_file can page through it with offset/limit, but edit_file requires the complete file to avoid corrupting unseen content. Use write_file with the full new content if you really need to change it.`,
-          };
-        }
-
-        const occurrences = original.content.split(find).length - 1;
-        if (occurrences === 0) {
-          return {
-            error:
-              `'find' string not found in ${path}. Read the file first and ` +
-              `copy the exact substring (whitespace included) you want to replace.`,
-          };
-        }
-        if (occurrences > 1) {
-          return {
-            error:
-              `'find' string matches ${occurrences} places in ${path}. Expand it ` +
-              `with surrounding context until it matches exactly once.`,
-          };
-        }
-
-        const newContent = original.content.replace(find, replace);
-        const countLines = (value: string) =>
-          value.length === 0 ? 0 : value.split(/\r?\n/).length;
-        const linesDeleted = countLines(find);
-        const linesAdded = countLines(replace);
-        const { branch, isEmptyRepo } = await ensureWorkBranch(writeToken);
-        const result = await putFile(
-          owner,
-          name,
-          path,
-          newContent,
-          branch,
-          commit_message,
-          writeToken,
-        );
-
-        return {
-          path,
-          branch,
-          commit_sha: result.commitSha,
-          bytes_changed: Math.abs(newContent.length - original.content.length),
-          lines_added: linesAdded,
-          lines_deleted: linesDeleted,
-          old_length: original.content.length,
-          new_length: newContent.length,
-          ...(isEmptyRepo
-            ? {
-                note: "Repo was empty — committed directly to the default branch as the bootstrap commit. No pull request is needed.",
-              }
-            : {}),
-        };
       },
     }),
 
@@ -640,68 +681,83 @@ export function createAgentTools(ctx: AgentContext) {
         path: string;
         commit_message: string;
       }) => {
-        // Preflight check: read ref branch if already created, otherwise default branch
-        const baseRef = ctx.branchesCreated.has(ctx.workBranch)
-          ? ctx.workBranch
-          : await getDefaultBranch();
-
         try {
-          const original = await fetchFileContent(
+          // Preflight check: read ref branch if already created, otherwise default branch
+          const baseRef = ctx.branchesCreated.has(ctx.workBranch)
+            ? ctx.workBranch
+            : await getDefaultBranch();
+
+          try {
+            const original = await fetchFileContent(
+              owner,
+              name,
+              path,
+              baseRef,
+              writeToken,
+              { offset: 0, limit: 1 },
+            );
+            if (original.truncated && original.content === "") {
+              // Unlikely to happen with limit 1, but keep type-safe check
+            }
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            if (msg.includes("404") || msg.includes("409")) {
+              return {
+                success: true,
+                stage: "delete_file",
+                path,
+                deleted: false,
+                commit_sha: null,
+                note: "File did not exist; no deletion commit was created.",
+              };
+            }
+            if (msg.includes("not a regular file")) {
+              return {
+                success: false,
+                stage: "delete_file",
+                path,
+                error: `Cannot delete ${path}: it is not a regular file. delete_file only deletes files, not directories.`,
+              };
+            }
+            throw err;
+          }
+
+          const { branch, isEmptyRepo } = await ensureWorkBranch(writeToken);
+          const result = await deleteFile(
             owner,
             name,
             path,
-            baseRef,
+            branch,
+            commit_message,
             writeToken,
-            { offset: 0, limit: 1 },
           );
-          if (original.truncated && original.content === "") {
-            // Unlikely to happen with limit 1, but keep type-safe check
-          }
+
+          return {
+            success: true,
+            stage: "delete_file",
+            path,
+            branch,
+            deleted: result.deleted,
+            commit_sha: result.commitSha,
+            ...(result.reason === "missing"
+              ? {
+                  note: "File did not exist on the work branch; no deletion commit was created.",
+                }
+              : {}),
+            ...(isEmptyRepo
+              ? {
+                  note: "Repo was empty — there was no file to delete.",
+                }
+              : {}),
+          };
         } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          if (msg.includes("404") || msg.includes("409")) {
-            return {
-              path,
-              deleted: false,
-              commit_sha: null,
-              note: "File did not exist; no deletion commit was created.",
-            };
-          }
-          if (msg.includes("not a regular file")) {
-            return {
-              path,
-              error: `Cannot delete ${path}: it is not a regular file. delete_file only deletes files, not directories.`,
-            };
-          }
-          throw err;
+          return {
+            success: false,
+            stage: "delete_file",
+            error: err instanceof Error ? err.message : String(err),
+            path,
+          };
         }
-
-        const { branch, isEmptyRepo } = await ensureWorkBranch(writeToken);
-        const result = await deleteFile(
-          owner,
-          name,
-          path,
-          branch,
-          commit_message,
-          writeToken,
-        );
-
-        return {
-          path,
-          branch,
-          deleted: result.deleted,
-          commit_sha: result.commitSha,
-          ...(result.reason === "missing"
-            ? {
-                note: "File did not exist on the work branch; no deletion commit was created.",
-              }
-            : {}),
-          ...(isEmptyRepo
-            ? {
-                note: "Repo was empty — there was no file to delete.",
-              }
-            : {}),
-        };
       },
     }),
 
@@ -727,35 +783,49 @@ export function createAgentTools(ctx: AgentContext) {
         additionalProperties: false,
       }),
       execute: async ({ title, body }: { title: string; body: string }) => {
-        if (!ctx.branchesCreated.has(ctx.workBranch)) {
-          return {
-            error:
-              "No changes to PR — call write_file at least once before opening a pull request.",
-          };
-        }
-        const base = await getDefaultBranch();
-        if (ctx.workBranch === base) {
-          return {
-            note: `Changes were committed directly to '${base}' (the repo was empty when this turn started). No pull request is needed — '${title}' is already live on the default branch.`,
+        try {
+          if (!ctx.branchesCreated.has(ctx.workBranch)) {
+            return {
+              success: false,
+              stage: "create_pull_request",
+              error:
+                "No changes to PR — call write_file at least once before opening a pull request.",
+            };
+          }
+          const base = await getDefaultBranch();
+          if (ctx.workBranch === base) {
+            return {
+              success: true,
+              stage: "create_pull_request",
+              note: `Changes were committed directly to '${base}' (the repo was empty when this turn started). No pull request is needed — '${title}' is already live on the default branch.`,
+              base,
+              branch: base,
+            };
+          }
+          const pr = await createPullRequest(
+            owner,
+            name,
+            ctx.workBranch,
             base,
-            branch: base,
+            title,
+            body,
+            writeToken,
+          );
+          return {
+            success: true,
+            stage: "create_pull_request",
+            url: pr.url,
+            number: pr.number,
+            branch: ctx.workBranch,
+            base,
+          };
+        } catch (err) {
+          return {
+            success: false,
+            stage: "create_pull_request",
+            error: err instanceof Error ? err.message : String(err),
           };
         }
-        const pr = await createPullRequest(
-          owner,
-          name,
-          ctx.workBranch,
-          base,
-          title,
-          body,
-          writeToken,
-        );
-        return {
-          url: pr.url,
-          number: pr.number,
-          branch: ctx.workBranch,
-          base,
-        };
       },
     }),
   };
