@@ -90,7 +90,7 @@ export async function POST(
         parts,
         client_message_id: clientId,
       },
-      { onConflict: "client_message_id", ignoreDuplicates: false },
+      { onConflict: "conversation_id,client_message_id", ignoreDuplicates: false },
     )
     .select("id")
     .single();
