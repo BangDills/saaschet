@@ -8,6 +8,12 @@ export type ChatMessage = {
   role: ChatRole;
   /** Plain text content. We send/receive Markdown. */
   content: string;
+  /**
+   * Full UIMessage parts (text + tool calls + tool results), saved by the
+   * client for assistant messages so the action timeline survives reload.
+   * Null for legacy rows / user messages (phase 1) — fall back to content.
+   */
+  parts?: unknown[] | null;
   /** ms since epoch */
   createdAt: number;
 };

@@ -1122,17 +1122,12 @@ ${recoveryInstruction}`;
           totalToolCount += lastAttemptToolCount;
           finalModelId = candidateModelId;
 
-          const { error: assistantErr } = await supabase.from("messages").insert({
-            conversation_id: conversationId,
-            role: "assistant",
-            content: text,
-          });
-          if (assistantErr) {
-            console.error(
-              "[chat] failed to persist assistant message:",
-              assistantErr,
-            );
-          }
+          // The assistant message (with full UIMessage parts: text + tool
+          // calls + tool results) is saved by the CLIENT after the stream
+          // finishes, via POST /api/conversations/[id]/messages — so the
+          // "Completed · N actions" timeline survives a reload. We no longer
+          // insert a text-only copy here (it would duplicate the client save
+          // and lose the parts).
 
           // ── Async memory extraction (non-blocking, runs after response) ──
           // Wrapped in after() so Vercel keeps the function alive to finish

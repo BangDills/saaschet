@@ -106,11 +106,21 @@ function toBubbleParts(parts: UIMessage["parts"] | undefined): AnyPart[] {
 }
 
 function toUIMessages(stored: ChatMessage[]): UIMessage[] {
-  return stored.map((m) => ({
-    id: m.id,
-    role: m.role,
-    parts: [{ type: "text" as const, text: m.content }],
-  }));
+  return stored.map((m) => {
+    // Assistant messages saved by the client carry full UIMessage parts
+    // (text + tool calls + tool results) — restore them so the action
+    // timeline re-renders on reload. Legacy rows / user messages fall back
+    // to a single text part from `content`.
+    const hasRealParts =
+      Array.isArray(m.parts) && m.parts.length > 0;
+    return {
+      id: m.id,
+      role: m.role,
+      parts: hasRealParts
+        ? (m.parts as UIMessage["parts"])
+        : [{ type: "text" as const, text: m.content }],
+    };
+  });
 }
 
 type GithubAccessMode = "unknown" | "read_only" | "full";
@@ -149,6 +159,12 @@ export function ChatPanel({
   const webSearchRef = React.useRef(webSearch);
   const conversationIdRef = React.useRef(conversationId);
   const repoRef = React.useRef(repo);
+  // Mirror of the latest `messages` from useChat, read inside onFinish where
+  // the closure would otherwise be stale. Used to persist the assistant
+  // message (with full parts) to the server after the stream finishes.
+  const messagesStateRef = React.useRef<UIMessage[]>(toUIMessages(initialMessages));
+  // Avoid double-saving the same final assistant message across re-renders.
+  const savedAssistantIdsRef = React.useRef<Set<string>>(new Set());
 
 
   React.useEffect(() => {
@@ -228,6 +244,36 @@ export function ChatPanel({
     // throttle aggressively. Pick the rate at construction time.
     experimental_throttle: agentMode ? 80 : 250,
   });
+
+  // Keep the messages mirror ref in sync every render.
+  messagesStateRef.current = messages;
+
+  // After a turn finishes, persist the final assistant message (with full
+  // parts: text + tool calls + tool results) so the action timeline survives
+  // a reload. Server onFinish no longer inserts a text-only copy.
+  const streamDone = status === "ready" || status === "error";
+  React.useEffect(() => {
+    if (!streamDone) return;
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== "assistant") return;
+    if (savedAssistantIdsRef.current.has(last.id)) return;
+    savedAssistantIdsRef.current.add(last.id);
+
+    const text = partsToText(last.parts);
+    void fetch(`/api/conversations/${conversationId}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        role: "assistant",
+        content: text,
+        parts: last.parts,
+      }),
+    }).catch((err) => {
+      console.error("[chat] failed to persist assistant parts:", err);
+      // allow retry on a future render if the save failed
+      savedAssistantIdsRef.current.delete(last.id);
+    });
+  }, [streamDone, messages, conversationId]);
 
   const isStreaming = status === "submitted" || status === "streaming";
   const feedbackUrl = `/api/conversations/${conversationId}/feedback`;
