@@ -69,6 +69,13 @@ export async function POST(
   // client message updates the existing row instead of inserting a new one.
   const clientId = body.clientId?.trim() || null;
 
+  console.log("[messages] POST", {
+    conversationId,
+    clientId,
+    contentLen: content.length,
+    partsLen: Array.isArray(parts) ? parts.length : null,
+  });
+
   // Upsert on (conversation_id, client_message_id) via the partial unique
   // index. DO UPDATE so a later retry with more complete parts still wins.
   // Supabase's upsert maps to INSERT ... ON CONFLICT; we tell it the conflict
@@ -89,12 +96,14 @@ export async function POST(
     .single();
 
   if (error) {
-    console.error("[messages] upsert failed:", error.message);
+    console.error("[messages] upsert failed:", error.message, error);
     return NextResponse.json(
       { error: "Failed to save message." },
       { status: 500 },
     );
   }
+
+  console.log("[messages] upsert ok", { messageId: data?.id, conversationId });
 
   return NextResponse.json({ ok: true, messageId: data.id });
 }

@@ -77,6 +77,13 @@ export async function GET(
   const c = conv as ConversationRow;
   const m = (msgs ?? []) as MessageRow[];
 
+  console.log("[conversations] get history", {
+    conversationId: c.id,
+    messageCount: m.length,
+    assistantCount: m.filter((row) => row.role === "assistant").length,
+    withParts: m.filter((row) => Array.isArray(row.parts) && row.parts.length > 0).length,
+  });
+
   return NextResponse.json({
     conversation: {
       id: c.id,

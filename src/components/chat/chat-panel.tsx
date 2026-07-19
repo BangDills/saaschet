@@ -274,6 +274,12 @@ export function ChatPanel({
     savedAssistantIdsRef.current.add(last.id);
 
     const text = partsToText(last.parts);
+    console.log("[chat] persist assistant", {
+      conversationId,
+      clientId: last.id,
+      contentLen: text.length,
+      partsLen: last.parts?.length,
+    });
     void fetch(`/api/conversations/${conversationId}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -283,11 +289,15 @@ export function ChatPanel({
         parts: last.parts,
         clientId: last.id,
       }),
-    }).catch((err) => {
-      console.error("[chat] failed to persist assistant parts:", err);
-      // allow retry on a future render if the save failed
-      savedAssistantIdsRef.current.delete(last.id);
-    });
+    })
+      .then((res) =>
+        console.log("[chat] persist assistant response", res.status),
+      )
+      .catch((err) => {
+        console.error("[chat] failed to persist assistant parts:", err);
+        // allow retry on a future render if the save failed
+        savedAssistantIdsRef.current.delete(last.id);
+      });
   }, [streamDone, messages, conversationId]);
 
   const isStreaming = status === "submitted" || status === "streaming";
