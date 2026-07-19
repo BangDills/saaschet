@@ -165,6 +165,10 @@ export function ChatPanel({
   const messagesStateRef = React.useRef<UIMessage[]>(toUIMessages(initialMessages));
   // Avoid double-saving the same final assistant message across re-renders.
   const savedAssistantIdsRef = React.useRef<Set<string>>(new Set());
+  // True once this session has actually streamed a response. On a fresh page
+  // load/hydration the chat starts already "ready" with messages from the DB;
+  // we must NOT re-save those. Only persist after a real stream happened.
+  const didStreamThisSessionRef = React.useRef(false);
 
 
   React.useEffect(() => {
@@ -248,12 +252,22 @@ export function ChatPanel({
   // Keep the messages mirror ref in sync every render.
   messagesStateRef.current = messages;
 
+  // Mark that a real stream happened this session (submitted/streaming).
+  // Hydration starts "ready" with DB messages — this stays false then, so the
+  // save effect below won't re-persist already-stored messages.
+  React.useEffect(() => {
+    if (status === "submitted" || status === "streaming") {
+      didStreamThisSessionRef.current = true;
+    }
+  }, [status]);
+
   // After a turn finishes, persist the final assistant message (with full
   // parts: text + tool calls + tool results) so the action timeline survives
-  // a reload. Server onFinish no longer inserts a text-only copy.
+  // a reload. Only run after a real stream — never on hydration/reload.
   const streamDone = status === "ready" || status === "error";
   React.useEffect(() => {
     if (!streamDone) return;
+    if (!didStreamThisSessionRef.current) return;
     const last = messages[messages.length - 1];
     if (!last || last.role !== "assistant") return;
     if (savedAssistantIdsRef.current.has(last.id)) return;
@@ -267,6 +281,7 @@ export function ChatPanel({
         role: "assistant",
         content: text,
         parts: last.parts,
+        clientId: last.id,
       }),
     }).catch((err) => {
       console.error("[chat] failed to persist assistant parts:", err);

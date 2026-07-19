@@ -49,7 +49,7 @@ export async function POST(
     );
   }
 
-  let body: { role?: string; content?: string; parts?: unknown[] };
+  let body: { role?: string; content?: string; parts?: unknown[]; clientId?: string };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -64,20 +64,32 @@ export async function POST(
   }
   const content = (body.content ?? "").toString();
   const parts = Array.isArray(body.parts) ? body.parts : null;
+  // The client UIMessage id — used as the idempotency key together with the
+  // conversation. A repeated request (retry/reconnect/reload) for the same
+  // client message updates the existing row instead of inserting a new one.
+  const clientId = body.clientId?.trim() || null;
 
+  // Upsert on (conversation_id, client_message_id) via the partial unique
+  // index. DO UPDATE so a later retry with more complete parts still wins.
+  // Supabase's upsert maps to INSERT ... ON CONFLICT; we tell it the conflict
+  // target column explicitly.
   const { data, error } = await supabase
     .from("messages")
-    .insert({
-      conversation_id: conversationId,
-      role: "assistant",
-      content,
-      parts,
-    })
+    .upsert(
+      {
+        conversation_id: conversationId,
+        role: "assistant",
+        content,
+        parts,
+        client_message_id: clientId,
+      },
+      { onConflict: "client_message_id", ignoreDuplicates: false },
+    )
     .select("id")
     .single();
 
   if (error) {
-    console.error("[messages] insert failed:", error.message);
+    console.error("[messages] upsert failed:", error.message);
     return NextResponse.json(
       { error: "Failed to save message." },
       { status: 500 },
