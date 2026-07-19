@@ -828,6 +828,62 @@ export function createAgentTools(ctx: AgentContext) {
         }
       },
     }),
+
+    report_state: tool({
+      description:
+        "Report the SEMANTIC context of the current task. Call this once at the " +
+        "end of a turn so the UI can show relevant next-step actions. Send ONLY " +
+        "semantic info — do NOT report success/failure/exitCode/tool status; the " +
+        "orchestrator derives those from actual tool results. Be honest and concise.",
+      inputSchema: schema<{
+        taskType: string;
+        objective: string;
+        summary: string;
+      }>({
+        type: "object",
+        properties: {
+          taskType: {
+            type: "string",
+            description:
+              "Category of work: 'audit', 'ui', 'debugging', 'git', 'deploy', " +
+              "'feature', 'refactor', 'test', 'docs', or a short custom label. " +
+              "Describes WHAT kind of task, not whether it succeeded.",
+          },
+          objective: {
+            type: "string",
+            description: "The user's actual goal for this task (one sentence).",
+          },
+          summary: {
+            type: "string",
+            description: "What you did / found this turn (1-2 sentences, factual).",
+          },
+        },
+        required: ["taskType", "objective", "summary"],
+        additionalProperties: false,
+      }),
+      execute: async ({
+        taskType,
+        objective,
+        summary,
+      }: {
+        taskType: string;
+        objective: string;
+        summary: string;
+      }) => {
+        // LLM provides only semantic context. The orchestrator (chat route
+        // onFinish) reads this tool result, merges execution-derived status
+        // (success/fail/finishReason/nextCapabilities) from the other tool
+        // results, and emits the final AgentCompletionState as message
+        // metadata. This tool just acknowledges receipt.
+        return {
+          success: true,
+          stage: "report_state",
+          taskType,
+          objective,
+          summary,
+        };
+      },
+    }),
   };
 }
 
@@ -845,6 +901,7 @@ export const AGENT_TOOL_NAMES = [
   "write_file",
   "edit_file",
   "create_pull_request",
+  "report_state",
 ] as const;
 export type AgentToolName = (typeof AGENT_TOOL_NAMES)[number];
 

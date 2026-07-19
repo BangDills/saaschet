@@ -31,6 +31,7 @@ import {
   createAgentTools,
   generateWorkBranchName,
 } from "@/lib/agent/tools";
+import type { AgentCompletionState } from "@/lib/agent/action-registry";
 import { getDaytonaClient } from "@/lib/daytona/client";
 import { createSandboxTools } from "@/lib/daytona/sandbox-tools";
 import { createContext7Tools } from "@/lib/context7/tools";
@@ -271,6 +272,7 @@ When the user asks you to build a web page, app, tool, or any project:
 - Do not emit progress updates before or between tool calls. Call the next appropriate tool directly.
 - Emit user-visible text before completion only when you need a user decision, missing permission/credential, or information that genuinely blocks further work. Ask one concise, specific question in that case.
 - After all tool work is complete, send exactly one concise final response that states the outcome, relevant verification, changed files or PR URL when useful, and any unresolved blocker. Do not replay the chronological tool history.
+- **Call \`report_state\` once at the end of the turn** (before your final text). Send only semantic context: \`taskType\` (audit/ui/debugging/git/deploy/feature/refactor/test/docs or a short custom label), \`objective\` (the user's goal, one sentence), \`summary\` (what you did/found, 1-2 sentences, factual). DO NOT report success/failure/exitCode/tool status — the orchestrator derives those from actual tool results. This powers the context-aware next-step buttons in the UI.
 - End with a short, relevant follow-up question that offers the natural next step(s) — e.g. "Mau lanjut audit (X, Y), atau selesai?". Keep it to the 1-2 most relevant options; skip it only when there's genuinely nothing meaningful to suggest next.
 - Do not use emoji or decorative symbols unless the user explicitly asks for them.
 - Prefer short natural paragraphs. Use headings, bullets, bold, tables, and dividers sparingly rather than as a template for every response.
@@ -1191,6 +1193,13 @@ When the user asks about library APIs, setup, migrations, or version-specific be
       return looksLikeStalledAgentText(lastAttemptText);
     }
 
+    // AgentState accumulator — filled in startAttempt's onFinish (LLM semantic
+    // report from report_state + orchestrator-derived execution status), then
+    // emitted as message metadata before the turn ends. Declared in this scope
+    // so both startAttempt (writer of the value) and the execute loop (reader
+    // that writes the metadata chunk) can reach it.
+    let pendingAgentState: AgentCompletionState | null = null;
+
     function startAttempt(candidateModelId: string, attemptIndex: number) {
       const candidate = createProviderForModel(candidateModelId);
       const recoveryInstruction = wantsAgent
@@ -1235,6 +1244,70 @@ ${recoveryInstruction}`;
           );
           totalToolCount += lastAttemptToolCount;
           finalModelId = candidateModelId;
+
+          // ── Build the AgentCompletionState (orchestrator is source of truth) ──
+          // LLM semantic report (taskType/objective/summary) comes from the
+          // report_state tool result if the model called it. Execution status,
+          // nextCapabilities, and requiresUserDecision are DERIVED from the
+          // actual tool results + finishReason — never trusted to the LLM.
+          try {
+            const allResults = (steps ?? []).flatMap((s) => s.toolResults ?? []);
+            // Find the report_state tool result (LLM semantic input).
+            const report = allResults.find(
+              (tr) => (tr as { toolName?: string }).toolName === "report_state",
+            ) as { output?: { taskType?: string; objective?: string; summary?: string } } | undefined;
+            // Mutating tool results — used to derive status + capabilities.
+            const mutatingResults = allResults.filter((tr) => {
+              const name = (tr as { toolName?: string }).toolName ?? "";
+              return STOP_TOOLS.has(name);
+            });
+            const anyMutatingFailed = mutatingResults.some((tr) => {
+              const o = (tr as { output?: { success?: unknown } }).output;
+              return o && typeof o === "object" && o.success === false;
+            });
+            const anyFatal = mutatingResults.some((tr) => {
+              const o = (tr as { output?: { success?: unknown; error?: string } }).output;
+              if (!o || o.success !== false) return false;
+              return isFatalFailure(o.error ?? "");
+            });
+
+            // Derive status from execution reality, not LLM claims.
+            let status: AgentCompletionState["status"] = "completed";
+            if (anyFatal) status = "failed";
+            else if (anyMutatingFailed) status = "completed"; // recoverable failure but turn ended
+            if (finishReason === "length") status = "running";
+            if (finishReason === "error") status = "failed";
+
+            // Derive nextCapabilities from the tool names actually used + taskType.
+            const usedToolNames = new Set(allResults.map((tr) => (tr as { toolName?: string }).toolName ?? ""));
+            const taskType = (report?.output?.taskType ?? "general").toLowerCase();
+            const nextCapabilities: string[] = [];
+            if (taskType === "audit") nextCapabilities.push("fix", "security", "performance", "testing");
+            else if (taskType === "ui") nextCapabilities.push("responsive", "spacing", "darkmode", "typography");
+            else if (taskType === "debugging") nextCapabilities.push("fix", "testing", "rootCause", "logging");
+            else if (taskType === "git") nextCapabilities.push("merge", "deploy", "review");
+            else if (taskType === "deploy") nextCapabilities.push("verify", "logs", "smoke");
+            // If the agent already used write tools, it can likely merge/deploy.
+            if (usedToolNames.has("write_file") || usedToolNames.has("write_files") || usedToolNames.has("edit_file")) {
+              if (!nextCapabilities.includes("merge")) nextCapabilities.push("merge");
+            }
+
+            pendingAgentState = {
+              taskType,
+              objective: report?.output?.objective ?? userText.slice(0, 120),
+              summary: report?.output?.summary ?? (text ? text.slice(0, 160) : ""),
+              status,
+              nextCapabilities,
+              requiresUserDecision: status === "failed" && anyFatal,
+              metadata: {
+                finishReason,
+                toolCount: totalToolCount,
+                modelId: candidateModelId,
+              },
+            };
+          } catch (stateErr) {
+            console.warn("[chat] agent state derive failed:", stateErr);
+          }
 
           // The assistant message (with full UIMessage parts: text + tool
           // calls + tool results) is saved by the CLIENT after the stream
@@ -1342,6 +1415,18 @@ ${recoveryInstruction}`;
             }
 
             await finalizeSuccessfulTurn();
+            // Emit the orchestrator-validated AgentState as message metadata.
+            // UI reads message.metadata to render context-aware Quick Actions.
+            if (pendingAgentState) {
+              try {
+                writer.write({
+                  type: "message-metadata",
+                  messageMetadata: { agentState: pendingAgentState },
+                });
+              } catch (metaErr) {
+                console.warn("[chat] agent state metadata write failed:", metaErr);
+              }
+            }
             return;
           }
 
