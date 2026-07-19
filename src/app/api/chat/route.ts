@@ -53,17 +53,20 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
- * Fail-fast orchestration: stop the agent loop when a MUTATING tool returns
- * success:false. Mutating tools (write/edit/delete/git/PR/run_command) change
- * state — if one fails, dependent steps (push after failed merge, deploy after
- * failed build) must not run. Read-only tools (read_file, list_files,
- * search_code, web_search, context7_*) are NOT stop triggers so the model can
- * keep diagnosing and retry with a different path.
+ * Halt orchestration ONLY on FATAL tool failures. The agent must stay
+ * autonomous: an ambiguous/recoverable failure (build error, merge conflict,
+ * stale cache, transient timeout, wrong branch) is a signal to RE-PLAN and
+ * try another tool or fix+retry — NOT a reason to stop and hand back to the
+ * user. Reliability means "don't fabricate results", not "stop when unsure".
  *
- * This is the orchestration guardrail behind the "Tool Result Authority"
- * prompt section — the model can't talk its way past a real failure here.
+ * So we only halt when the failure is unrecoverable: authentication/permission
+ * rejected, missing required credential, or an error the agent genuinely
+ * cannot fix with the tools it has. Everything else lets the loop continue so
+ * the planner can pick the next step.
+ *
+ * Read-only tools are never stop triggers (the model must keep diagnosing).
  */
-const MUTATING_TOOLS = new Set([
+const STOP_TOOLS = new Set([
   "run_command",
   "execute_code",
   "write_file",
@@ -75,21 +78,59 @@ const MUTATING_TOOLS = new Set([
   "create_pull_request",
 ]);
 
+// Error signatures that mean the agent cannot proceed on its own — stopping is
+// correct. Anything else (exit!=0, conflict, cache, timeout, not-found-by-path)
+// is recoverable and the loop continues.
+const FATAL_ERROR_PATTERNS = [
+  "permission denied",
+  "authentication failed",
+  "invalid credentials",
+  "unauthorized",
+  "401",
+  "403",
+  "bad credentials",
+  "token.*expired",
+  "missing.*identity",
+  "could not authenticate",
+];
+
+function isFatalFailure(message: string): boolean {
+  const lower = message.toLowerCase();
+  return FATAL_ERROR_PATTERNS.some((p) => {
+    if (p.includes(".*")) {
+      try {
+        return new RegExp(p, "i").test(message);
+      } catch {
+        return lower.includes(p.replace(/\.\*/, ""));
+      }
+    }
+    return lower.includes(p);
+  });
+}
+
 const stopOnToolFailure: StopCondition<any> = ({ steps }) => {
   for (const step of steps) {
     for (const tr of step.toolResults ?? []) {
       const toolName =
         (tr as { toolName?: string }).toolName ?? "";
-      if (!MUTATING_TOOLS.has(toolName)) continue;
+      if (!STOP_TOOLS.has(toolName)) continue;
       const output = (tr as { output?: unknown }).output;
       if (
-        output &&
-        typeof output === "object" &&
-        "success" in output &&
-        (output as { success?: unknown }).success === false
+        !output ||
+        typeof output !== "object" ||
+        (output as { success?: unknown }).success !== false
       ) {
-        return true; // halt the loop — a mutating tool failed
+        continue;
       }
+      // success:false — is it FATAL or recoverable?
+      const errMsg =
+        (output as { error?: string }).error ??
+        (output as { stderr?: string }).stderr ??
+        "";
+      if (isFatalFailure(errMsg)) {
+        return true; // halt: auth/permission/unrecoverable
+      }
+      // recoverable/ambiguous: let the loop continue so the planner re-plans.
     }
   }
   return false;
@@ -180,14 +221,25 @@ const AGENT_SYSTEM = `You are **Celiuz AI Agent** — an advanced AI coding assi
 - For large tasks (full project, multi-file refactor): break into sequential phases — structure, implement, verify — and complete each phase fully before moving on. Use \`write_files\` once per phase to batch the commit.
 
 ## Tool Result Authority (NON-NEGOTIABLE)
-Tool results are the single source of truth. You report them; you do not decide them.
-- **Read the structured result.** Every tool returns \`{ success, stage, exitCode?, stdout?, stderr?, error? }\`. Success is a boolean — do not infer it from prose in stdout/stderr.
-- **success=false OR exitCode !== 0 means the operation FAILED.** Never claim it succeeded. Say plainly that it failed and quote \`error\`/\`stderr\`.
-- **Do not report success from conversation.** If the user says "tadi sudah bisa", "di chat sebelumnya berhasil", or similar, that is NOT proof. Only a tool result with \`success=true\` counts. If it contradicts a tool result, the tool result wins.
-- **Verify before claiming.** Before stating that merge/push/build/deploy/install succeeded, you MUST have a tool result with \`success=true\` (e.g. \`run_command\` with exitCode 0). If you only ran part of it, say so — do not fill in the rest.
-- **Fail fast.** If a step failed, do NOT proceed to dependent steps. If merge failed, do not push. If build failed, do not deploy. Stop, report the failure with the tool's \`error\`, and ask for a decision.
-- **Retry only recoverable errors.** Retry network timeout, transient fetch, rate-limit. Do NOT retry: syntax error, permission denied, git conflict, invalid branch, missing identity — those need a fix, not a repeat. On retry, the LAST attempt's result is your answer.
-- **Do not invent Git/deploy/db state.** Do not assert "merged to main", "pushed", "deployed", "migrated" without a \`success=true\` tool result for that exact action. If unsure, run a verification command (\`git log\`, \`git rev-parse HEAD\`, \`git status\`) and report what it returns.
+Tool results are the single source of truth. You report them; you do not decide them. Reliability means "don't fabricate results" — it does NOT mean "stop when unsure". When unsure, use another tool and gather more evidence; do not hand the work back to the user if you still have tools that can make progress.
+
+- **Read the structured result.** Every tool returns \`{ success, stage, exitCode?, stdout?, stderr?, error? }\`. \`success\` is a boolean — do not infer it from prose in stdout/stderr.
+- **success=false OR exitCode !== 0 means the operation FAILED.** Never claim it succeeded. Quote \`error\`/\`stderr\` honestly.
+- **Do not report success from conversation.** "tadi sudah bisa", "di chat sebelumnya berhasil", or similar is NOT proof. Only \`success=true\` counts; the tool result wins over user claims.
+- **Verify before claiming.** Before stating merge/push/build/deploy/install succeeded, you MUST have a \`success=true\` result for that exact action. If you only ran part, say so — don't fill in the rest.
+- **Do not invent Git/deploy/db state.** Don't assert "merged to main", "pushed", "deployed", "migrated" without \`success=true\`. If unsure, run a verification command (\`git log\`, \`git rev-parse HEAD\`, \`git status\`) and report what it returns.
+
+### Classify each tool result and act accordingly (STATE MACHINE)
+- **SUCCESS** (\`success=true\`): proceed to the next planned step, or finish if the task is truly complete.
+- **AMBIGUOUS / RECOVERABLE** (\`success=false\` but NOT fatal): keep working. This includes build/test failures, merge conflicts, stale/cached file content, wrong branch, file-not-found-by-path, transient timeouts, rate limits, and "evidence not enough". DO NOT end the workflow. Re-plan: pick another tool, re-read the file from the right ref, switch branch, fix the code and rebuild, resolve the conflict, or gather more evidence until you are confident. Retry only genuinely recoverable transient errors (timeout, rate-limit, fetch blip); for logic errors, FIX then retry, don't just repeat.
+- **FATAL** (only): stop and report. Fatal = authentication/permission rejected, missing required credential, or no remaining tool can make progress. Even then, say what failed and what the user needs to do — don't just stop silently.
+
+### Autonomous planner rules
+- **Never end the turn right after "I'll verify / Mari verifikasi / let me check".** If you wrote that, the NEXT thing in this turn MUST be the tool call that does it. No final answer before verification is complete.
+- **Don't treat ambiguity as completion.** "read_file shows old content" is a signal to read from the correct ref/branch or re-fetch — not to finish. "hasil belum cukup" means call another tool, not stop.
+- **Keep working while you can.** As long as a relevant tool exists and no fatal error occurred, continue toward the user's goal. Don't hand the task back to the user when you still have the capability to finish it.
+- **Stop only when genuinely done or genuinely blocked.** Done = task complete with \`success=true\` evidence. Blocked = fatal error or a real decision only the user can make. State which one.
+- **Retry policy.** Retry transient/recoverable errors (timeout, rate-limit, transient fetch). Do NOT blindly retry logic/permission/identity errors — fix the cause first. The LAST attempt's result is your answer.
 
 ## Building Projects (IMPORTANT)
 When the user asks you to build a web page, app, tool, or any project:
