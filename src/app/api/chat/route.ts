@@ -137,6 +137,96 @@ const stopOnToolFailure: StopCondition<any> = ({ steps }) => {
   return false;
 };
 
+/**
+ * Derive the final AgentCompletionState from the completed stream's steps +
+ * finishReason. This is the SINGLE source of truth for the UI's Quick Actions.
+ *
+ * LLM semantic input (taskType/objective/summary) is read from the
+ * report_state tool result if present. Execution status, nextCapabilities,
+ * and requiresUserDecision are DERIVED from the actual tool results + finish
+ * reason — never from LLM claims.
+ *
+ * Called once in pipeAttemptToWriter after the reader is done, where
+ * result.steps/result.finishReason are final and the writer is in scope.
+ */
+function deriveAgentState(
+  steps: Array<{ toolResults?: unknown[] }>,
+  finishReason: string | undefined,
+  modelId: string,
+  userText: string,
+  toolCount: number,
+): AgentCompletionState | null {
+  try {
+    type ToolResultLike = {
+      toolName?: string;
+      output?: {
+        success?: unknown;
+        error?: string;
+        taskType?: string;
+        objective?: string;
+        summary?: string;
+      };
+    };
+    const allResults = steps.flatMap(
+      (s) => (s.toolResults ?? []) as ToolResultLike[],
+    );
+    const report = allResults.find((tr) => tr.toolName === "report_state");
+    const reportOut = report?.output;
+    const mutatingResults = allResults.filter((tr) =>
+      STOP_TOOLS.has(tr.toolName ?? ""),
+    );
+    const anyMutatingFailed = mutatingResults.some(
+      (tr) => tr.output && tr.output.success === false,
+    );
+    const anyFatal = mutatingResults.some((tr) => {
+      const o = tr.output;
+      if (!o || o.success !== false) return false;
+      return isFatalFailure(o.error ?? "");
+    });
+
+    let status: AgentCompletionState["status"] = "completed";
+    if (anyFatal) status = "failed";
+    else if (anyMutatingFailed) status = "completed"; // recoverable, turn ended
+    if (finishReason === "length") status = "running";
+    if (finishReason === "error") status = "failed";
+
+    const usedToolNames = new Set(
+      allResults.map((tr) => tr.toolName ?? ""),
+    );
+    const taskType = (reportOut?.taskType ?? "general").toLowerCase();
+    const nextCapabilities: string[] = [];
+    if (taskType === "audit") nextCapabilities.push("fix", "security", "performance", "testing");
+    else if (taskType === "ui") nextCapabilities.push("responsive", "spacing", "darkmode", "typography");
+    else if (taskType === "debugging") nextCapabilities.push("fix", "testing", "rootCause", "logging");
+    else if (taskType === "git") nextCapabilities.push("merge", "deploy", "review");
+    else if (taskType === "deploy") nextCapabilities.push("verify", "logs", "smoke");
+    if (
+      usedToolNames.has("write_file") ||
+      usedToolNames.has("write_files") ||
+      usedToolNames.has("edit_file")
+    ) {
+      if (!nextCapabilities.includes("merge")) nextCapabilities.push("merge");
+    }
+
+    return {
+      taskType,
+      objective: reportOut?.objective ?? userText.slice(0, 120),
+      summary: reportOut?.summary ?? "",
+      status,
+      nextCapabilities,
+      requiresUserDecision: status === "failed" && anyFatal,
+      metadata: {
+        finishReason,
+        toolCount,
+        modelId,
+      },
+    };
+  } catch (err) {
+    console.warn("[chat] deriveAgentState failed:", err);
+    return null;
+  }
+}
+
 
 const DEFAULT_SYSTEM = `You are **Celiuz AI**, an advanced, intelligent assistant.
 
@@ -1245,69 +1335,10 @@ ${recoveryInstruction}`;
           totalToolCount += lastAttemptToolCount;
           finalModelId = candidateModelId;
 
-          // ── Build the AgentCompletionState (orchestrator is source of truth) ──
-          // LLM semantic report (taskType/objective/summary) comes from the
-          // report_state tool result if the model called it. Execution status,
-          // nextCapabilities, and requiresUserDecision are DERIVED from the
-          // actual tool results + finishReason — never trusted to the LLM.
-          try {
-            const allResults = (steps ?? []).flatMap((s) => s.toolResults ?? []);
-            // Find the report_state tool result (LLM semantic input).
-            const report = allResults.find(
-              (tr) => (tr as { toolName?: string }).toolName === "report_state",
-            ) as { output?: { taskType?: string; objective?: string; summary?: string } } | undefined;
-            // Mutating tool results — used to derive status + capabilities.
-            const mutatingResults = allResults.filter((tr) => {
-              const name = (tr as { toolName?: string }).toolName ?? "";
-              return STOP_TOOLS.has(name);
-            });
-            const anyMutatingFailed = mutatingResults.some((tr) => {
-              const o = (tr as { output?: { success?: unknown } }).output;
-              return o && typeof o === "object" && o.success === false;
-            });
-            const anyFatal = mutatingResults.some((tr) => {
-              const o = (tr as { output?: { success?: unknown; error?: string } }).output;
-              if (!o || o.success !== false) return false;
-              return isFatalFailure(o.error ?? "");
-            });
-
-            // Derive status from execution reality, not LLM claims.
-            let status: AgentCompletionState["status"] = "completed";
-            if (anyFatal) status = "failed";
-            else if (anyMutatingFailed) status = "completed"; // recoverable failure but turn ended
-            if (finishReason === "length") status = "running";
-            if (finishReason === "error") status = "failed";
-
-            // Derive nextCapabilities from the tool names actually used + taskType.
-            const usedToolNames = new Set(allResults.map((tr) => (tr as { toolName?: string }).toolName ?? ""));
-            const taskType = (report?.output?.taskType ?? "general").toLowerCase();
-            const nextCapabilities: string[] = [];
-            if (taskType === "audit") nextCapabilities.push("fix", "security", "performance", "testing");
-            else if (taskType === "ui") nextCapabilities.push("responsive", "spacing", "darkmode", "typography");
-            else if (taskType === "debugging") nextCapabilities.push("fix", "testing", "rootCause", "logging");
-            else if (taskType === "git") nextCapabilities.push("merge", "deploy", "review");
-            else if (taskType === "deploy") nextCapabilities.push("verify", "logs", "smoke");
-            // If the agent already used write tools, it can likely merge/deploy.
-            if (usedToolNames.has("write_file") || usedToolNames.has("write_files") || usedToolNames.has("edit_file")) {
-              if (!nextCapabilities.includes("merge")) nextCapabilities.push("merge");
-            }
-
-            pendingAgentState = {
-              taskType,
-              objective: report?.output?.objective ?? userText.slice(0, 120),
-              summary: report?.output?.summary ?? (text ? text.slice(0, 160) : ""),
-              status,
-              nextCapabilities,
-              requiresUserDecision: status === "failed" && anyFatal,
-              metadata: {
-                finishReason,
-                toolCount: totalToolCount,
-                modelId: candidateModelId,
-              },
-            };
-          } catch (stateErr) {
-            console.warn("[chat] agent state derive failed:", stateErr);
-          }
+          // AgentState is NOT derived here — it is derived in pipeAttemptToWriter
+          // after the stream reader is done, where result.steps/result.finishReason
+          // are final and the writer is in scope. This avoids the race between the
+          // async onFinish callback and the reader 'done' signal.
 
           // The assistant message (with full UIMessage parts: text + tool
           // calls + tool results) is saved by the CLIENT after the stream
@@ -1358,11 +1389,12 @@ ${recoveryInstruction}`;
         onError: (error) => formatInferenceError(error).message,
       });
       const reader = stream.getReader();
+      let completed = false;
 
       try {
         while (true) {
           const { done, value } = await reader.read();
-          if (done) return "completed";
+          if (done) { completed = true; break; }
 
           if (value.type === "error" && isRateLimitMessage(value.errorText)) {
             return "rate_limited";
@@ -1376,6 +1408,37 @@ ${recoveryInstruction}`;
       } finally {
         reader.releaseLock();
       }
+
+      // ── Derive + emit AgentState here (single source of truth) ──
+      // The stream reader is done, so result.steps / result.finishReason are
+      // final. The writer is in scope. No race with onFinish (we read the
+      // awaited promises directly). Emit once as a message-metadata chunk so
+      // the client attaches it to the assistant message.
+      if (completed) {
+        try {
+          const [steps, finishReason] = await Promise.all([
+            result.steps,
+            result.finishReason,
+          ]);
+          pendingAgentState = deriveAgentState(
+            steps ?? [],
+            finishReason,
+            candidateModelId,
+            userText,
+            totalToolCount,
+          );
+          if (pendingAgentState) {
+            writer.write({
+              type: "message-metadata",
+              messageMetadata: { agentState: pendingAgentState },
+            });
+          }
+        } catch (stateErr) {
+          console.warn("[chat] agent state derive/emit failed:", stateErr);
+        }
+        return "completed";
+      }
+      return "completed";
     }
 
     const stream = createUIMessageStream({
@@ -1415,18 +1478,9 @@ ${recoveryInstruction}`;
             }
 
             await finalizeSuccessfulTurn();
-            // Emit the orchestrator-validated AgentState as message metadata.
-            // UI reads message.metadata to render context-aware Quick Actions.
-            if (pendingAgentState) {
-              try {
-                writer.write({
-                  type: "message-metadata",
-                  messageMetadata: { agentState: pendingAgentState },
-                });
-              } catch (metaErr) {
-                console.warn("[chat] agent state metadata write failed:", metaErr);
-              }
-            }
+            // AgentState metadata is already emitted inside pipeAttemptToWriter
+            // (single source of truth) right after the stream reader is done and
+            // result.steps/result.finishReason are final. No duplicate emit here.
             return;
           }
 
