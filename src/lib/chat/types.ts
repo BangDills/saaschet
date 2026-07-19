@@ -14,6 +14,12 @@ export type ChatMessage = {
    * Null for legacy rows / user messages (phase 1) — fall back to content.
    */
   parts?: unknown[] | null;
+  /**
+   * Message metadata — currently { agentState: AgentCompletionState } for
+   * assistant messages, so context-aware Quick Actions survive reload.
+   * Null for legacy rows / user messages — UI falls back to generic.
+   */
+  metadata?: unknown | null;
   /** ms since epoch */
   createdAt: number;
 };

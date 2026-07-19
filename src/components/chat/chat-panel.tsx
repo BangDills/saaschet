@@ -120,6 +120,9 @@ function toUIMessages(stored: ChatMessage[]): UIMessage[] {
       parts: hasRealParts
         ? (m.parts as UIMessage["parts"])
         : [{ type: "text" as const, text: m.content }],
+      // Restore metadata (agentState) so context-aware Quick Actions survive
+      // reload. Null/legacy → undefined, UI uses generic fallback.
+      metadata: m.metadata ?? undefined,
     };
   });
 }
@@ -289,6 +292,7 @@ export function ChatPanel({
         content: text,
         parts: last.parts,
         clientId: last.id,
+        metadata: last.metadata ?? null,
       }),
     })
       .then((res) =>

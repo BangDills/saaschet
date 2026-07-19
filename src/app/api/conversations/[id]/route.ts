@@ -20,6 +20,7 @@ type MessageRow = {
   role: string;
   content: string;
   parts: unknown[] | null;
+  metadata: unknown | null;
   created_at: string;
 };
 
@@ -62,7 +63,7 @@ export async function GET(
 
   const { data: msgs, error: msgsErr } = await supabase
     .from("messages")
-    .select("id, role, content, parts, created_at")
+    .select("id, role, content, parts, metadata, created_at")
     .eq("conversation_id", id)
     .order("created_at", { ascending: true });
 
@@ -98,6 +99,7 @@ export async function GET(
         role: row.role as ChatRole,
         content: row.content,
         parts: row.parts,
+        metadata: row.metadata,
         createdAt: new Date(row.created_at).getTime(),
       })),
     },

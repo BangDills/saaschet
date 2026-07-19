@@ -49,7 +49,7 @@ export async function POST(
     );
   }
 
-  let body: { role?: string; content?: string; parts?: unknown[]; clientId?: string };
+  let body: { role?: string; content?: string; parts?: unknown[]; clientId?: string; metadata?: unknown };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -68,12 +68,18 @@ export async function POST(
   // conversation. A repeated request (retry/reconnect/reload) for the same
   // client message updates the existing row instead of inserting a new one.
   const clientId = body.clientId?.trim() || null;
+  // Message metadata — currently holds { agentState: AgentCompletionState }
+  // emitted by the orchestrator. Persisted so reload keeps context-aware
+  // Quick Actions. Null is fine for legacy / messages without state.
+  const metadata =
+    body.metadata && typeof body.metadata === "object" ? body.metadata : null;
 
   console.log("[messages] POST", {
     conversationId,
     clientId,
     contentLen: content.length,
     partsLen: Array.isArray(parts) ? parts.length : null,
+    hasMetadata: metadata != null,
   });
 
   // Upsert on (conversation_id, client_message_id) via the partial unique
@@ -89,6 +95,7 @@ export async function POST(
         content,
         parts,
         client_message_id: clientId,
+        metadata,
       },
       { onConflict: "conversation_id,client_message_id", ignoreDuplicates: false },
     )
