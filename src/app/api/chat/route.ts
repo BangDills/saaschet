@@ -172,6 +172,13 @@ function deriveAgentState(
     );
     const report = allResults.find((tr) => tr.toolName === "report_state");
     const reportOut = report?.output;
+    console.log("[agent-state] derive", {
+      hasReportState: !!report,
+      taskType: reportOut?.taskType,
+      toolNames: allResults.map((tr) => tr.toolName),
+      finishReason,
+      stepCount: steps.length,
+    });
     const mutatingResults = allResults.filter((tr) =>
       STOP_TOOLS.has(tr.toolName ?? ""),
     );
@@ -1428,10 +1435,17 @@ ${recoveryInstruction}`;
             totalToolCount,
           );
           if (pendingAgentState) {
+            console.log("[agent-state] emit", {
+              taskType: pendingAgentState.taskType,
+              status: pendingAgentState.status,
+              nextCapabilities: pendingAgentState.nextCapabilities,
+            });
             writer.write({
               type: "message-metadata",
               messageMetadata: { agentState: pendingAgentState },
             });
+          } else {
+            console.log("[agent-state] no state derived (null)");
           }
         } catch (stateErr) {
           console.warn("[chat] agent state derive/emit failed:", stateErr);
