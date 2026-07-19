@@ -3,11 +3,8 @@
 import * as React from "react";
 import {
   ArrowUp,
-  CheckCircle2,
   Globe,
   ImagePlus,
-  Lock,
-  Sparkles,
   Square,
   X,
 } from "lucide-react";
@@ -36,10 +33,6 @@ export type ChatInputProps = {
   agentMode: boolean;
   /** layout variant */
   variant?: "default" | "centered";
-  /** GitHub Agent access mode for the connected repo. */
-  githubAccessMode?: "unknown" | "read_only" | "full";
-  /** Connected GitHub username, if available. */
-  githubUsername?: string | null;
   /** Controlled composer draft shared with prompt suggestions. */
   draft: string;
   onDraftChange: (value: string) => void;
@@ -71,8 +64,6 @@ export function ChatInput({
   repo,
   onRepoChange,
   agentMode,
-  githubAccessMode = "unknown",
-  githubUsername,
   draft,
   onDraftChange,
   focusRequestKey = 0,
@@ -282,20 +273,6 @@ export function ChatInput({
         </div>
       </div>
 
-      {(agentMode || (repo && githubAccessMode !== "unknown")) && (
-        <div className="mt-1.5 flex items-center gap-1.5 px-1">
-          {agentMode && (
-            <div className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium text-muted-foreground">
-              <Sparkles className="size-3" />
-              Agent
-            </div>
-          )}
-          {agentMode && repo && githubAccessMode !== "unknown" && (
-            <AgentAccessBadge mode={githubAccessMode} username={githubUsername} />
-          )}
-        </div>
-      )}
-
       <input
         ref={fileInputRef}
         type="file"
@@ -303,31 +280,6 @@ export function ChatInput({
         className="hidden"
         onChange={handleImageChosen}
       />
-    </div>
-  );
-}
-
-function AgentAccessBadge({
-  mode,
-  username,
-}: {
-  mode: "read_only" | "full";
-  username?: string | null;
-}) {
-  const isFull = mode === "full";
-  const title = isFull
-    ? username
-      ? `Connected as ${username}. Agent write tools, branches, and PRs are enabled. GitHub may still reject writes if this account lacks repo permissions.`
-      : "GitHub is connected. Agent write tools, branches, and PRs are enabled. GitHub may still reject writes if this account lacks repo permissions."
-    : "Read-only Agent access for public repos. Connect GitHub to enable edits, branches, sandbox operations, and PRs.";
-
-  return (
-    <div
-      className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium text-muted-foreground"
-      title={title}
-    >
-      {isFull ? <CheckCircle2 className="size-3.5" /> : <Lock className="size-3.5" />}
-      {isFull ? "Full access" : "Read-only"}
     </div>
   );
 }

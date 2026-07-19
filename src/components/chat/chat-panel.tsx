@@ -720,8 +720,6 @@ export function ChatPanel({
     repo,
     onRepoChange,
     agentMode,
-    githubAccessMode,
-    githubUsername,
     draft,
     onDraftChange: setDraft,
     focusRequestKey,
