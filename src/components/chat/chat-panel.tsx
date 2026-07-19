@@ -13,6 +13,7 @@ import { ChatInput } from "./chat-input";
 import { StreamingPill } from "./streaming-pill";
 import { ProcessingIndicator } from "./processing-indicator";
 import { fireCreditsRefresh } from "@/components/dashboard/credits-meter";
+import { resolveActions, type AgentCompletionState } from "@/lib/agent/action-registry";
 import { AlertCircle, ArrowDown, Clock3, RefreshCcw, WifiOff } from "lucide-react";
 import useSWR from "swr";
 
@@ -705,17 +706,18 @@ export function ChatPanel({
     ];
   }, [agentMode, repo]);
 
-  const followUpSuggestions = React.useMemo(() => {
-    if (repo && agentMode) {
-      return ["Terapkan perubahan ini", "Periksa dampak perubahannya", "Buatkan pengujian"];
-    }
-    if (repo) {
-      return ["Jelaskan lebih rinci", "Tunjukkan file terkait", "Apa langkah berikutnya?"];
-    }
-    return ["Jelaskan lebih sederhana", "Berikan contoh", "Apa langkah berikutnya?"];
-  }, [agentMode, repo]);
-
+  // Context-aware Quick Actions: read the orchestrator-validated AgentState
+  // from the last assistant message's metadata, resolve actions via the
+  // Action Registry, and fall back to generic suggestions only when no state
+  // is present. No hardcoded buttons — the registry maps taskType×status.
   const lastVisibleMessage = visibleMessages[visibleMessages.length - 1];
+  const followUpActions = React.useMemo(() => {
+    const meta = lastVisibleMessage?.metadata as
+      | { agentState?: AgentCompletionState }
+      | undefined;
+    return resolveActions(meta?.agentState);
+  }, [lastVisibleMessage?.metadata]);
+
   const showFollowUps =
     !isStreaming && !error && lastVisibleMessage?.role === "assistant";
   const recoveryError = error ? getRecoveryError(error) : null;
@@ -810,14 +812,14 @@ export function ChatPanel({
 
               {showFollowUps && (
                 <div className="mt-3 flex flex-wrap gap-2 pl-10 sm:pl-12" aria-label="Saran lanjutan">
-                  {followUpSuggestions.map((suggestion) => (
+                  {followUpActions.map((action) => (
                     <button
-                      key={suggestion}
+                      key={action.id}
                       type="button"
-                      onClick={() => fillComposer(suggestion)}
+                      onClick={() => fillComposer(action.label)}
                       className="rounded-lg border border-border bg-background px-3 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      {suggestion}
+                      {action.label}
                     </button>
                   ))}
                 </div>
