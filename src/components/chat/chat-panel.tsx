@@ -780,6 +780,7 @@ export function ChatPanel({
                       role="assistant"
                       parts={toBubbleParts(m.parts)}
                       streaming={isStreamingThis}
+                      startedAt={isStreamingThis ? (streamStartedAt ?? undefined) : undefined}
                       onToolActionPrompt={handleToolActionPrompt}
                       feedback={feedbackByMessage[m.id] ?? null}
                       feedbackPending={pendingFeedbackIds.has(m.id)}

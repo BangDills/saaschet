@@ -55,7 +55,7 @@ type ToolMeta = {
   category: "read" | "write" | "execute" | "search" | "git";
 };
 
-const TOOL_META: Record<string, ToolMeta> = {
+export const TOOL_META: Record<string, ToolMeta> = {
   // GitHub tools
   list_files: {
     Icon: FolderOpen,
@@ -163,28 +163,28 @@ const TOOL_META: Record<string, ToolMeta> = {
   },
 };
 
-const FALLBACK_META: ToolMeta = {
+export const FALLBACK_META: ToolMeta = {
   Icon: Wrench,
   running: "Working…",
   done: "Completed",
   category: "execute",
 };
 
-function getToolName(part: ToolCallPart): string {
+export function getToolName(part: ToolCallPart): string {
   if (part.toolName) return part.toolName;
   // type is "tool-<name>" or "dynamic-tool"
   if (part.type.startsWith("tool-")) return part.type.slice(5);
   return part.toolName ?? "tool";
 }
 
-function extractFilePath(toolName: string, input: unknown): string | null {
+export function extractFilePath(toolName: string, input: unknown): string | null {
   if (!input || typeof input !== "object") return null;
   const obj = input as Record<string, unknown>;
   if (typeof obj.path === "string" && obj.path) return redactVendorPath(obj.path);
   return null;
 }
 
-function summarizeInput(toolName: string, input: unknown): string {
+export function summarizeInput(toolName: string, input: unknown): string {
   if (!input || typeof input !== "object") return "";
   const obj = input as Record<string, unknown>;
   switch (toolName) {
@@ -232,7 +232,7 @@ type ReadFileOutputMeta = {
   totalLength: number;
 };
 
-function getReadFileOutputMeta(output: unknown): ReadFileOutputMeta | null {
+export function getReadFileOutputMeta(output: unknown): ReadFileOutputMeta | null {
   if (!output || typeof output !== "object") return null;
   const obj = output as Record<string, unknown>;
 
@@ -256,7 +256,7 @@ function getReadFileOutputMeta(output: unknown): ReadFileOutputMeta | null {
   };
 }
 
-function summarizeOutput(toolName: string, output: unknown): string {
+export function summarizeOutput(toolName: string, output: unknown): string {
   if (!output || typeof output !== "object") return "";
   const obj = output as Record<string, unknown>;
   if ("error" in obj && typeof obj.error === "string") {
@@ -339,7 +339,7 @@ function summarizeOutput(toolName: string, output: unknown): string {
   }
 }
 
-function getLineStats(output: unknown): { added: number; deleted: number } | null {
+export function getLineStats(output: unknown): { added: number; deleted: number } | null {
   if (!output || typeof output !== "object") return null;
   const value = output as Record<string, unknown>;
   const added = typeof value.lines_added === "number" ? value.lines_added : null;
@@ -348,7 +348,7 @@ function getLineStats(output: unknown): { added: number; deleted: number } | nul
 }
 
 /** Pretty-print JSON for the expanded panel. */
-function prettyJson(value: unknown): string {
+export function prettyJson(value: unknown): string {
   try {
     return JSON.stringify(value, null, 2);
   } catch {
@@ -361,7 +361,7 @@ export type ToolCallProps = {
   onActionPrompt?: (text: string) => void;
 };
 
-function ReadFileTruncationNotice({
+export function ReadFileTruncationNotice({
   path,
   meta,
   onActionPrompt,
@@ -555,7 +555,7 @@ function ToolCallImpl({ part, onActionPrompt }: ToolCallProps) {
   );
 }
 
-function DetailSection({
+export function DetailSection({
   label,
   value,
   isError,

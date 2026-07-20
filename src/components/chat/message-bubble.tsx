@@ -3,7 +3,8 @@
 import * as React from "react";
 import { Markdown } from "./markdown";
 import { ReasoningBlock } from "./reasoning-block";
-import { ToolCall, type ToolCallPart } from "./tool-call";
+import { type ToolCallPart } from "./tool-call";
+import { ActivityTimeline } from "./activity/ActivityTimeline";
 import { parseReasoningSegments } from "@/lib/chat/parse-reasoning";
 import { cn } from "@/lib/utils";
 import {
@@ -36,6 +37,8 @@ export type MessageBubbleProps = {
   content?: string;
   /** when true, shows a subtle pulsing cursor at the end (streaming) */
   streaming?: boolean;
+  /** Turn start timestamp (ms) for the summary card elapsed time. */
+  startedAt?: number;
   /** Callback to submit a tool action prompt. */
   onToolActionPrompt?: (text: string) => void;
   /** Retry the preceding user request. */
@@ -54,64 +57,15 @@ function isToolPart(part: AnyPart): part is AnyPart & ToolCallPart {
   return part.type === "dynamic-tool" || part.type.startsWith("tool-");
 }
 
-function ActivityGroup({
-  parts,
-  streaming,
-  onToolActionPrompt,
-}: {
-  parts: Array<AnyPart & ToolCallPart>;
-  streaming?: boolean;
-  onToolActionPrompt?: (text: string) => void;
-}) {
-  const [expandedAfterCompletion, setExpandedAfterCompletion] = React.useState(false);
-  const open = Boolean(streaming) || expandedAfterCompletion;
-
-  return (
-    <div className="mb-4">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => {
-          if (!streaming) setExpandedAfterCompletion((value) => !value);
-        }}
-        className="flex min-h-9 items-center gap-2 rounded-md px-1 text-sm text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {streaming ? (
-          <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
-        ) : (
-          <Check className="size-4" aria-hidden="true" />
-        )}
-        <span className="font-medium text-foreground">
-          {streaming ? "Working" : "Completed"}
-        </span>
-        <span aria-hidden="true">·</span>
-        <span>{parts.length} {parts.length === 1 ? "action" : "actions"}</span>
-        <span className={cn("transition-transform", open && "rotate-90")} aria-hidden="true">
-          ›
-        </span>
-      </button>
-      {open && (
-        <div className="ml-2 border-l border-border pl-3">
-          {parts.map((part, index) => (
-            <ToolCall
-              key={part.toolCallId ?? `tc-${index}`}
-              part={part}
-              onActionPrompt={onToolActionPrompt}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function AssistantParts({
   parts,
   streaming,
+  startedAt,
   onToolActionPrompt,
 }: {
   parts: AnyPart[];
   streaming?: boolean;
+  startedAt?: number;
   onToolActionPrompt?: (text: string) => void;
 }) {
   const toolParts = parts.filter(isToolPart);
@@ -132,10 +86,11 @@ function AssistantParts({
   return (
     <>
       {toolParts.length > 0 && (
-        <ActivityGroup
-          parts={toolParts}
-          streaming={streaming}
-          onToolActionPrompt={onToolActionPrompt}
+        <ActivityTimeline
+          parts={toolParts as ToolCallPart[]}
+          streaming={Boolean(streaming)}
+          startedAt={startedAt}
+          onActionPrompt={onToolActionPrompt}
         />
       )}
       {textParts.map((part, index) => {
@@ -168,6 +123,7 @@ function MessageBubbleImpl({
   parts,
   content,
   streaming,
+  startedAt,
   onToolActionPrompt,
   onRetry,
   feedback,
@@ -256,6 +212,7 @@ function MessageBubbleImpl({
             <AssistantParts
               parts={parts}
               streaming={streaming}
+              startedAt={startedAt}
               onToolActionPrompt={onToolActionPrompt}
             />
             {streaming && (
