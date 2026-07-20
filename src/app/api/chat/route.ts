@@ -138,6 +138,35 @@ const stopOnToolFailure: StopCondition<any> = ({ steps }) => {
 };
 
 /**
+ * Infer the task type when the agent didn't call report_state (LLMs often
+ * skip it on busy turns). Priority: explicit report_state → userText keyword
+ * → tool-usage heuristic → 'general'. This keeps Quick Actions context-aware
+ * without depending on the model's discipline.
+ */
+function inferTaskType(
+  reported: string | undefined,
+  usedTools: Set<string>,
+  userText: string,
+): string {
+  if (reported && reported.trim()) return reported.toLowerCase();
+  const text = (userText ?? "").toLowerCase();
+  if (/\baudit\b|review kode|tinjau|periksa/.test(text)) return "audit";
+  if (/\bdebug\b|bug|error|fix|perbaik/.test(text)) return "debugging";
+  if (/\bui\b|tampilan|layout|responsive|dark mode|css|style/.test(text)) return "ui";
+  if (/\bdeploy\b|production|publish|release/.test(text)) return "deploy";
+  if (/\bmerge\b|push|pull request|pr\b/.test(text)) return "git";
+  if (/\brefactor\b|restructure|cleanup/.test(text)) return "refactor";
+  if (/\btest\b|testing|regression/.test(text)) return "test";
+  if (/\bdocs\b|documentation|readme/.test(text)) return "docs";
+  // Tool-usage heuristic.
+  if (usedTools.has("create_pull_request")) return "git";
+  if (usedTools.has("run_command") && usedTools.has("write_file")) return "debugging";
+  if (usedTools.has("write_file") || usedTools.has("write_files") || usedTools.has("edit_file")) return "feature";
+  if (usedTools.has("run_command") || usedTools.has("execute_code")) return "debugging";
+  return "general";
+}
+
+/**
  * Derive the final AgentCompletionState from the completed stream's steps +
  * finishReason. This is the SINGLE source of truth for the UI's Quick Actions.
  *
@@ -200,7 +229,10 @@ function deriveAgentState(
     const usedToolNames = new Set(
       allResults.map((tr) => tr.toolName ?? ""),
     );
-    const taskType = (reportOut?.taskType ?? "general").toLowerCase();
+    // taskType: prefer the LLM's report_state. If the agent didn't call it
+    // (LLMs often skip it on busy turns), infer from tool usage + userText so
+    // Quick Actions stay context-aware without relying on the model's discipline.
+    const taskType = inferTaskType(reportOut?.taskType, usedToolNames, userText);
     const nextCapabilities: string[] = [];
     if (taskType === "audit") nextCapabilities.push("fix", "security", "performance", "testing");
     else if (taskType === "ui") nextCapabilities.push("responsive", "spacing", "darkmode", "typography");
