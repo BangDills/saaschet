@@ -10,6 +10,7 @@ type ConversationRow = {
   title: string;
   model_id: string;
   github_repo: string | null;
+  project_id: string | null;
   is_pinned: boolean;
   created_at: string;
   updated_at: string;
@@ -23,6 +24,9 @@ type MessageRow = {
   metadata: unknown | null;
   created_at: string;
 };
+
+const CONVERSATION_SELECT =
+  "id, title, model_id, github_repo, project_id, is_pinned, created_at, updated_at";
 
 /** GET /api/conversations/[id] — load full conversation with messages. */
 export async function GET(
@@ -42,7 +46,7 @@ export async function GET(
   // RLS already guarantees ownership, but eq filters keep things tidy.
   const { data: conv, error: convErr } = await supabase
     .from("conversations")
-    .select("id, title, model_id, github_repo, is_pinned, created_at, updated_at")
+    .select(CONVERSATION_SELECT)
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -91,6 +95,7 @@ export async function GET(
       title: c.title,
       modelId: c.model_id,
       githubRepo: c.github_repo,
+      projectId: c.project_id,
       isPinned: c.is_pinned,
       createdAt: new Date(c.created_at).getTime(),
       updatedAt: new Date(c.updated_at).getTime(),
@@ -106,7 +111,7 @@ export async function GET(
   });
 }
 
-/** PATCH /api/conversations/[id] — rename or pin an owned conversation. */
+/** PATCH /api/conversations/[id] — rename, pin, or move project. */
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -120,14 +125,22 @@ export async function PATCH(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { title?: unknown; isPinned?: unknown };
+  let body: {
+    title?: unknown;
+    isPinned?: unknown;
+    projectId?: unknown;
+  };
   try {
-    body = (await req.json()) as { title?: unknown; isPinned?: unknown };
+    body = (await req.json()) as typeof body;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const updates: { title?: string; is_pinned?: boolean } = {};
+  const updates: {
+    title?: string;
+    is_pinned?: boolean;
+    project_id?: string | null;
+  } = {};
   if (body.title !== undefined) {
     if (typeof body.title !== "string") {
       return NextResponse.json({ error: "Title must be a string" }, { status: 400 });
@@ -147,6 +160,35 @@ export async function PATCH(
     }
     updates.is_pinned = body.isPinned;
   }
+  if (body.projectId !== undefined) {
+    // null = unfile the conversation; a string = move it into a project.
+    if (body.projectId !== null && typeof body.projectId !== "string") {
+      return NextResponse.json(
+        { error: "projectId must be a string or null" },
+        { status: 400 },
+      );
+    }
+    const projectId =
+      typeof body.projectId === "string" ? body.projectId.trim() || null : null;
+    // Verify ownership of the target project before filing into it. The RLS
+    // policy on conversations also guards this, but an explicit check here
+    // returns a clearer 404 instead of a silent no-op.
+    if (projectId) {
+      const { data: project } = await supabase
+        .from("projects")
+        .select("id")
+        .eq("id", projectId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!project) {
+        return NextResponse.json(
+          { error: "Project not found" },
+          { status: 404 },
+        );
+      }
+    }
+    updates.project_id = projectId;
+  }
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No supported updates provided" }, { status: 400 });
   }
@@ -156,7 +198,7 @@ export async function PATCH(
     .update(updates)
     .eq("id", id)
     .eq("user_id", user.id)
-    .select("id, title, model_id, github_repo, is_pinned, created_at, updated_at")
+    .select(CONVERSATION_SELECT)
     .maybeSingle();
 
   if (error) {
@@ -177,6 +219,7 @@ export async function PATCH(
       title: conversation.title,
       modelId: conversation.model_id,
       githubRepo: conversation.github_repo,
+      projectId: conversation.project_id,
       isPinned: conversation.is_pinned,
       messages: [],
       createdAt: new Date(conversation.created_at).getTime(),

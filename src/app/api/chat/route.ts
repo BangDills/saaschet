@@ -442,6 +442,9 @@ type ChatRequestBody = {
   /** "owner/repo" — when set, the repo's README + manifest + tree is
    *  injected as context. Also persisted onto the conversation row. */
   repo?: string | null;
+  /** Optional project folder id to file this conversation under. Set on
+   *  first send (creation) so a new chat lands in the selected project. */
+  projectId?: string | null;
   /** Optional system prompt override. */
   system?: string;
 };
@@ -725,6 +728,11 @@ export async function POST(req: Request) {
   const isRegeneration = body.trigger === "regenerate-message";
   const conversationId = body.conversationId;
   const repoSlug = body.repo?.trim() || null;
+  // Optional project folder. We only file the conversation under it on
+  // creation (first send). Renaming/moving happens via PATCH [id].
+  const projectIdRaw =
+    typeof body.projectId === "string" ? body.projectId.trim() : null;
+  const projectId = projectIdRaw || null;
 
   // Agent mode is automatic: if the model supports tool calling AND
   // a repo is connected, agent tools are enabled. Web search is always
@@ -792,12 +800,26 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (!existingConv) {
+    // If a project was selected, make sure it belongs to this user before
+    // filing the new conversation under it. RLS also guards the insert, but
+    // a dangling projectId would otherwise silently null out.
+    let verifiedProjectId = projectId;
+    if (verifiedProjectId) {
+      const { data: project } = await supabase
+        .from("projects")
+        .select("id")
+        .eq("id", verifiedProjectId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (!project) verifiedProjectId = null;
+    }
     const { error: insertErr } = await supabase.from("conversations").insert({
       id: conversationId,
       user_id: userId,
       title: deriveTitle(userText),
       model_id: modelId,
       github_repo: repoSlug,
+      project_id: verifiedProjectId,
       status: "processing",
     });
     if (insertErr) {

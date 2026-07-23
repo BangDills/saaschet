@@ -141,6 +141,10 @@ export type ChatPanelProps = {
   onWebSearchChange: (next: boolean) => void;
   repo: string | null;
   onRepoChange: (next: string | null) => void;
+  /** Project folder id this chat is filed under (or will be filed under
+   *  for a new chat). Forwarded to /api/chat as body.projectId. */
+  projectId: string | null;
+  onProjectIdChange: (next: string | null) => void;
   agentMode: boolean;
   onAssistantFinish?: () => void;
 };
@@ -155,6 +159,9 @@ export function ChatPanel({
   onWebSearchChange,
   repo,
   onRepoChange,
+  projectId,
+  // onProjectIdChange is owned by the parent page (project selector lives in
+  // the header, not the composer), so it's intentionally not destructured here.
   agentMode,
   onAssistantFinish,
 }: ChatPanelProps) {
@@ -163,6 +170,7 @@ export function ChatPanel({
   const webSearchRef = React.useRef(webSearch);
   const conversationIdRef = React.useRef(conversationId);
   const repoRef = React.useRef(repo);
+  const projectIdRef = React.useRef(projectId);
   // Mirror of the latest `messages` from useChat, read inside onFinish where
   // the closure would otherwise be stale. Used to persist the assistant
   // message (with full parts) to the server after the stream finishes.
@@ -187,6 +195,9 @@ export function ChatPanel({
   React.useEffect(() => {
     repoRef.current = repo;
   }, [repo]);
+  React.useEffect(() => {
+    projectIdRef.current = projectId;
+  }, [projectId]);
 
 
   // The body callback is invoked at send-time (deferred), NOT during
@@ -200,6 +211,7 @@ export function ChatPanel({
           model: modelIdRef.current,
           webSearch: webSearchRef.current,
           repo: repoRef.current,
+          projectId: projectIdRef.current,
         }),
       }),
     [],

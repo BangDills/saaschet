@@ -1,13 +1,15 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { newId } from "@/lib/chat/storage";
-import type { ChatMessage, Conversation, ModelInfo } from "@/lib/chat/types";
+import type { ChatMessage, Conversation, ModelInfo, Project } from "@/lib/chat/types";
 import { defaultModelId, defaultModels } from "@/lib/chat/models";
 import {
   Check,
   ChevronDown,
+  Folder,
   History,
   Loader2,
   Menu,
@@ -22,6 +24,12 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// The page reads ?project= via useSearchParams; force dynamic rendering so
+// Next doesn't try to statically prerender it (which would warn about
+// useSearchParams needing a Suspense boundary).
+export const dynamic = "force-dynamic";
+
 
 type ActivePanel = {
   conversationId: string;
@@ -46,13 +54,141 @@ async function readApiError(response: Response, fallback: string) {
   }
 }
 
+/** Compact project selector shown in the AI chat header.
+ *  - Displays the active project name (or "All projects" / "Unfiled").
+ *  - Lets the user pick which project a NEW chat is filed under, or move an
+ *    open conversation into a project. */
+function ProjectSelector({
+  projects,
+  loaded,
+  activeProjectId,
+  onChange,
+}: {
+  projects: Project[];
+  loaded: boolean;
+  activeProjectId: string | null;
+  onChange: (id: string | null) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
+  const label = activeProject
+    ? activeProject.name
+    : activeProjectId === null
+      ? "All projects"
+      : "Unfiled";
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-label="Select project"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          "flex h-9 items-center gap-1.5 rounded-lg border border-border px-2.5 text-sm font-medium transition-colors sm:gap-2",
+          open ? "bg-accent text-accent-foreground" : "bg-background text-foreground hover:bg-accent/60",
+        )}
+      >
+        <Folder className="size-4 shrink-0 text-muted-foreground" />
+        <span className="max-w-[10rem] truncate">{label}</span>
+        <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-label="Projects"
+          className="absolute left-0 top-full z-50 mt-1 w-60 max-h-[24rem] overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              onChange(null);
+              setOpen(false);
+            }}
+            className={cn(
+              "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent",
+              activeProjectId === null && "bg-accent text-accent-foreground",
+            )}
+          >
+            <Folder className="size-4 shrink-0 text-muted-foreground" />
+            All projects
+          </button>
+          {!loaded ? (
+            <p className="px-2.5 py-2 text-xs text-muted-foreground">Loading…</p>
+          ) : projects.length === 0 ? (
+            <p className="px-2.5 py-2 text-xs text-muted-foreground">
+              No projects yet. Create one from the sidebar.
+            </p>
+          ) : (
+            projects.map((project) => (
+              <button
+                key={project.id}
+                type="button"
+                onClick={() => {
+                  onChange(project.id);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent",
+                  activeProjectId === project.id && "bg-accent text-accent-foreground",
+                )}
+              >
+                <Folder className="size-4 shrink-0 text-muted-foreground" />
+                <span className="truncate">{project.name}</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 export default function AIChatPage() {
+  const searchParams = useSearchParams();
+  const activeProjectId = searchParams.get("project");
+
   const [models, setModels] = React.useState<ModelInfo[]>(defaultModels);
   const [modelId, setModelId] = React.useState(defaultModelId);
   const [webSearch, setWebSearch] = React.useState(false);
   const [repo, setRepo] = React.useState<string | null>(null);
   const currentModel = models.find((model) => model.id === modelId);
   const agentMode = !!currentModel?.agentCapable && !!repo;
+
+  // Projects the user has created (for the selector + history grouping).
+  const [projects, setProjects] = React.useState<Project[]>([]);
+  const [projectsLoaded, setProjectsLoaded] = React.useState(false);
+
+  // Which project a NEW chat will be filed under. Defaults to the URL
+  // ?project= param when present; the user can change it via the selector.
+  const [newChatProjectId, setNewChatProjectId] = React.useState<string | null>(
+    activeProjectId,
+  );
+
+  // The project of the conversation currently open (null for unfiled chats
+  // and for fresh chats). Drives the selector display when viewing history.
+  const [activeConvProjectId, setActiveConvProjectId] = React.useState<string | null>(null);
 
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
   const [active, setActive] = React.useState<ActivePanel>(freshPanel);
@@ -75,7 +211,12 @@ export default function AIChatPage() {
 
   const conversationGroups = React.useMemo<ConversationGroup[]>(() => {
     const query = debouncedQuery.toLocaleLowerCase();
-    const filtered = conversations
+    // When a project filter is active (?project=ID), only show conversations
+    // filed under it. Otherwise show all conversations.
+    const scoped = activeProjectId
+      ? conversations.filter((c) => c.projectId === activeProjectId)
+      : conversations;
+    const filtered = scoped
       .filter((conversation) => conversation.title.toLocaleLowerCase().includes(query))
       .sort((a, b) => Number(b.isPinned) - Number(a.isPinned) || b.updatedAt - a.updatedAt);
     const unpinned = filtered.filter((conversation) => !conversation.isPinned);
@@ -88,7 +229,7 @@ export default function AIChatPage() {
       ["Yesterday", unpinned.filter((conversation) => conversation.updatedAt >= yesterday && conversation.updatedAt < today)],
       ["Earlier", unpinned.filter((conversation) => conversation.updatedAt < yesterday)],
     ];
-  }, [conversations, debouncedQuery]);
+  }, [conversations, debouncedQuery, activeProjectId]);
 
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -135,6 +276,30 @@ export default function AIChatPage() {
     return () => window.clearTimeout(timeout);
   }, [reloadConversations]);
 
+  // Load the user's projects once for the selector + history grouping.
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch("/api/projects", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((json: { projects?: Project[] }) => {
+        if (cancelled || !Array.isArray(json.projects)) return;
+        setProjects(json.projects);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setProjectsLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // When the URL ?project= param changes (e.g. clicked from the sidebar),
+  // default new chats to that project.
+  React.useEffect(() => {
+    setNewChatProjectId(activeProjectId);
+  }, [activeProjectId]);
+
   React.useEffect(() => {
     if (active.initialMessages.length === 0) return;
     try {
@@ -153,6 +318,7 @@ export default function AIChatPage() {
       if (!conversation) throw new Error("Conversation not found");
       if (conversation.modelId) setModelId(conversation.modelId);
       setRepo(conversation.githubRepo ?? null);
+      setActiveConvProjectId(conversation.projectId ?? null);
       setActive({ conversationId: conversation.id, initialMessages: conversation.messages });
       setHistoryOpen(false);
       setMenuId(null);
@@ -189,10 +355,13 @@ export default function AIChatPage() {
 
   function startNewChat() {
     setActive(freshPanel());
+    setActiveConvProjectId(null);
+    setNewChatProjectId(activeProjectId);
     setHistoryOpen(false);
     setMenuId(null);
     try { localStorage.removeItem(LS_KEY); } catch {}
   }
+
 
   function beginRename(conversation: Conversation) {
     setEditingId(conversation.id);
@@ -201,7 +370,7 @@ export default function AIChatPage() {
     setHistoryError(null);
   }
 
-  async function patchConversation(id: string, patch: { title?: string; isPinned?: boolean }) {
+  async function patchConversation(id: string, patch: { title?: string; isPinned?: boolean; projectId?: string | null }) {
     const response = await fetch(`/api/conversations/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -375,6 +544,40 @@ export default function AIChatPage() {
           )}
         </div>
 
+        {/* Project selector: shows the active project (for an open chat) or
+            the project a NEW chat will be filed under. Changing it on a fresh
+            chat updates where the next conversation is created. */}
+        <ProjectSelector
+          projects={projects}
+          loaded={projectsLoaded}
+          activeProjectId={activeConvProjectId ?? newChatProjectId}
+          onChange={(id) => {
+            if (active.initialMessages.length === 0) {
+              // Fresh chat — set the filing project for the next send.
+              setNewChatProjectId(id);
+            } else {
+              // Open conversation — move it to the selected project (or unfile).
+              const conv = active;
+              void patchConversation(conv.conversationId, { projectId: id })
+                .then((saved) => {
+                  setConversations((items) =>
+                    items.map((item) =>
+                      item.id === conv.conversationId
+                        ? { ...item, ...saved, messages: item.messages }
+                        : item,
+                    ),
+                  );
+                  setActiveConvProjectId(saved.projectId ?? null);
+                })
+                .catch((err) =>
+                  setHistoryError(
+                    err instanceof Error ? err.message : "Failed to move conversation",
+                  ),
+                );
+            }
+          }}
+        />
+
         <button type="button" aria-label="Start new chat" onClick={startNewChat} className="flex size-9 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-1.5">
           <Plus className="size-4" />
           <span className="hidden sm:inline">New chat</span>
@@ -382,7 +585,22 @@ export default function AIChatPage() {
       </div>
 
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <ChatPanel key={active.conversationId} conversationId={active.conversationId} initialMessages={active.initialMessages} modelId={modelId} models={models} onModelChange={setModelId} webSearch={webSearch || agentMode} onWebSearchChange={setWebSearch} repo={repo} onRepoChange={setRepo} agentMode={agentMode} onAssistantFinish={reloadConversations} />
+        <ChatPanel
+          key={active.conversationId}
+          conversationId={active.conversationId}
+          initialMessages={active.initialMessages}
+          modelId={modelId}
+          models={models}
+          onModelChange={setModelId}
+          webSearch={webSearch || agentMode}
+          onWebSearchChange={setWebSearch}
+          repo={repo}
+          onRepoChange={setRepo}
+          projectId={activeConvProjectId ?? newChatProjectId}
+          onProjectIdChange={setNewChatProjectId}
+          agentMode={agentMode}
+          onAssistantFinish={reloadConversations}
+        />
       </section>
 
       {deleteTarget && (

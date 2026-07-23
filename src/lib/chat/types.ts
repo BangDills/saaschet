@@ -24,6 +24,21 @@ export type ChatMessage = {
   createdAt: number;
 };
 
+/**
+ * A project folder that groups conversations. Owned by a single user.
+ * Shown as a collapsible section in the dashboard sidebar; chats can be
+ * filed under a project via Conversation.projectId.
+ */
+export type Project = {
+  id: string;
+  name: string;
+  /** Optional accent key (e.g. "default", "blue", "amber"). */
+  color: string;
+  description: string | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
 /** A conversation row, optionally with messages eagerly loaded. */
 export type Conversation = {
   id: string;
@@ -36,6 +51,8 @@ export type Conversation = {
   status?: string;
   /** Pinned conversations are shown before date-based history groups. */
   isPinned: boolean;
+  /** Project folder this conversation belongs to, or null. */
+  projectId: string | null;
   /** Empty when this object came from the list endpoint. */
   messages: ChatMessage[];
   createdAt: number;
