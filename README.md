@@ -1,35 +1,47 @@
-# Celiuz AI — AI-Powered SaaS Platform
+# Celiuz AI — AI Coding Agent Platform
 
-Modern AI SaaS platform built with **Next.js 16**, **React 19**, **Tailwind CSS v4**, and **Vercel AI SDK**. Features an AI coding agent with GitHub integration, live sandbox execution, multi-model support, and a full dashboard with auth.
+Platform AI coding agent dengan integrasi GitHub, live sandbox execution, multi-model Fireworks AI, dan dashboard lengkap dengan autentikasi. Dibangun dengan **Next.js 16**, **React 19**, **Tailwind CSS v4**, dan **Vercel AI SDK**.
 
 ## ✨ Features
 
 ### AI Chat & Agent Mode
-- **Multi-model chat** — DeepSeek V4 Pro, DeepSeek 4 Flash, Kimi K2.5/K2.6, GLM 5
-- **Free model** — DeepSeek V4 Flash via OpenCode (no payment required)
-- **Automatic Agent Mode** — models with tool-calling auto-enable agent tools when a repo is connected
-- **GitHub integration** — read, write, edit, search code, create branches & PRs
-- **Live sandbox** — Daytona-powered sandboxes (8 CPU, 8GB RAM) for running code
-- **Batch file writes** — write multiple files in a single tool call
+- **6 model Fireworks AI** — GLM 5.2, Kimi 2.7 Code, DeepSeek V4 Pro, DeepSeek V4 Flash, Qwen 3.7 Plus, MiniMax M3
+- **Agent Mode otomatis** — model dengan tool-calling auto-enable agent tools saat repo dihubungkan
+- **Integrasi GitHub** — read, write, edit, search code, create branches & PRs (scope `workflow` untuk push CI/CD files)
+- **Live sandbox** — Daytona sandbox (4 vCPU, 8GB RAM, 10GB disk) untuk eksekusi kode
+- **Activity Timeline** — timeline terstruktur per kategori (Explore, Read, Search, Commands, Code, Created, Updated, Deleted) dengan summary card
+- **Quick Actions** — tombol aksi context-aware berbasis AgentState (task type + status dari orchestrator)
+- **Context7 docs** — lookup dokumentasi library/framework terkini di chat dan Agent Mode
 - **Web search** — Tavily-powered in-chat web search toggle
-- **Context7 docs** — up-to-date library/framework documentation tools in chat and Agent Mode
-- **Serena semantic tools** — optional MCP-powered symbol/references lookup for Agent Mode
-- **Streaming** — real-time tool call streaming with context trimming
-- **Kimi compat** — automatic SSE stream patching for Kimi K2.x tool calling
+- **Memory extraction** — vector memory (Jina embeddings) + structured profile memory (Fireworks LLM)
+- **Streaming** — real-time tool call streaming dengan context trimming, abort on disconnect
+
+### Projects
+- **Project folders** — kelompokkan conversation ke project dengan nama, warna, deskripsi
+- **Sidebar integration** — project list di sidebar dengan conversation count
+- **Auto-assign** — conversation baru otomatis ke project aktif
+
+### Credits & Billing
+- **Sistem kredit harian** — Free 50/hari, Pro 3000/24 jam (Rp10.000 trial)
+- **Atomic billing** — RPC `spend_credits` dengan row lock, race-condition safe
+- **Pro trial 24 jam** — aktivasi via WhatsApp + admin approval, auto-downgrade
+- **Credit meter** — sidebar meter dengan Pro countdown
 
 ### Dashboard
 - KPI stat cards (Credits Used, Total Users, Credits Available, Plan)
 - Area chart (daily credit usage, last 30 days)
 - Bar chart (monthly credit usage)
-- Users table with pagination
+- Users table dengan pagination + Pro activation
 - Light / Dark mode toggle
 - Fully responsive (mobile drawer)
 
-### Auth & Infrastructure
-- Supabase authentication (email/password, OAuth)
-- Chat history persistence (conversations stored in Supabase)
-- Credits system with usage tracking
-- Row Level Security (RLS) on all tables
+### Auth & Security
+- Supabase authentication (email/password, GitHub OAuth)
+- Chat history persistence (conversations + tool-call parts + metadata)
+- Row Level Security (RLS) di semua tables
+- CSP + security headers (X-Frame-Options, X-Content-Type-Options, Permissions-Policy)
+- Idempotent message save (ON CONFLICT, no duplicate on reload)
+- XSS protection (markdown href scheme validation, no raw HTML injection)
 
 ## 🛠 Tech Stack
 
@@ -38,24 +50,23 @@ Modern AI SaaS platform built with **Next.js 16**, **React 19**, **Tailwind CSS 
 | Framework | Next.js 16 (App Router) + TypeScript |
 | Styling | Tailwind CSS v4 + custom design tokens |
 | AI SDK | Vercel AI SDK v6 (`ai`, `@ai-sdk/openai`) |
-| Inference | DigitalOcean Serverless Inference (OpenAI-compatible) |
-| Free Models | OpenCode Zen API |
-| Sandbox | Daytona SDK (ephemeral containers) |
+| Inference | Fireworks AI (OpenAI-compatible, 6 models) |
+| Sandbox | Daytona SDK (snapshot-based, 4 vCPU/8GB) |
 | Auth & DB | Supabase (Postgres + Auth + RLS) |
 | Web Search | Tavily AI |
 | Docs Lookup | Context7 API |
-| Code Intelligence | Serena MCP |
+| Memory | Jina AI (embeddings) + Fireworks (extraction) |
 | Icons | lucide-react |
 | Charts | Recharts |
 | Theming | next-themes |
-| Deployment | Vercel (primary) / cPanel (legacy) |
+| Deployment | Coolify (Docker, persistent) / Vercel (legacy) |
 
 ## 🚀 Quick Start
 
 ```bash
 # 1. Clone
-git clone https://github.com/BangDills/celiuz-ai.git
-cd celiuz-ai
+git clone https://github.com/BangDills/saaschet.git
+cd saaschet
 
 # 2. Install
 npm install
@@ -79,15 +90,19 @@ Copy `.env.example` to `.env.local` and fill in your keys:
 | `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Supabase service role key (server-side only) |
+| `GITHUB_TOKEN` | ✅ | GitHub PAT for agent mode repo access |
+| `GITHUB_APP_CLIENT_ID` | ✅ | GitHub OAuth App client ID (connect repo flow) |
+| `GITHUB_APP_CLIENT_SECRET` | ✅ | GitHub OAuth App client secret |
 | `TAVILY_API_KEY` | Optional | Tavily API key for web search ([tavily.com](https://tavily.com)) |
-| `CONTEXT7_API_KEY` | Optional | Context7 API key for up-to-date library docs in chat and Agent Mode ([context7.com](https://context7.com)) |
-| `SERENA_MCP_URL` | Optional | Serena MCP HTTP/SSE endpoint for semantic code tools in Agent Mode ([github.com/oraios/serena](https://github.com/oraios/serena)) |
+| `CONTEXT7_API_KEY` | Optional | Context7 API key for library docs ([context7.com](https://context7.com)) |
+| `JINA_API_KEY` | Optional | Jina AI key for vector embeddings (memory search) |
+| `DAYTONA_API_KEY` | Optional | Daytona API key for sandbox execution |
+| `DAYTONA_SERVER_URL` | Optional | Daytona server URL (default: `https://app.daytona.io/api`) |
+| `DAYTONA_TARGET` | Optional | Daytona target region (`us` or `eu`, default `us`) |
+| `DAYTONA_SANDBOX_SNAPSHOT` | Optional | Pre-provisioned snapshot name for resource-heavy sandboxes |
+| `SERENA_MCP_URL` | Optional | Serena MCP HTTP/SSE endpoint for semantic code tools |
 | `SERENA_MCP_TOKEN` | Optional | Bearer token for a protected Serena MCP bridge |
-| `SERENA_ALLOW_WRITE_TOOLS` | Optional | Set `true` only to expose Serena write/execute tools; defaults to read-only semantic tools |
-| `GITHUB_TOKEN` | Optional | GitHub PAT for agent mode repo access |
-| `DAYTONA_API_KEY` | Optional | Daytona API key for live sandbox execution |
-| `DAYTONA_SERVER_URL` | Optional | Daytona server URL (`DAYTONA_API_URL` is also accepted as a legacy alias) |
-| `DAYTONA_TARGET` | Optional | Daytona target region |
+| `SERENA_ALLOW_WRITE_TOOLS` | Optional | Set `true` to expose Serena write/execute tools; defaults read-only |
 
 ## 📁 Project Structure
 
@@ -97,58 +112,67 @@ src/
     (auth)/               # Login / signup pages
     (dashboard)/          # Authenticated dashboard route group
       layout.tsx          # Sidebar + Topbar shell
-      page.tsx            # Main Dashboard (KPI cards, charts)
-      ai-chat/            # AI Chat page (multi-model, agent)
-      ai-text/            # AI Text generator
-      ai-image/           # AI Image generator
-      ai-speech/          # AI Speech generator
+      dashboard/          # Admin dashboard (KPI cards, charts)
+      ai-chat/            # AI Chat page (multi-model, agent, projects)
+      prd-generator/      # PRD generator
       history/            # Chat history browser
       profile/            # User profile settings
-      subscription/       # Subscription management
-      users/              # Admin users table
+      subscription/       # Subscription / Pro trial management
+      users/              # Admin users table + Pro activation
     api/
-      chat/route.ts       # AI chat endpoint (streaming, tools, multi-provider)
-      models/route.ts     # Model list endpoint (whitelisted)
-      conversations/      # CRUD for chat history
+      chat/route.ts       # AI chat endpoint (streaming, tools, multi-model)
+      models/route.ts     # Model list endpoint (Fireworks whitelist)
+      conversations/      # CRUD for chat history + parts + metadata
+      projects/           # CRUD for project folders
       credits/            # Credits balance API
-      dashboard/          # Dashboard stats API
-      github/             # GitHub OAuth callback
-      profile/            # Profile API
-    layout.tsx            # Root layout (theme, fonts)
+      github/             # GitHub OAuth + repo content
+      profile/            # Profile + tier API
     globals.css           # Design tokens (light + dark)
   components/
-    chat/                 # ChatPanel, ChatInput, ModelSelector, ToolCall UI
-    dashboard/            # Sidebar, Topbar, charts, stat cards
+    chat/                 # ChatPanel, ChatInput, ModelSelector, MessageBubble
+    chat/activity/        # ActivityTimeline, ActivityGroup, FileOperationGroup, CommandGroup, SummaryCard
+    dashboard/            # Sidebar, Topbar, charts, projects-list, credits-meter
     auth/                 # Auth forms
     ui/                   # Card, Button, Badge primitives
   lib/
-    chat/                 # Models config, types, web search, kimi-compat
-    agent/                # Agent tools (GitHub read/write/edit/search)
-    context7/             # Context7 documentation lookup client
+    chat/                 # Models config, types, web search, memory
+    agent/                # Agent tools + action-registry (Quick Actions)
+    context7/             # Context7 documentation lookup
     github/               # GitHub API client
     daytona/              # Sandbox tools (run_command, write_file, etc.)
-    credits/              # Credits system
+    credits/              # Credits system (atomic RPC)
     supabase/             # Supabase client (server + browser)
+    url.ts                # resolveOrigin + redactVendorPath
     nav.ts                # Sidebar navigation config
-    utils.ts              # cn(), formatNumber()
-  middleware.ts           # Supabase auth middleware
+  supabase/migrations/    # SQL migrations (0001-0018)
+  Dockerfile              # Multi-stage Docker build (standalone, Coolify)
 ```
 
 ## 🤖 Supported Models
 
-| Model | Provider | Agent Capable | Free |
+| Model | Provider | Agent Capable | Multimodal |
 |-------|----------|:---:|:---:|
-| DeepSeek V4 Flash | OpenCode | ✅ | ✅ |
-| DeepSeek V4 Pro | DigitalOcean | ✅ | — |
-| DeepSeek 4 Flash | DigitalOcean | ✅ | — |
-| Kimi K2.6 | DigitalOcean | ✅ | — |
-| Kimi K2.5 | DigitalOcean | ✅ | — |
-| GLM 5 | DigitalOcean | — | — |
+| GLM 5.2 | Fireworks AI | ✅ | — |
+| Kimi 2.7 Code | Fireworks AI | ✅ | ✅ |
+| DeepSeek V4 Pro | Fireworks AI | ✅ | — |
+| DeepSeek V4 Flash | Fireworks AI | ✅ | — |
+| Qwen 3.7 Plus | Fireworks AI | ✅ | ✅ |
+| MiniMax M3 | Fireworks AI | ✅ | ✅ |
+
+Semua model support function-calling (verified via Fireworks API).
 
 ## 🏗 Deployment
 
-### Vercel (recommended)
-Push to GitHub → connect to Vercel → add env vars → deploy.
+### Coolify (recommended — production)
+Docker-based deploy dengan `Dockerfile` (multi-stage, `output: 'standalone'`). Persistent process — tidak ada Vercel 5-menit limit untuk agent loop.
+
+1. Install Coolify di VPS (Hetzner/DigitalOcean 8GB+)
+2. Connect repo → auto-detect Dockerfile
+3. Set env vars via Coolify UI
+4. Deploy → auto SSL Let's Encrypt
+
+### Vercel (legacy/staging)
+Push ke GitHub → connect Vercel → add env vars → deploy. Note: 5-menit function timeout limit untuk agent.
 
 ### cPanel (legacy)
 See **[DEPLOY_CPANEL.md](./DEPLOY_CPANEL.md)** for the step-by-step guide.
