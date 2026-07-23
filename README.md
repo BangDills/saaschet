@@ -1,6 +1,6 @@
 # Celiuz AI — AI Coding Agent Platform
 
-Platform AI coding agent dengan integrasi GitHub, live sandbox execution, multi-model Fireworks AI, dan dashboard lengkap dengan autentikasi. Dibangun dengan **Next.js 16**, **React 19**, **Tailwind CSS v4**, dan **Vercel AI SDK**.
+Platform AI coding agent dengan integrasi GitHub, live sandbox execution, multi-model OpenAI-compatible, dan dashboard lengkap dengan autentikasi. Dibangun dengan **Next.js 16**, **React 19**, **Tailwind CSS v4**, dan **Vercel AI SDK**.
 
 ## ✨ Features
 
@@ -50,7 +50,7 @@ Platform AI coding agent dengan integrasi GitHub, live sandbox execution, multi-
 | Framework | Next.js 16 (App Router) + TypeScript |
 | Styling | Tailwind CSS v4 + custom design tokens |
 | AI SDK | Vercel AI SDK v6 (`ai`, `@ai-sdk/openai`) |
-| Inference | Fireworks AI (OpenAI-compatible, 6 models) |
+| Inference | OpenAI-compatible API (6 models) |
 | Sandbox | Daytona SDK (snapshot-based, 4 vCPU/8GB) |
 | Auth & DB | Supabase (Postgres + Auth + RLS) |
 | Web Search | Tavily AI |
@@ -86,7 +86,7 @@ Copy `.env.example` to `.env.local` and fill in your keys:
 
 | Variable | Required | Description |
 |----------|:---:|-------------|
-| `FIREWORKS_API_KEY` | ✅ | Fireworks AI API key ([get here](https://fireworks.ai)) |
+| `FIREWORKS_API_KEY` | ✅ | OpenAI-compatible API key ([get here](https://fireworks.ai)) |
 | `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Supabase service role key (server-side only) |
@@ -152,12 +152,12 @@ src/
 
 | Model | Provider | Agent Capable | Multimodal |
 |-------|----------|:---:|:---:|
-| GLM 5.2 | Fireworks AI | ✅ | — |
-| Kimi 2.7 Code | Fireworks AI | ✅ | ✅ |
-| DeepSeek V4 Pro | Fireworks AI | ✅ | — |
-| DeepSeek V4 Flash | Fireworks AI | ✅ | — |
-| Qwen 3.7 Plus | Fireworks AI | ✅ | ✅ |
-| MiniMax M3 | Fireworks AI | ✅ | ✅ |
+| GLM 5.2 | OpenAI-compatible | ✅ | — |
+| Kimi 2.7 Code | OpenAI-compatible | ✅ | ✅ |
+| DeepSeek V4 Pro | OpenAI-compatible | ✅ | — |
+| DeepSeek V4 Flash | OpenAI-compatible | ✅ | — |
+| Qwen 3.7 Plus | OpenAI-compatible | ✅ | ✅ |
+| MiniMax M3 | OpenAI-compatible | ✅ | ✅ |
 
 Semua model support function-calling (verified via Fireworks API).
 
