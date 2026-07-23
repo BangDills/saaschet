@@ -5,7 +5,7 @@ Platform AI coding agent dengan integrasi GitHub, live sandbox execution, multi-
 ## ✨ Features
 
 ### AI Chat & Agent Mode
-- **6 model Fireworks AI** — GLM 5.2, Kimi 2.7 Code, DeepSeek V4 Pro, DeepSeek V4 Flash, Qwen 3.7 Plus, MiniMax M3
+- **Multi model** — GLM 5.2, Kimi 2.7 Code, DeepSeek V4 Pro, DeepSeek V4 Flash, Qwen 3.7 Plus, MiniMax M3
 - **Agent Mode otomatis** — model dengan tool-calling auto-enable agent tools saat repo dihubungkan
 - **Integrasi GitHub** — read, write, edit, search code, create branches & PRs (scope `workflow` untuk push CI/CD files)
 - **Live sandbox** — Daytona sandbox (4 vCPU, 8GB RAM, 10GB disk) untuk eksekusi kode
