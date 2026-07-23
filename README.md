@@ -8,7 +8,7 @@ Platform AI coding agent dengan integrasi GitHub, live sandbox execution, multi-
 - **Multi model** — GLM 5.2, Kimi 2.7 Code, DeepSeek V4 Pro, DeepSeek V4 Flash, Qwen 3.7 Plus, MiniMax M3
 - **Agent Mode otomatis** — model dengan tool-calling auto-enable agent tools saat repo dihubungkan
 - **Integrasi GitHub** — read, write, edit, search code, create branches & PRs (scope `workflow` untuk push CI/CD files)
-- **Live sandbox** — Daytona sandbox (4 vCPU, 8GB RAM, 10GB disk) untuk eksekusi kode
+- **Live sandbox** — ephemeral sandbox service (4 vCPU, 8GB RAM, 10GB disk) untuk eksekusi kode
 - **Activity Timeline** — timeline terstruktur per kategori (Explore, Read, Search, Commands, Code, Created, Updated, Deleted) dengan summary card
 - **Quick Actions** — tombol aksi context-aware berbasis AgentState (task type + status dari orchestrator)
 - **Context7 docs** — lookup dokumentasi library/framework terkini di chat dan Agent Mode
@@ -51,7 +51,7 @@ Platform AI coding agent dengan integrasi GitHub, live sandbox execution, multi-
 | Styling | Tailwind CSS v4 + custom design tokens |
 | AI SDK | Vercel AI SDK v6 (`ai`, `@ai-sdk/openai`) |
 | Inference | OpenAI-compatible API (6 models) |
-| Sandbox | Daytona SDK (snapshot-based, 4 vCPU/8GB) |
+| Sandbox | Ephemeral sandbox service (snapshot-based, 4 vCPU/8GB) |
 | Auth & DB | Supabase (Postgres + Auth + RLS) |
 | Web Search | Tavily AI |
 | Docs Lookup | Context7 API |
@@ -96,9 +96,9 @@ Copy `.env.example` to `.env.local` and fill in your keys:
 | `TAVILY_API_KEY` | Optional | Tavily API key for web search ([tavily.com](https://tavily.com)) |
 | `CONTEXT7_API_KEY` | Optional | Context7 API key for library docs ([context7.com](https://context7.com)) |
 | `JINA_API_KEY` | Optional | Jina AI key for vector embeddings (memory search) |
-| `DAYTONA_API_KEY` | Optional | Daytona API key for sandbox execution |
-| `DAYTONA_SERVER_URL` | Optional | Daytona server URL (default: `https://app.daytona.io/api`) |
-| `DAYTONA_TARGET` | Optional | Daytona target region (`us` or `eu`, default `us`) |
+| `DAYTONA_API_KEY` | Optional | Sandbox service API key for ephemeral execution |
+| `DAYTONA_SERVER_URL` | Optional | Sandbox service URL (default: `https://app.daytona.io/api`) |
+| `DAYTONA_TARGET` | Optional | Sandbox target region (`us` or `eu`, default `us`) |
 | `DAYTONA_SANDBOX_SNAPSHOT` | Optional | Pre-provisioned snapshot name for resource-heavy sandboxes |
 | `SERENA_MCP_URL` | Optional | Serena MCP HTTP/SSE endpoint for semantic code tools |
 | `SERENA_MCP_TOKEN` | Optional | Bearer token for a protected Serena MCP bridge |
@@ -139,7 +139,7 @@ src/
     agent/                # Agent tools + action-registry (Quick Actions)
     context7/             # Context7 documentation lookup
     github/               # GitHub API client
-    daytona/              # Sandbox tools (run_command, write_file, etc.)
+    daytona/              # Sandbox service tools (run_command, write_file, etc.)
     credits/              # Credits system (atomic RPC)
     supabase/             # Supabase client (server + browser)
     url.ts                # resolveOrigin + redactVendorPath
