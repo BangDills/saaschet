@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, LogOut } from "lucide-react";
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "./theme-toggle";
 import { signOut } from "@/app/(auth)/login/actions";
 import { CreditsMeter } from "./credits-meter";
+import { ProjectsList } from "./projects-list";
 
 function useCurrentTitle() {
   const pathname = usePathname();
@@ -205,6 +207,11 @@ export function Topbar({ initials, role = "user" }: TopbarProps) {
                 );
               })}
             </nav>
+            <div className="border-t border-sidebar-border px-1 pb-1 pt-1">
+              <Suspense fallback={null}>
+                <ProjectsList />
+              </Suspense>
+            </div>
             <div className="border-t border-sidebar-border p-3">
               <CreditsMeter />
             </div>

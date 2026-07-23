@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { getNavItems, type UserRole } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { CreditsMeter } from "./credits-meter";
 import { CeliuzLogo } from "@/components/celiuz-logo";
+import { ProjectsList } from "./projects-list";
 
 export type SidebarProps = {
   displayName: string;
@@ -64,6 +66,12 @@ export function Sidebar({
           );
         })}
       </nav>
+
+      <div className="border-t border-sidebar-border px-1 pb-1 pt-1">
+        <Suspense fallback={null}>
+          <ProjectsList />
+        </Suspense>
+      </div>
 
       <div className="px-3 pb-2">
         <CreditsMeter />

@@ -9,6 +9,7 @@ type ConversationRow = {
   title: string;
   model_id: string;
   github_repo: string | null;
+  project_id: string | null;
   status: string | null;
   is_pinned: boolean;
   created_at: string;
@@ -30,7 +31,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("conversations")
-    .select("id, title, model_id, github_repo, status, is_pinned, created_at, updated_at")
+    .select("id, title, model_id, github_repo, project_id, status, is_pinned, created_at, updated_at")
     .eq("user_id", user.id)
     .order("is_pinned", { ascending: false })
     .order("updated_at", { ascending: false });
@@ -49,6 +50,7 @@ export async function GET() {
     title: c.title,
     modelId: c.model_id,
     githubRepo: c.github_repo,
+    projectId: c.project_id,
     status: c.status ?? "idle",
     isPinned: c.is_pinned,
     messages: [],
