@@ -22,7 +22,7 @@ Platform AI coding agent dengan integrasi GitHub, live sandbox execution, multi-
 - **Auto-assign** — conversation baru otomatis ke project aktif
 
 ### Credits & Billing
-- **Sistem kredit harian** — Free 50/hari, Pro 3000/24 jam (Rp10.000 trial)
+- **Sistem kredit harian** — Free 50/hari, Pro 3000/24 jam
 - **Atomic billing** — RPC `spend_credits` dengan row lock, race-condition safe
 - **Pro trial 24 jam** — aktivasi via WhatsApp + admin approval, auto-downgrade
 - **Credit meter** — sidebar meter dengan Pro countdown
