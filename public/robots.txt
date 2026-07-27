@@ -1,0 +1,34 @@
+# Celiuz AI — robots.txt
+# https://www.rfc-editor.org/rfc/rfc9309
+
+# Default: allow all crawlers
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /login
+Disallow: /signup
+Disallow: /auth/
+
+# AI crawlers — explicit rules
+User-agent: GPTBot
+Allow: /
+Disallow: /api/
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /api/
+
+User-agent: Claude-Web
+Allow: /
+Disallow: /api/
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /api/
+
+# Content signals — AI usage preferences
+# https://contentsignals.org/
+Content-Signal: ai-train=no, search=yes, ai-input=no
+
+# Sitemap
+Sitemap: https://app.celiuz.my.id/sitemap.xml
