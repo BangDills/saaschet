@@ -1,28 +1,34 @@
 import type { ToolCallPart } from "../tool-call";
 
-/** Activity grouping category — drives the timeline section headers. */
+/** Intention-based activity category — what the AI is trying to accomplish. */
 export type ActivityCategory =
-  | "explore"   // list_files, sandbox_list_files
-  | "read"      // read_file, sandbox_read_file, context7_get_docs, serena_call_tool
-  | "search"    // search_code, web_search, context7_search_library, serena_list_tools
-  | "commands"  // run_command
-  | "code"      // execute_code
-  | "created"   // write_file/write_files/sandbox_write_file/sandbox_write_files (new)
-  | "updated"   // edit_file, write_file where file existed
-  | "deleted"   // delete_file
-  | "other";    // create_pull_request, unknown tools
+  | "exploring"    // list_files, sandbox_list_files
+  | "analyzing"    // read_file, sandbox_read_file, context7_get_docs, serena_call_tool
+  | "searching"    // search_code, web_search, context7_search_library, serena_list_tools
+  | "planning"     // create_pull_request, report_state
+  | "updating"     // edit_file, write_file where file existed
+  | "creating"     // write_file/write_files/sandbox_write_file/sandbox_write_files (new)
+  | "deleting"     // delete_file
+  | "executing"    // run_command, execute_code
+  | "validating"   // run_command with test/lint/build
+  | "applying";    // write_file/edit_file with commit, create_pull_request
 
 /** File operation sub-classification (only for file categories). */
 export type FileOp = "created" | "updated" | "deleted";
 
-/** A single activity row inside a group — pre-computed display fields. */
+/** A single activity row — human description, technical details optional. */
 export type ActivityItem = {
   key: string;
   toolName: string;
   category: ActivityCategory;
   fileOp?: FileOp;
   filePath?: string;
-  reason: string;
+  /** Short human label, e.g. "Exploring project" */
+  title: string;
+  /** One-sentence description of intent, e.g. "Scanning repo structure" */
+  description: string;
+  /** Raw technical detail (command, JSON snippet, etc.) — only shown on expand */
+  technicalDetails?: string;
   state: ToolCallPart["state"];
   isRunning: boolean;
   isError: boolean;
@@ -54,7 +60,7 @@ export type ActivityTimelineData = {
   anyRunning: boolean;
 };
 
-/** Summary card statistics. */
+/** Summary card statistics — flat, no checkmarks. */
 export type SummaryStats = {
   lines: string[];
   elapsedLabel: string | null;

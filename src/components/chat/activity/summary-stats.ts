@@ -1,15 +1,16 @@
 import type { ActivityGroupData, SummaryStats } from "./activity-types";
 
 const CATEGORY_VERBS: Record<string, (n: number) => string> = {
-  explore: (n) => `Explored ${n} ${n === 1 ? "folder" : "folders"}`,
-  read: (n) => `Read ${n} ${n === 1 ? "file" : "files"}`,
-  search: (n) => `Searched ${n}×`,
-  commands: (n) => `Ran ${n} ${n === 1 ? "command" : "commands"}`,
-  code: (n) => `Executed ${n} ${n === 1 ? "script" : "scripts"}`,
-  created: (n) => `Created ${n} ${n === 1 ? "file" : "files"}`,
-  updated: (n) => `Updated ${n} ${n === 1 ? "file" : "files"}`,
-  deleted: (n) => `Deleted ${n} ${n === 1 ? "file" : "files"}`,
-  other: (n) => `${n} ${n === 1 ? "action" : "actions"}`,
+  exploring: (n) => `${n} ${n === 1 ? "folder" : "folders"} explored`,
+  analyzing: (n) => `${n} ${n === 1 ? "file" : "files"} analyzed`,
+  searching: (n) => `${n} codebase ${n === 1 ? "search" : "searches"}`,
+  planning: (n) => `${n} ${n === 1 ? "plan" : "plans"}`,
+  updating: (n) => `${n} ${n === 1 ? "file" : "files"} updated`,
+  creating: (n) => `${n} ${n === 1 ? "file" : "files"} created`,
+  deleting: (n) => `${n} ${n === 1 ? "file" : "files"} deleted`,
+  executing: (n) => `${n} ${n === 1 ? "task" : "tasks"} executed`,
+  validating: (n) => `${n} ${n === 1 ? "validation" : "validations"}`,
+  applying: (n) => `${n} ${n === 1 ? "change" : "changes"} applied`,
 };
 
 function formatElapsed(ms: number): string {
@@ -21,10 +22,6 @@ function formatElapsed(ms: number): string {
   return `${min}m ${sec}s`;
 }
 
-/**
- * Compute summary card stats from groups + optional elapsed time.
- * Elapsed is null for reloaded turns (no fabricated duration).
- */
 export function computeSummaryStats(
   groups: ActivityGroupData[],
   elapsedMs: number | null,

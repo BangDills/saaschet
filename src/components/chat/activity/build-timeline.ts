@@ -7,12 +7,13 @@ import {
   getLineStats,
 } from "../tool-call";
 import { classifyToolName, classifyFileOp, CATEGORY_LABELS, CATEGORY_ORDER } from "./classify";
-import { deriveReason } from "./derive-reason";
+import { deriveCopy } from "./derive-reason";
 import type {
   ActivityCategory,
   ActivityItem,
   ActivityGroupData,
   ActivityTimelineData,
+  FileOp,
 } from "./activity-types";
 
 const RUNNING_STATES = new Set(["input-streaming", "input-available", "executing", "approval-requested"]);
@@ -21,7 +22,6 @@ function isObj(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object";
 }
 
-/** Determine if a tool result is an error (backward-compat with legacy outputs). */
 function isItemError(part: ToolCallPart): boolean {
   if (part.state === "output-error") return true;
   if (part.errorText) return true;
@@ -39,10 +39,6 @@ function isItemRunning(part: ToolCallPart): boolean {
   return RUNNING_STATES.has(part.state);
 }
 
-/**
- * Build structured timeline data from raw tool-call parts.
- * Pure, never throws — one bad part becomes an "other" error item.
- */
 export function buildTimeline(parts: ToolCallPart[]): ActivityTimelineData {
   const seenPaths = new Set<string>();
   const grouped = new Map<ActivityCategory, ActivityItem[]>();
@@ -53,10 +49,10 @@ export function buildTimeline(parts: ToolCallPart[]): ActivityTimelineData {
 
     try {
       const toolName = getToolName(part);
-      const category = classifyToolName(toolName);
+      const category = classifyToolName(toolName, part.input);
       const filePath = extractFilePath(toolName, part.input);
       const fileOp = classifyFileOp(toolName, part.output, seenPaths, filePath);
-      const reason = deriveReason(toolName, part.input, category);
+      const copy = deriveCopy(toolName, part.input, category);
       const isRunning = isItemRunning(part);
       const isError = isItemError(part);
       const isDone = isItemDone(part);
@@ -64,10 +60,12 @@ export function buildTimeline(parts: ToolCallPart[]): ActivityTimelineData {
       item = {
         key: part.toolCallId || `tc-${i}`,
         toolName,
-        category: fileOp ? (fileOp as ActivityCategory) : category,
+        category: fileOp === "created" ? "creating" : fileOp === "updated" ? "updating" : fileOp === "deleted" ? "deleting" : category,
         fileOp,
         filePath: filePath ?? undefined,
-        reason,
+        title: copy.title,
+        description: copy.description,
+        technicalDetails: copy.technicalDetails,
         state: part.state,
         isRunning,
         isError,
@@ -83,8 +81,9 @@ export function buildTimeline(parts: ToolCallPart[]): ActivityTimelineData {
       item = {
         key: part.toolCallId || `tc-${i}`,
         toolName: "unknown",
-        category: "other",
-        reason: "Completed",
+        category: "planning",
+        title: "Executing tasks",
+        description: "Working",
         state: part.state,
         isRunning: false,
         isError: true,
@@ -102,7 +101,6 @@ export function buildTimeline(parts: ToolCallPart[]): ActivityTimelineData {
     grouped.set(item.category, list);
   }
 
-  // Build groups in canonical order.
   const groups: ActivityGroupData[] = [];
   let totalActions = 0;
   let anyRunning = false;

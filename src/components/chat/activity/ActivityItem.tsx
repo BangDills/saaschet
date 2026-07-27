@@ -2,17 +2,15 @@
 
 import * as React from "react";
 import { ChevronDown, ChevronRight, Loader2, XCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { TOOL_META, FALLBACK_META, DetailSection, ReadFileTruncationNotice } from "../tool-call";
 import { ExpandableSection } from "./ExpandableSection";
 import type { ActivityItem as ActivityItemType } from "./activity-types";
 
-/**
- * One activity row inside a group.
- * Collapsed: icon + reason + status indicator.
- * Expanded: delegates to existing ToolCall detail drawer (DetailSection +
- * ReadFileTruncationNotice) — no JSON shown in collapsed state.
- */
+function getMetaIcon(toolName: string): React.ComponentType<{ className?: string }> {
+  const meta = TOOL_META[toolName] ?? FALLBACK_META;
+  return meta.Icon;
+}
+
 export function ActivityItem({
   item,
   onActionPrompt,
@@ -21,8 +19,8 @@ export function ActivityItem({
   onActionPrompt?: (text: string) => void;
 }) {
   const [open, setOpen] = React.useState(false);
-  const meta = TOOL_META[item.toolName] ?? FALLBACK_META;
-  const Icon = meta.Icon;
+  const [detailOpen, setDetailOpen] = React.useState(false);
+  const Icon = getMetaIcon(item.toolName);
 
   return (
     <div className="text-sm">
@@ -42,15 +40,14 @@ export function ActivityItem({
           )}
         </span>
 
-        <span className="min-w-0 flex-1 truncate text-xs text-foreground">
-          {item.reason}
+        <span className="min-w-0 flex-1 text-xs text-foreground">
+          <span className="block truncate font-medium">{item.title}</span>
+          {open && item.description && (
+            <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+              {item.description}
+            </span>
+          )}
         </span>
-
-        {item.isDone && !item.isError && item.outputSummary && (
-          <span className="hidden max-w-28 shrink-0 truncate text-[10px] text-muted-foreground sm:inline">
-            {item.outputSummary}
-          </span>
-        )}
 
         {item.lineStats && (
           <span className="shrink-0 font-mono text-[10px] font-medium">
@@ -69,14 +66,47 @@ export function ActivityItem({
 
       <ExpandableSection open={open}>
         <div className="ml-6 space-y-2 border-l border-border py-1.5 pl-3 text-xs">
-          {item.input !== undefined && (
-            <DetailSection label="Input" value={item.input} />
+          {/* Description (always visible on expand) */}
+          {item.description && (
+            <p className="text-[11px] text-muted-foreground">{item.description}</p>
           )}
-          {item.isError && item.errorText && (
-            <DetailSection label="Error" value={item.errorText} isError />
-          )}
-          {item.isDone && item.output !== undefined && (
-            <DetailSection label="Output" value={item.output} />
+
+          {/* Technical Details — only shown on explicit click */}
+          {(item.technicalDetails || item.inputPreview || item.errorText) && (
+            <>
+              <button
+                type="button"
+                onClick={() => setDetailOpen((o) => !o)}
+                className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+              >
+                {detailOpen ? (
+                  <ChevronDown className="size-3" aria-hidden="true" />
+                ) : (
+                  <ChevronRight className="size-3" aria-hidden="true" />
+                )}
+                Technical Details
+              </button>
+              <ExpandableSection open={detailOpen}>
+                <div className="space-y-2">
+                  {item.technicalDetails && (
+                    <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-2 font-mono text-[11px] text-foreground">
+                      {item.technicalDetails}
+                    </pre>
+                  )}
+                  {item.errorText && (
+                    <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-destructive/10 p-2 font-mono text-[11px] text-destructive">
+                      {item.errorText}
+                    </pre>
+                  )}
+                  {item.input !== undefined && (
+                    <DetailSection label="Input" value={item.input} />
+                  )}
+                  {item.isDone && item.output !== undefined && (
+                    <DetailSection label="Output" value={item.output} />
+                  )}
+                </div>
+              </ExpandableSection>
+            </>
           )}
         </div>
       </ExpandableSection>

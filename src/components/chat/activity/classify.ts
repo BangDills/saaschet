@@ -1,50 +1,89 @@
 import type { ActivityCategory, FileOp } from "./activity-types";
 
-/** Map tool name → activity category for grouping. */
-export function classifyToolName(toolName: string): ActivityCategory {
+/** Map tool name → intention category, with optional input context for commands. */
+export function classifyToolName(
+  toolName: string,
+  input?: unknown,
+): ActivityCategory {
   switch (toolName) {
     case "list_files":
     case "sandbox_list_files":
-      return "explore";
+      return "exploring";
     case "read_file":
     case "sandbox_read_file":
     case "context7_get_docs":
-      return "read";
+      return "analyzing";
     case "serena_call_tool":
-      return "read"; // semantic code tool — read-ish
+      return "analyzing";
     case "search_code":
     case "web_search":
     case "context7_search_library":
     case "serena_list_tools":
-      return "search";
+      return "searching";
     case "run_command":
-      return "commands";
+      return classifyCommand(input);
     case "execute_code":
-      return "code";
+      return "executing";
     case "write_file":
     case "write_files":
     case "sandbox_write_file":
     case "sandbox_write_files":
-      return "created"; // optimistic; classifyFileOp may flip to "updated"
+      return "creating"; // optimistic; classifyFileOp may flip to "updating"
     case "edit_file":
-      return "updated";
+      return "updating";
     case "delete_file":
-      return "deleted";
+      return "deleting";
     case "create_pull_request":
+      return "applying";
     case "report_state":
-      return "other";
+      return "planning";
     default:
-      return "other";
+      return "planning";
   }
 }
 
 /**
+ * Classify a shell command as validating (test/lint/build/check) or executing.
+ */
+function classifyCommand(input: unknown): ActivityCategory {
+  const cmd = extractCommand(input);
+  if (!cmd) return "executing";
+  const lower = cmd.toLowerCase();
+  if (
+    /^(npm test|npm run test|pnpm test|yarn test)/.test(lower) ||
+    /^vitest\b/.test(lower) ||
+    /^jest\b/.test(lower) ||
+    /\s--(test|check|lint|format)/.test(lower) ||
+    /^(npm run lint|npm run build|pnpm run lint|pnpm run build)/.test(lower)
+  ) {
+    return "validating";
+  }
+  // git status/checkout/switch/log are informative, not task execution
+  if (/^git (status|log|diff|show)/.test(lower)) {
+    return "analyzing";
+  }
+  if (cmd.length < 50) {
+    // Short informational commands
+    if (/^(cat|less|head|tail|wc|du|df|which|type)/.test(lower)) {
+      return "analyzing";
+    }
+    if (/^(npm ls|npm list|pnpm ls|pip list)/.test(lower)) {
+      return "analyzing";
+    }
+  }
+  return "executing";
+}
+
+function extractCommand(input: unknown): string | null {
+  if (!input || typeof input !== "object") return null;
+  const obj = input as Record<string, unknown>;
+  if (typeof obj.command === "string" && obj.command) return obj.command;
+  if (typeof obj.script === "string" && obj.script) return obj.script;
+  return null;
+}
+
+/**
  * Classify a file operation as created / updated / deleted.
- * - delete_file → "deleted"
- * - edit_file → "updated" (edit implies file exists)
- * - write_file/write_files/sandbox_* → "created" if first write to path with
- *   lines_deleted === 0, else "updated". Uses a seen-paths Set threaded by
- *   the caller to track duplicates within a turn.
  */
 export function classifyFileOp(
   toolName: string,
@@ -63,7 +102,6 @@ export function classifyFileOp(
   ) {
     if (!filePath) return "created";
     if (seenPaths.has(filePath)) return "updated";
-    // Check output for lines_deleted > 0 (indicates overwrite of existing).
     if (output && typeof output === "object") {
       const o = output as Record<string, unknown>;
       const linesDeleted = typeof o.lines_deleted === "number" ? o.lines_deleted : 0;
@@ -72,32 +110,33 @@ export function classifyFileOp(
     seenPaths.add(filePath);
     return "created";
   }
-
   return undefined;
 }
 
-/** Human-readable group label per category. */
+/** Human-readable group label per intention category. */
 export const CATEGORY_LABELS: Record<ActivityCategory, string> = {
-  explore: "Explore project",
-  read: "Read files",
-  search: "Search codebase",
-  commands: "Run commands",
-  code: "Executed code",
-  created: "Created files",
-  updated: "Updated files",
-  deleted: "Deleted files",
-  other: "Other actions",
+  exploring: "Exploring project",
+  analyzing: "Analyzing files",
+  searching: "Searching codebase",
+  planning: "Planning changes",
+  updating: "Updating files",
+  creating: "Creating files",
+  deleting: "Deleting files",
+  executing: "Executing tasks",
+  validating: "Running validation",
+  applying: "Applying changes",
 };
 
 /** Canonical ordering for groups in the timeline. */
 export const CATEGORY_ORDER: ActivityCategory[] = [
-  "explore",
-  "read",
-  "search",
-  "commands",
-  "code",
-  "created",
-  "updated",
-  "deleted",
-  "other",
+  "exploring",
+  "analyzing",
+  "searching",
+  "planning",
+  "executing",
+  "validating",
+  "creating",
+  "updating",
+  "deleting",
+  "applying",
 ];
