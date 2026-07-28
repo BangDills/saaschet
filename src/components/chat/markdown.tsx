@@ -236,18 +236,26 @@ const MD_COMPONENTS: Components = {
       {children}
     </blockquote>
   ),
+  // w-max + min-w-full: columns take their natural width and the wrapper
+  // scrolls horizontally — on phones this reads like a mini spreadsheet you
+  // pan, instead of three columns crushed into 390px. max-w on cells keeps a
+  // long prose cell from stretching one column absurdly wide.
   table: ({ children }: { children?: React.ReactNode }) => (
     <div className="my-3 overflow-x-auto">
-      <table className="w-full border-collapse text-sm">{children}</table>
+      <table className="w-max min-w-full border-collapse text-[13px] sm:text-sm">
+        {children}
+      </table>
     </div>
   ),
   th: ({ children }: { children?: React.ReactNode }) => (
-    <th className="border border-border bg-muted px-3 py-1.5 text-left font-semibold">
+    <th className="whitespace-nowrap border border-border bg-muted px-3 py-1.5 text-left font-semibold">
       {children}
     </th>
   ),
   td: ({ children }: { children?: React.ReactNode }) => (
-    <td className="border border-border px-3 py-1.5">{children}</td>
+    <td className="max-w-[18rem] border border-border px-3 py-1.5 align-top sm:max-w-[24rem]">
+      {children}
+    </td>
   ),
   code: ({ className, children, ...props }) => {
     const match = /language-(\w+)/.exec(className || "");

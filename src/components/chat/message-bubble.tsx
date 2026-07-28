@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Markdown } from "./markdown";
+import { DocumentCard, isPrdDocument } from "./document-card";
 import { ReasoningBlock } from "./reasoning-block";
 import { type ToolCallPart } from "./tool-call";
 import { ActivityTimeline } from "./activity/ActivityTimeline";
@@ -111,9 +112,20 @@ function AssistantParts({
                   inProgress={!segment.closed}
                 />
               ) : segment.content ? (
-                <Markdown key={`m-${index}-${segmentIndex}`} streaming={streaming}>
-                  {segment.content}
-                </Markdown>
+                // A generated PRD renders as a compact document card (the
+                // artifact pattern) instead of a wall of markdown — the full
+                // text stays in the message and the model context untouched.
+                isPrdDocument(segment.content) ? (
+                  <DocumentCard
+                    key={`d-${index}-${segmentIndex}`}
+                    content={segment.content}
+                    streaming={streaming}
+                  />
+                ) : (
+                  <Markdown key={`m-${index}-${segmentIndex}`} streaming={streaming}>
+                    {segment.content}
+                  </Markdown>
+                )
               ) : null,
             )}
           </React.Fragment>
