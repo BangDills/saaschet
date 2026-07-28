@@ -1,18 +1,22 @@
 -- ============================================================================
--- saaschet — fix spend_credits ON CONFLICT ambiguity (follow-up to 0012)
+-- saaschet — atomic credit spend (fixes recordSpend race condition)
 -- ============================================================================
--- 0012 qualified user_id in the SELECT FOR UPDATE and UPDATE, but missed the
--- backfill INSERT's ON CONFLICT target. With a RETURN column also named
--- user_id, `on conflict (user_id)` errored 42702 at line 17 — so spend still
--- failed even after 0012. Drop and recreate with the conflict target
--- qualified as an index-column reference.
+-- Run this once after 0002_credits.sql + 0005_tiers.sql.
+--
+-- Why: the old JS-side recordSpend did read-modify-write (read used_today,
+-- add cost, write back) with no row lock. Two concurrent turns could both
+-- read the same stale value and each write used_today + cost, losing one
+-- update — letting a user slip an extra turn past the daily limit.
+--
+-- This RPC does the gate check AND the counter bump in a single UPDATE
+-- ... WHERE used_today + cost <= daily_limit, so Postgres' row lock makes
+-- the increment atomic. If the WHERE matches zero rows, the turn would
+-- exceed the limit and the function returns over_limit = true so the
+-- caller can reject. The usage-log row is inserted inside the same
+-- transaction so the ledger and the counter can never drift apart.
 -- ============================================================================
 
-drop function if exists public.spend_credits(
-  uuid, text, integer, text, uuid, integer
-);
-
-create function public.spend_credits(
+create or replace function public.spend_credits(
   p_user_id        uuid,
   p_kind           text,
   p_cost           integer,
@@ -49,16 +53,15 @@ begin
   end if;
 
   -- Backfill a missing row (older users predating migration 2).
-  -- Use a labeled conflict target so user_id is unambiguous vs the RETURN col.
   insert into public.user_credits (user_id)
   values (p_user_id)
-  on conflict on constraint user_credits_pkey do nothing;
+  on conflict (user_id) do nothing;
 
   -- Lock the row for the duration of this transaction. Concurrent calls
   -- block here until the first commits; each then re-reads the fresh value.
   select * into v_row
     from public.user_credits
-   where public.user_credits.user_id = p_user_id
+   where user_id = p_user_id
    for update;
 
   -- Lazy day rollover: if the stored window is stale, reset before charging.
@@ -78,7 +81,7 @@ begin
            total_used     = v_next_total,
            day_started_on = v_today,
            updated_at     = now()
-     where public.user_credits.user_id = p_user_id;
+     where user_id = p_user_id;
     v_updated := true;
 
     -- Append-only ledger row, same transaction.
@@ -106,3 +109,10 @@ begin
       not v_updated as over_limit;
 end;
 $$;
+
+-- Service role calls this directly (bypasses RLS). Authenticated callers
+-- are not expected to call it, but grant execute for completeness so a
+-- security-definer path stays callable from the server client.
+grant execute on function public.spend_credits(
+  uuid, text, integer, text, uuid, integer
+) to authenticated, anon;

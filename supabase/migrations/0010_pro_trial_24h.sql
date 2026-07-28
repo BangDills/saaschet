@@ -1,7 +1,7 @@
 -- ============================================================================
 -- saaschet — Pro trial 24h expiry + admin activation
 -- ============================================================================
--- Run this once after 0003_tiers.sql.
+-- Run this once after 0005_tiers.sql.
 --
 -- Promo: Pro is a 24-hour trial, not a permanent tier. Activation is done by
 -- an admin (after the user pays via WhatsApp). This migration:

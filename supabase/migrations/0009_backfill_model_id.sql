@@ -1,7 +1,7 @@
 -- ============================================================================
 -- saaschet — backfill conversation model_id after Fireworks provider switch
 -- ============================================================================
--- Run this once after the model rework (0006_atomic_credits.sql or later).
+-- Run this once after the model rework (0008_atomic_credits.sql or later).
 --
 -- Why: conversations created before the switch store model_id from removed
 -- providers (Alibaba: glm-5.2, qwen3.7-max, qwen3.7-plus, kimi-k2.7-code;

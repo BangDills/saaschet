@@ -1,16 +1,16 @@
 -- ============================================================================
 -- saaschet — restore the ownership gate on match_memories (384-dim)
 -- ============================================================================
--- Run this once, after 20260623_resize_vector_384.sql.
+-- Run this once, after 0020_resize_vector_384.sql.
 --
 -- REGRESSION BEING FIXED
--- 0010_lock_match_memories.sql added an ownership check to match_memories,
+-- 0016_lock_match_memories.sql added an ownership check to match_memories,
 -- because the function is SECURITY DEFINER (bypasses RLS) and filters on
 -- `p_user_id` — a parameter supplied by the CALLER. Without the check, any
 -- authenticated user could pass someone else's uuid and read their stored
 -- memories (extracted personal facts, preferences, project details).
 --
--- 20260623_resize_vector_384.sql later dropped the vector(1024) function and
+-- 0020_resize_vector_384.sql later dropped the vector(1024) function and
 -- recreated it at vector(384) to match the new embedding model — but rebuilt
 -- it from the ORIGINAL body, without 0010's ownership check, and re-granted
 -- EXECUTE to `authenticated`. The fix was silently undone: the live 384-dim

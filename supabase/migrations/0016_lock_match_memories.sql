@@ -1,7 +1,7 @@
 -- ============================================================================
 -- saaschet — gate match_memories RPC on the caller's own user_id
 -- ============================================================================
--- Run this once after 20260621_add_vector_memories.sql.
+-- Run this once after 0015_add_vector_memories.sql.
 --
 -- Why: match_memories is SECURITY DEFINER (bypasses RLS) and filters
 -- `WHERE m.user_id = p_user_id`, but never checks that p_user_id is the

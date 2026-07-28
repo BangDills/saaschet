@@ -1,16 +1,11 @@
 -- ============================================================================
--- saaschet — fix ambiguous user_id in spend_credits RPC
+-- saaschet — fix spend_credits ON CONFLICT ambiguity (follow-up to 0012)
 -- ============================================================================
--- Run this once. The spend_credits function (0006) used bare `user_id` in
--- WHERE clauses of the SELECT FOR UPDATE and the UPDATE. With the RETURN
--- columns named `user_id`, Postgres couldn't tell whether `user_id` referred
--- to the output column or the table column → error 42702 "column reference
--- is ambiguous", so every spend call failed and credits were never charged.
---
--- Recreate the function with fully-qualified `public.user_credits.user_id`.
--- Drop first because the body changes; signature/return type are unchanged.
--- Do NOT re-grant to authenticated/anon — 0010 revoked client access; the
--- function is only called server-side via the service-role admin client.
+-- 0012 qualified user_id in the SELECT FOR UPDATE and UPDATE, but missed the
+-- backfill INSERT's ON CONFLICT target. With a RETURN column also named
+-- user_id, `on conflict (user_id)` errored 42702 at line 17 — so spend still
+-- failed even after 0017. Drop and recreate with the conflict target
+-- qualified as an index-column reference.
 -- ============================================================================
 
 drop function if exists public.spend_credits(
@@ -54,13 +49,13 @@ begin
   end if;
 
   -- Backfill a missing row (older users predating migration 2).
+  -- Use a labeled conflict target so user_id is unambiguous vs the RETURN col.
   insert into public.user_credits (user_id)
   values (p_user_id)
-  on conflict (user_id) do nothing;
+  on conflict on constraint user_credits_pkey do nothing;
 
   -- Lock the row for the duration of this transaction. Concurrent calls
   -- block here until the first commits; each then re-reads the fresh value.
-  -- Qualify user_id to avoid ambiguity with the RETURN column of the same name.
   select * into v_row
     from public.user_credits
    where public.user_credits.user_id = p_user_id

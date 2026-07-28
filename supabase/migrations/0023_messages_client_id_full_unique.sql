@@ -1,7 +1,7 @@
 -- ============================================================================
 -- saaschet — full unique constraint for ON CONFLICT idempotent upsert
 -- ============================================================================
--- Run this once after 0015. 0015 created a PARTIAL unique index
+-- Run this once after 0022. 0022 created a PARTIAL unique index
 -- (where client_message_id is not null), but Postgres ON CONFLICT can't
 -- target a partial index unless the statement carries the same predicate —
 -- and Supabase's onConflict option doesn't support predicates. The upsert

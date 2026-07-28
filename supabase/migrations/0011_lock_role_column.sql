@@ -1,7 +1,7 @@
 -- ============================================================================
 -- saaschet — lock profiles.role against self-promotion
 -- ============================================================================
--- Run this once after 0004_roles.sql.
+-- Run this once after 0006_roles.sql.
 --
 -- Why: the `profiles_update_own` RLS policy (migration 0001) uses
 -- `using (auth.uid() = id)` with no column restriction, so an authenticated
