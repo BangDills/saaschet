@@ -16,6 +16,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { CeliuzLogo } from "@/components/celiuz-logo";
 import { Reveal } from "@/components/landing/reveal";
+import { ModelIcon, type ModelIconName } from "@/components/landing/model-icon";
 
 export const dynamic = "force-dynamic";
 
@@ -65,46 +66,44 @@ const faqs = [
   },
 ];
 
-const LOBE = "https://unpkg.com/@lobehub/icons-static-svg@latest/icons";
-
 const MODELS = [
   {
     name: "GLM 5.2",
-    logo: `${LOBE}/chatglm-color.svg`,
+    icon: "chatglm",
     tagline: "Model andalan untuk Agent Mode. Penalaran kuat, andal memanggil tool, dan jago ngoding.",
     badge: "Agen · Default",
   },
   {
     name: "Kimi 2.7 Code",
-    logo: `${LOBE}/kimi-color.svg`,
+    icon: "kimi",
     tagline: "Spesialis kode. Cepat memahami codebase dan menulis kode yang bersih.",
     badge: "Strong Coder",
   },
   {
     name: "DeepSeek V4 Pro",
-    logo: `${LOBE}/deepseek-color.svg`,
+    icon: "deepseek",
     tagline: "Model reasoning kelas berat. Cocok untuk tugas kompleks dan multi-langkah.",
     badge: "Reasoning Pro",
   },
   {
     name: "DeepSeek V4 Flash",
-    logo: `${LOBE}/deepseek-color.svg`,
+    icon: "deepseek",
     tagline: "Varian cepat dan ringan. Respons instan untuk chat sehari-hari.",
     badge: "Fast",
   },
   {
     name: "Qwen 3.7 Plus",
-    logo: `${LOBE}/qwen-color.svg`,
+    icon: "qwen",
     tagline: "Seimbang antara kecepatan dan kualitas. Andal untuk tugas umum.",
     badge: "Speed & Quality",
   },
   {
     name: "MiniMax M3",
-    logo: `${LOBE}/minimax-color.svg`,
+    icon: "minimax",
     tagline: "Model serbaguna dengan hasil stabil di berbagai tipe pertanyaan.",
     badge: "Balanced",
   },
-];
+] satisfies Array<{ name: string; icon: ModelIconName; tagline: string; badge: string }>;
 
 function Brand() {
   return (
@@ -175,7 +174,7 @@ function ProductPreview() {
                 <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em]">Respons agen</span>
               </div>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                Aku akan menyusun ini jadi tiga fase fokus dan menghubungkan tiap milestone ke hasil pelanggan yang jelas.
+                Saya akan menyusun ini jadi tiga fase fokus dan menghubungkan tiap milestone ke hasil pelanggan yang jelas.
               </p>
               <div className="mt-4 grid grid-cols-3 border border-border text-center">
                 {["Posisi", "Bangun", "Luncur"].map((step, index) => (
@@ -229,12 +228,13 @@ export default async function LandingPage() {
           <Brand />
           <nav className="hidden items-center gap-7 text-xs font-bold uppercase tracking-[0.12em] md:flex" aria-label="Primary navigation">
             <a href="#features" className="transition-opacity hover:opacity-50">Fitur</a>
+            <a href="#models" className="transition-opacity hover:opacity-50">Model</a>
             <a href="#pricing" className="transition-opacity hover:opacity-50">Harga</a>
             <a href="#faqs" className="transition-opacity hover:opacity-50">FAQ</a>
           </nav>
           <div className="flex items-center gap-1 sm:gap-2">
-            {!user && <Link href={`${APP_URL}/login`} className="hidden px-3 py-2 text-xs font-bold uppercase tracking-wider sm:inline-flex">Masuk</Link>}
-            <Link href={user ? appLink : "/signup"} className="press group/nav inline-flex items-center gap-2 bg-foreground px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-background hover:opacity-85">
+            {!user && <Link href={`${APP_URL}/login`} className="inline-flex px-2 py-2 text-xs font-bold uppercase tracking-wider sm:px-3">Masuk</Link>}
+            <Link href={user ? appLink : `${APP_URL}/signup`} className="press group/nav inline-flex items-center gap-2 bg-foreground px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-background hover:opacity-85">
               {user ? "Buka app" : "Mulai gratis"}<ArrowRight className="size-3.5 transition-transform duration-300 ease-out group-hover/nav:translate-x-0.5" />
             </Link>
           </div>
@@ -259,7 +259,7 @@ export default async function LandingPage() {
                 Chat, ngoding, dan shipping dengan rangkaian tool AI yang fokus, dibuat untuk orang yang membangun sesuatu.
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row lg:flex-col">
-                <Link href={user ? appLink : "/signup"} className="press group/cta inline-flex items-center justify-between bg-foreground px-5 py-3.5 text-sm font-bold text-background hover:opacity-85">
+                <Link href={user ? appLink : `${APP_URL}/signup`} className="press group/cta inline-flex items-center justify-between bg-foreground px-5 py-3.5 text-sm font-bold text-background hover:opacity-85">
                   Mulai bangun gratis <ArrowRight className="size-4 transition-transform duration-300 ease-out group-hover/cta:translate-x-1" />
                 </Link>
                 <a href="#features" className="press inline-flex items-center justify-between border border-foreground bg-background px-5 py-3.5 text-sm font-bold hover:bg-foreground hover:text-background">
@@ -274,10 +274,10 @@ export default async function LandingPage() {
 
       <section className="border-b border-foreground bg-foreground text-background" aria-label="Platform capabilities">
         <div className="mx-auto grid max-w-7xl grid-cols-2 divide-x divide-background/25 px-4 sm:grid-cols-4 sm:px-6 lg:px-8">
-          {[['03', 'Tool AI'], ['01', 'Saldo kredit'], ['24/7', 'Selalu tersedia'], ['24 jam', 'Trial Pro']].map(([value, label]) => (
+          {[['06', 'Model AI'], ['50', 'Kredit gratis / hari'], ['24/7', 'Selalu tersedia'], ['24 jam', 'Trial Pro']].map(([value, label]) => (
             <div key={label} className="px-3 py-7 text-center sm:px-6">
               <p className="font-mono text-xl font-bold sm:text-2xl">{value}</p>
-              <p className="mt-1 text-[9px] uppercase tracking-[0.15em] text-background/60 sm:text-[10px]">{label}</p>
+              <p className="mt-1 text-[10px] uppercase tracking-[0.15em] text-background/70 sm:text-[11px]">{label}</p>
             </div>
           ))}
         </div>
@@ -331,8 +331,9 @@ export default async function LandingPage() {
             {MODELS.map((m, index) => (
               <Reveal key={m.name} delay={index * 60} className="flex h-full flex-col gap-4 bg-background p-6 sm:p-7">
                 <div className="flex items-center gap-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={m.logo} alt="" className="size-8 shrink-0 object-contain" />
+                  <span className="flex size-8 shrink-0 items-center justify-center">
+                    <ModelIcon name={m.icon} size={32} />
+                  </span>
                   <h3 className="text-lg font-extrabold tracking-[-0.03em]">{m.name}</h3>
                 </div>
                 <p className="text-sm leading-relaxed text-muted-foreground">{m.tagline}</p>
@@ -347,7 +348,7 @@ export default async function LandingPage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid gap-8 lg:grid-cols-[0.75fr_1.25fr]">
             <Reveal>
-              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">[ 02 — Harga ]</p>
+              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">[ 03 — Harga ]</p>
               <h2 className="mt-6 text-balance text-4xl font-extrabold leading-none tracking-[-0.05em] sm:text-6xl">Bayar untuk hasil, bukan kursi kosong.</h2>
               <p className="mt-5 max-w-md leading-relaxed text-muted-foreground">Satu saldo kredit untuk chat, PRD, dan alur kerja agen. Mulai gratis dan upgrade saat pekerjaan Anda berkembang.</p>
             </Reveal>
@@ -369,8 +370,8 @@ export default async function LandingPage() {
                     <p className="font-mono text-[10px] uppercase tracking-[0.18em]">Pro</p>
                     <span className="border border-background/40 px-2 py-1 font-mono text-[9px] uppercase tracking-wider">Paling populer</span>
                   </div>
-                  <p className="mt-5 text-5xl font-extrabold tracking-[-0.06em]">Rp10.000<span className="text-base tracking-normal text-background/50"> / 24 jam</span></p>
-                  <p className="mt-2 text-sm text-background/55">Untuk Anda yang butuh kerja extra.</p>
+                  <p className="mt-5 text-5xl font-extrabold tracking-[-0.06em]">Rp10.000<span className="text-base tracking-normal text-background/60"> / 24 jam</span></p>
+                  <p className="mt-2 text-sm text-background/65">Untuk Anda yang butuh kerja extra.</p>
                   <ul className="mt-8 flex flex-col gap-4 text-sm">
                     {["Akses model premium", "Kolam kredit harian besar", "Agen penuh (baca + tulis + PR)", "Prioritas pemrosesan tugas"].map((item) => <li key={item} className="flex items-start gap-3"><Check className="mt-0.5 size-4 shrink-0" />{item}</li>)}
                   </ul>
@@ -385,7 +386,7 @@ export default async function LandingPage() {
       <section id="faqs" className="border-b border-foreground py-20 sm:py-28">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-[0.65fr_1.35fr] lg:px-8">
           <Reveal>
-            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">[ 03 — FAQ ]</p>
+            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">[ 04 — FAQ ]</p>
             <h2 className="mt-6 text-4xl font-extrabold tracking-[-0.05em] sm:text-5xl">Pertanyaan bagus, jawaban jelas.</h2>
           </Reveal>
           <Reveal delay={100} className="border-t border-foreground">
@@ -406,11 +407,11 @@ export default async function LandingPage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid items-end gap-10 lg:grid-cols-[1fr_auto]">
             <Reveal>
-              <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-background/55"><Terminal className="size-4" /> Siap kapan pun Anda</div>
+              <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-background/70"><Terminal className="size-4" /> Siap kapan pun Anda</div>
               <h2 className="mt-6 max-w-4xl text-balance text-5xl font-extrabold leading-[0.94] tracking-[-0.06em] sm:text-7xl">Buat hal berikutnya, lebih cepat.</h2>
             </Reveal>
             <Reveal delay={140}>
-              <Link href={user ? appLink : "/signup"} className="press group/final inline-flex min-w-56 items-center justify-between bg-background px-6 py-4 font-bold text-foreground hover:opacity-85">Mulai bangun <ArrowRight className="size-5 transition-transform duration-300 ease-out group-hover/final:translate-x-1" /></Link>
+              <Link href={user ? appLink : `${APP_URL}/signup`} className="press group/final inline-flex min-w-56 items-center justify-between bg-background px-6 py-4 font-bold text-foreground hover:opacity-85">Mulai bangun <ArrowRight className="size-5 transition-transform duration-300 ease-out group-hover/final:translate-x-1" /></Link>
             </Reveal>
           </div>
         </div>
@@ -419,7 +420,7 @@ export default async function LandingPage() {
       <footer className="border-t border-background/20 bg-foreground text-background">
         <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
           <Brand />
-          <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-background/45">© 2026 Celiuz AI. Buat yang suka bikin sesuatu.</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-background/70">© 2026 Celiuz AI. Buat yang suka bikin sesuatu.</p>
         </div>
       </footer>
     </main>
