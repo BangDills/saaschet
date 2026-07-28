@@ -1616,7 +1616,14 @@ ${recoveryInstruction}`;
             });
           }
         } catch (stateErr) {
-          console.warn("[chat] agent state derive/emit failed:", stateErr);
+          // A user-stopped run rejects result.steps with AbortError — that's
+          // the expected outcome of pressing Stop, not a failure worth a
+          // stack trace in the logs.
+          if ((stateErr as Error)?.name === "AbortError") {
+            console.log("[agent-state] skipped — run was stopped");
+          } else {
+            console.warn("[chat] agent state derive/emit failed:", stateErr);
+          }
         }
         return "completed";
       }

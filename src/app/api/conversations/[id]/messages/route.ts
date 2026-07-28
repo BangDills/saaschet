@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -82,11 +83,17 @@ export async function POST(
     hasMetadata: metadata != null,
   });
 
-  // Upsert on (conversation_id, client_message_id) via the partial unique
-  // index. DO UPDATE so a later retry with more complete parts still wins.
-  // Supabase's upsert maps to INSERT ... ON CONFLICT; we tell it the conflict
-  // target column explicitly.
-  const { data, error } = await supabase
+  // Upsert on (conversation_id, client_message_id) via the unique constraint.
+  // DO UPDATE so a later retry with more complete parts still wins.
+  //
+  // Uses the ADMIN client deliberately: since detached runs, the SERVER also
+  // persists the assistant turn (service role). When the server wins that
+  // race, this client-side save hits ON CONFLICT DO UPDATE on an existing
+  // row — and the messages table has no UPDATE policy for users, so the RLS
+  // client fails with 42501. Ownership of the conversation was verified
+  // above, which is exactly the check the RLS policy would perform.
+  const admin = createAdminClient();
+  const { data, error } = await admin
     .from("messages")
     .upsert(
       {
