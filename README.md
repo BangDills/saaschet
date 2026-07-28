@@ -14,7 +14,8 @@ Platform AI coding agent dengan integrasi GitHub, live sandbox execution, multi-
 - **Context7 docs** — lookup dokumentasi library/framework terkini di chat dan Agent Mode
 - **Web search** — Tavily-powered in-chat web search toggle
 - **Memory extraction** — vector memory (Jina embeddings) + structured profile memory (Fireworks LLM)
-- **Streaming** — real-time tool call streaming dengan context trimming, abort on disconnect
+- **Streaming** — real-time tool call streaming dengan context trimming
+- **Background agent + resume** — agent run terlepas dari HTTP request: tutup tab atau pindah halaman tidak membunuh task 10–20 tool call. Server menyimpan sendiri hasilnya, dan saat kembali UI otomatis nyambung lagi ke run yang masih jalan (replay + live)
 
 ### Projects
 - **Project folders** — kelompokkan conversation ke project dengan nama, warna, deskripsi
@@ -171,8 +172,15 @@ Docker-based deploy dengan `Dockerfile` (multi-stage, `output: 'standalone'`). P
 3. Set env vars via Coolify UI
 4. Deploy → auto SSL Let's Encrypt
 
+> **Jalankan satu replica.** Background agent run disimpan di memori proses
+> (`src/lib/chat/run-registry.ts`), jadi resume hanya bekerja bila request
+> kembali ke proses yang sama. Dengan beberapa replica tanpa sticky session,
+> agent tetap jalan dan hasilnya tetap tersimpan ke database — yang hilang
+> cuma reattach ke stream live (UI jatuh ke polling + reload). Restart
+> container membatalkan run yang sedang berjalan.
+
 ### Vercel (legacy/staging)
-Push ke GitHub → connect Vercel → add env vars → deploy. Note: 5-menit function timeout limit untuk agent.
+Push ke GitHub → connect Vercel → add env vars → deploy. Note: 5-menit function timeout limit untuk agent. Background agent run **tidak** bertahan di sini — eksekusi berhenti saat response selesai, jadi fitur tutup-tab hanya berlaku di deploy persistent (Coolify/Docker).
 
 ### cPanel (legacy)
 See **[DEPLOY_CPANEL.md](./DEPLOY_CPANEL.md)** for the step-by-step guide.

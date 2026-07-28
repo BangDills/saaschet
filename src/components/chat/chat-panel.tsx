@@ -259,6 +259,11 @@ export function ChatPanel({
       fireCreditsRefresh();
       onAssistantFinish?.();
     },
+    // Agent turns run detached on the server, so closing the tab no longer
+    // stops them. On mount we probe GET /api/chat/<id>/stream: if a turn for
+    // this conversation is still in flight we reattach and the timeline picks
+    // up where it left off (204 = nothing running, the common case).
+    resume: true,
     // In agent mode the user wants to SEE tool calls happen in real time.
     // In chat mode the streaming text is hidden behind a pill so we can
     // throttle aggressively. Pick the rate at construction time.
@@ -318,6 +323,12 @@ export function ChatPanel({
   }, [streamDone, messages, conversationId]);
 
   const isStreaming = status === "submitted" || status === "streaming";
+  // Mirrored into a ref so the status poller (below) can tell whether a live
+  // stream is attached without re-creating its callbacks on every tick.
+  const isStreamingRef = React.useRef(false);
+  React.useEffect(() => {
+    isStreamingRef.current = isStreaming;
+  }, [isStreaming]);
   const feedbackUrl = `/api/conversations/${conversationId}/feedback`;
   const { data: feedbackData, mutate: mutateFeedback } = useSWR<FeedbackResponse>(
     messages.some((message) => message.role === "assistant") ? feedbackUrl : null,
@@ -425,6 +436,11 @@ export function ChatPanel({
       pollIntervalRef.current = null;
     }
     setIsServerProcessing(false);
+
+    // If we managed to reattach to the live run, that stream is the better
+    // source — reloading from the database here would replace the streaming
+    // message mid-flight.
+    if (isStreamingRef.current) return;
 
     // Always reload messages — even if the server crashed, it may have
     // saved partial output (e.g. some tool calls completed).
@@ -756,9 +772,19 @@ export function ChatPanel({
     void regenerate();
   }, [clearError, isStreaming, regenerate]);
 
+  // Stopping has two halves now: detach this client (stop) and kill the
+  // detached server run (DELETE). Without the second, the agent would keep
+  // working — and keep spending credits — after the user pressed stop.
+  const handleStop = React.useCallback(() => {
+    stop();
+    void fetch(`/api/chat/${conversationId}/stream`, { method: "DELETE" }).catch(
+      (err) => console.error("[chat] failed to stop server run:", err),
+    );
+  }, [stop, conversationId]);
+
   const inputProps = {
     onSubmit: handleSubmit,
-    onStop: stop,
+    onStop: handleStop,
     isStreaming,
     disabled: isStreaming,
     models,

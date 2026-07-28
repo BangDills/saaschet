@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "start:cpanel": "NODE_ENV=production node server.js",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "tsx src/lib/agent/action-registry.test.ts && tsx src/components/chat/activity/build-timeline.selfcheck.ts && tsx src/lib/chat/run-registry.selfcheck.ts && tsx src/lib/chat/background-run.selfcheck.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.67",
@@ -43,6 +44,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
+    "tsx": "^4.23.1",
     "typescript": "^5"
   }
 }

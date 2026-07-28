@@ -25,6 +25,9 @@ import {
 import { searchWeb, formatSearchResults } from "@/lib/chat/web-search";
 import { deriveTitle } from "@/lib/chat/storage";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createRun, subscribeToRun, endRun, type AgentRun } from "@/lib/chat/run-registry";
+import { driveRunInBackground } from "@/lib/chat/background-run";
 import { fetchRepoBundle, parseRepoSlug } from "@/lib/github/client";
 import { formatRepoForContext } from "@/lib/github/format";
 import {
@@ -94,6 +97,25 @@ const FATAL_ERROR_PATTERNS = [
   "missing.*identity",
   "could not authenticate",
 ];
+
+/**
+ * Schedule non-critical follow-up work (memory extraction) without blocking.
+ *
+ * `after()` is what keeps a serverless function alive past the response, but
+ * it only works inside a request scope — and an agent turn is now a detached
+ * run whose callbacks routinely fire after the response has ended. So try
+ * `after()` first and fall back to a plain detached promise, which is all a
+ * persistent server (the production target) needs anyway.
+ */
+function detachTask(label: string, task: () => Promise<unknown>): void {
+  const guarded = () =>
+    task().catch((err) => console.error(`[chat] ${label} failed:`, err));
+  try {
+    after(guarded);
+  } catch {
+    void guarded();
+  }
+}
 
 function isFatalFailure(message: string): boolean {
   const lower = message.toLowerCase();
@@ -1283,6 +1305,11 @@ When the user asks about library APIs, setup, migrations, or version-specific be
     };
   });
 
+  // Tracked outside the try so the catch below can tear down a run that was
+  // registered but never handed to the background driver. Left dangling, such
+  // a run would answer resume probes as "still working" until the watchdog.
+  let unstartedRun: AgentRun | null = null;
+
   try {
     const modelMessages = await convertToModelMessages(processedMessages);
     // Agent tasks generate large tool call arguments (e.g. full file content
@@ -1299,11 +1326,71 @@ When the user asks about library APIs, setup, migrations, or version-specific be
     let lastFinishReason = "";
     let finalModelId = modelId;
 
+    // ── Detached run ─────────────────────────────────────────────────────
+    // The generation is registered as a background run and the HTTP response
+    // is merely one subscriber to it. If the user closes the tab the response
+    // stream dies; the run keeps going, persists its own assistant message,
+    // and can be re-attached to via GET /api/chat/<id>/stream.
+    const run = createRun({
+      conversationId,
+      userId,
+      messageId: crypto.randomUUID(),
+    });
+    unstartedRun = run;
+    // Every write that outlives the request goes through the service-role
+    // client — the request-scoped one is tied to cookies from a connection
+    // that may already be gone.
+    const adminDb = createAdminClient();
+
     async function markConversationIdle() {
-      await supabase
+      await adminDb
         .from("conversations")
         .update({ status: "idle", updated_at: new Date().toISOString() })
         .eq("id", conversationId);
+    }
+
+    /**
+     * Persist the finished assistant turn server-side, keyed by the run's
+     * message id. Upserting on (conversation_id, client_message_id) makes this
+     * idempotent with the client's own save when a tab is still attached.
+     */
+    async function persistAssistantMessage(message: {
+      parts?: unknown[];
+      metadata?: unknown;
+    }) {
+      const parts = Array.isArray(message.parts) ? message.parts : [];
+      const content = parts
+        .map((p) =>
+          p && typeof p === "object" && (p as { type?: string }).type === "text"
+            ? ((p as { text?: string }).text ?? "")
+            : "",
+        )
+        .join("");
+
+      const { error } = await adminDb.from("messages").upsert(
+        {
+          conversation_id: conversationId,
+          role: "assistant",
+          content,
+          parts,
+          client_message_id: run.messageId,
+          metadata: message.metadata ?? null,
+        },
+        {
+          onConflict: "conversation_id,client_message_id",
+          ignoreDuplicates: false,
+        },
+      );
+
+      if (error) {
+        console.error("[chat] server-side assistant save failed:", error.message);
+        return;
+      }
+      console.log("[chat] assistant turn persisted server-side", {
+        conversationId,
+        messageId: run.messageId,
+        partsLen: parts.length,
+      });
     }
 
     async function cleanupSandbox(reason: string) {
@@ -1375,9 +1462,11 @@ ${recoveryInstruction}`;
         // the SDK, but repeating them can quickly turn one user action into many
         // failed attempts. Override with AI_CHAT_MAX_RETRIES only if needed.
         maxRetries: chatMaxRetries(),
-        // Stop generation when the client disconnects (navigation/cancel) so
-        // we don't keep burning credits + provider quota for an unseen reply.
-        abortSignal: req.signal,
+        // Deliberately NOT req.signal: the run is detached from the request, so
+        // closing the tab or navigating away must not kill a 20-tool-call agent
+        // turn. Only an explicit stop (DELETE /api/chat/<id>/stream), a
+        // superseding turn, or the registry watchdog aborts this.
+        abortSignal: run.abortController.signal,
         // Agent mode: enable tools + multi-step loop. Cap at 50 steps so
         // complex tasks (multi-file build/fix loops) can finish instead of
         // stopping mid-work at 15.
@@ -1404,40 +1493,29 @@ ${recoveryInstruction}`;
           // are final and the writer is in scope. This avoids the race between the
           // async onFinish callback and the reader 'done' signal.
 
-          // The assistant message (with full UIMessage parts: text + tool
-          // calls + tool results) is saved by the CLIENT after the stream
-          // finishes, via POST /api/conversations/[id]/messages — so the
-          // "Completed · N actions" timeline survives a reload. We no longer
-          // insert a text-only copy here (it would duplicate the client save
-          // and lose the parts).
+          // The assistant message is NOT saved here. The background driver
+          // persists it once the whole run settles (persistAssistantMessage),
+          // with the full UIMessage parts, so the timeline survives a reload
+          // even when nobody was watching. A client that is still attached
+          // also saves it, but under the same run.messageId — the upsert
+          // collapses both onto one row.
 
-          // ── Async memory extraction (non-blocking, runs after response) ──
-          // Wrapped in after() so Vercel keeps the function alive to finish
-          // the background extraction instead of killing it when the stream
-          // closes. Fire-and-forget inside after() — errors are caught.
+          // ── Async memory extraction (non-blocking) ────────────────────
+          // Scheduled via detachTask: after() when a request scope is still
+          // available (Vercel needs it to keep the function alive), otherwise
+          // straight fire-and-forget — this callback often runs after the
+          // response is gone now that the turn is a detached run.
           if (userText && text) {
-            try {
-              after(() =>
-                extractAndSaveMemories(userId, userText, text).catch((err) => {
-                  console.error("[chat] memory extraction failed:", err);
-                }),
-              );
-            } catch (err) {
-              console.error("[chat] memory extraction initiation failed:", err);
-            }
+            detachTask("memory extraction", () =>
+              extractAndSaveMemories(userId, userText, text),
+            );
           }
 
           // Structured JSONB profile extraction (uses Fireworks LLM if available)
           if (process.env.FIREWORKS_API_KEY && userText && text) {
-            try {
-              after(() =>
-                extractAndSaveStructuredMemory(userId, userText, text).catch((err) => {
-                  console.error("[chat] structured memory extraction failed:", err);
-                }),
-              );
-            } catch (err) {
-              console.error("[chat] structured memory extraction initiation failed:", err);
-            }
+            detachTask("structured memory extraction", () =>
+              extractAndSaveStructuredMemory(userId, userText, text),
+            );
           }
         },
       });
@@ -1451,6 +1529,11 @@ ${recoveryInstruction}`;
       const result = startAttempt(candidateModelId, attemptIndex);
       const stream = result.toUIMessageStream({
         onError: (error) => formatInferenceError(error).message,
+        // Pin the assistant message id to the run's. Every client that attaches
+        // (original tab, resumed tab) adopts it via the `start` chunk, and the
+        // server persists under the same id — so a client-side save and the
+        // server-side save collapse onto one row instead of duplicating.
+        generateMessageId: () => run.messageId,
       });
       const reader = stream.getReader();
       let completed = false;
@@ -1595,32 +1678,42 @@ ${recoveryInstruction}`;
         }
       },
       onError: (error) => formatInferenceError(error).message,
+      generateId: () => run.messageId,
+    });
+
+    // Hand the stream to the background driver. It fans chunks out to the run
+    // registry, folds them into the assistant message, persists that message,
+    // and settles credits + sandbox — all without a client attached.
+    // From here the driver owns the run's lifecycle.
+    unstartedRun = null;
+    driveRunInBackground({
+      run,
+      stream,
+      persistMessage: persistAssistantMessage,
+      finalize: async (outcome) => {
+        // finalizeSuccessfulTurn already ran for a clean turn; this covers the
+        // aborted/failed paths so the conversation never stays "processing"
+        // and the sandbox never leaks.
+        if (!finishedSuccessfully) {
+          await markConversationIdle();
+          await cleanupSandbox(`after run ${outcome}`);
+        }
+      },
     });
 
     return createUIMessageStreamResponse({
-      stream,
+      stream: subscribeToRun(run),
       headers: {
         "X-Accel-Buffering": "no",
         "Cache-Control": "no-cache, no-transform",
         "X-Conversation-Id": conversationId,
       },
-      consumeSseStream: async ({ stream: sseStream }) => {
-        try {
-          // sseStream is a ReadableStream<string> (SSE text chunks).
-          // Pipe through TextEncoderStream to convert to Uint8Array before
-          // passing to Response, which requires a byte stream.
-          await new Response(
-            sseStream.pipeThrough(new TextEncoderStream()),
-          ).text();
-        } finally {
-          if (!finishedSuccessfully) {
-            await markConversationIdle();
-            await cleanupSandbox("after stream end");
-          }
-        }
-      },
     });
   } catch (err) {
+    // Nothing is driving this run, so retire it rather than let it advertise
+    // itself as resumable.
+    if (unstartedRun) endRun(unstartedRun, "failed");
+
     // Mark conversation as idle on error so polling clients stop waiting.
     await supabase
       .from("conversations")
