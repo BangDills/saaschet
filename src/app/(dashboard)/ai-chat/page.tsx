@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { newId } from "@/lib/chat/storage";
 import type { ChatMessage, Conversation, ModelInfo, Project } from "@/lib/chat/types";
@@ -166,8 +166,23 @@ function ProjectSelector({
 
 
 export default function AIChatPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const activeProjectId = searchParams.get("project");
+
+  /** Switch the project context. The ?project= URL param is the single
+   *  source of truth for scope — it drives the history filter, the filing
+   *  target for new chats, and matches the sidebar's project links. */
+  const switchProjectScope = React.useCallback(
+    (id: string | null) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (id) params.set("project", id);
+      else params.delete("project");
+      const query = params.toString();
+      router.replace(`/ai-chat${query ? `?${query}` : ""}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
 
   const [models, setModels] = React.useState<ModelInfo[]>(defaultModels);
   const [modelId, setModelId] = React.useState(defaultModelId);
@@ -230,6 +245,14 @@ export default function AIChatPage() {
       ["Earlier", unpinned.filter((conversation) => conversation.updatedAt < yesterday)],
     ];
   }, [conversations, debouncedQuery, activeProjectId]);
+
+  // Active project scope for the history panel header + empty state.
+  const scopedProject = activeProjectId
+    ? projects.find((p) => p.id === activeProjectId) ?? null
+    : null;
+  const scopedCount = activeProjectId
+    ? conversations.filter((c) => c.projectId === activeProjectId).length
+    : conversations.length;
 
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -481,7 +504,11 @@ export default function AIChatPage() {
               <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:py-2.5">
                 <div>
                   <p className="text-sm font-semibold">Conversations</p>
-                  <p className="text-xs text-muted-foreground">{conversations.length} saved chats</p>
+                  <p className="text-xs text-muted-foreground">
+                    {scopedProject
+                      ? `${scopedCount} ${scopedCount === 1 ? "chat" : "chats"} in ${scopedProject.name}`
+                      : `${conversations.length} saved chats`}
+                  </p>
                 </div>
                 <button type="button" aria-label="Close history" onClick={() => setHistoryOpen(false)} className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <X className="size-4" />
@@ -503,7 +530,11 @@ export default function AIChatPage() {
                 {conversations.length === 0 ? (
                   <p className="px-3 py-8 text-center text-sm text-muted-foreground">No conversations yet.<br />Start chatting to begin.</p>
                 ) : conversationGroups.every(([, group]) => group.length === 0) ? (
-                  <div className="px-3 py-8 text-center"><p className="text-sm font-medium text-foreground">No matching conversations</p><p className="mt-1 text-xs text-muted-foreground">Try a different title.</p></div>
+                  debouncedQuery ? (
+                    <div className="px-3 py-8 text-center"><p className="text-sm font-medium text-foreground">No matching conversations</p><p className="mt-1 text-xs text-muted-foreground">Try a different title.</p></div>
+                  ) : (
+                    <div className="px-3 py-8 text-center"><p className="text-sm font-medium text-foreground">No chats in {scopedProject?.name ?? "this project"} yet</p><p className="mt-1 text-xs text-muted-foreground">New chats you start now will be filed here.</p></div>
+                  )
                 ) : (
                   <div className="flex flex-col gap-3">
                     {conversationGroups.map(([label, group]) => group.length > 0 && (
@@ -560,6 +591,10 @@ export default function AIChatPage() {
           loaded={projectsLoaded}
           activeProjectId={activeConvProjectId ?? newChatProjectId}
           onChange={(id) => {
+            // Selecting a project here switches the whole context: the
+            // history list scopes to it immediately, not just the filing
+            // target of the next chat.
+            switchProjectScope(id);
             if (active.initialMessages.length === 0) {
               // Fresh chat — set the filing project for the next send.
               setNewChatProjectId(id);
