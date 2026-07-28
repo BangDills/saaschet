@@ -14,7 +14,6 @@ import {
   MessageSquare,
   FileText,
   FilePlus2,
-  Hammer,
   Send,
   Sparkles,
 } from "lucide-react";
@@ -257,18 +256,7 @@ export default function PRDGeneratorPage() {
     }
   }
 
-  function handleOpenInChat() {
-    if (!conversationId) return;
-    try {
-      // Persist the conversation ID so the chat page auto-restores it on redirect
-      localStorage.setItem(LS_KEY, conversationId);
-      router.push("/ai-chat");
-    } catch {
-      router.push("/ai-chat");
-    }
-  }
-
-  /** PRD → Agent: open this same conversation in the chat (the PRD is
+  /** "Buat di Chat" — open this same conversation in the chat (the PRD is
    *  already in its history, so the agent has full context) with a build
    *  instruction pre-filled in the composer. The user picks a repo, hits
    *  send, and Agent Mode starts implementing. */
@@ -398,7 +386,7 @@ export default function PRDGeneratorPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {isStreaming ? (
                 <Button
                   variant="outline"
@@ -419,16 +407,11 @@ export default function PRDGeneratorPage() {
                     className="flex items-center gap-1.5 h-8 text-xs"
                   >
                     {copied ? (
-                      <>
-                        <Check className="size-3.5 text-emerald-500" />
-                        Copied
-                      </>
+                      <Check className="size-3.5 text-emerald-500" />
                     ) : (
-                      <>
-                        <Copy className="size-3.5" />
-                        Copy
-                      </>
+                      <Copy className="size-3.5" />
                     )}
+                    Copy
                   </Button>
 
                   <Button
@@ -439,37 +422,24 @@ export default function PRDGeneratorPage() {
                     className="flex items-center gap-1.5 h-8 text-xs"
                   >
                     {downloaded ? (
-                      <>
-                        <Check className="size-3.5 text-emerald-500" />
-                        Downloaded
-                      </>
+                      <Check className="size-3.5 text-emerald-500" />
                     ) : (
-                      <>
-                        <Download className="size-3.5" />
-                        Download .md
-                      </>
+                      <Download className="size-3.5" />
                     )}
+                    .md
                   </Button>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleOpenInChat}
-                    disabled={!prdOutput}
-                    className="flex items-center gap-1.5 h-8 text-xs"
-                  >
-                    <MessageSquare className="size-3.5" />
-                    Buka di Chat
-                  </Button>
-
+                  {/* One primary action: opens the same conversation in the
+                      chat with the build instruction pre-filled (merger of
+                      the old "Buka di Chat" + "Bangun dari PRD"). */}
                   <Button
                     size="sm"
                     onClick={handleBuildFromPrd}
                     disabled={!prdOutput}
                     className="flex items-center gap-1.5 h-8 text-xs"
                   >
-                    <Hammer className="size-3.5" />
-                    Bangun dari PRD
+                    <MessageSquare className="size-3.5" />
+                    Buat di Chat
                   </Button>
                 </>
               )}
