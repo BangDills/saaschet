@@ -704,6 +704,13 @@ export function ChatPanel({
     setDraft((current) => current || lastSubmittedTextRef.current);
   }, [error]);
 
+  // Once the response stream opens, the send succeeded — the run continues
+  // detached on the server even if the stream later drops (mobile networks).
+  // A mid-stream error must not restore the sent text into the composer.
+  React.useEffect(() => {
+    if (status === "streaming") lastSubmittedTextRef.current = "";
+  }, [status]);
+
   const fillComposer = React.useCallback((suggestion: string) => {
     setDraft(suggestion);
     setFocusRequestKey((key) => key + 1);
@@ -725,6 +732,15 @@ export function ChatPanel({
       if (pending.conversationId !== conversationId || !pending.text) return;
       localStorage.removeItem("celiuz:pendingComposerDraft");
       const text = pending.text;
+      // If this exact instruction is already in the transcript (the user
+      // tapped "Buat di Chat" again while the agent was working), navigating
+      // back here must not refill the composer with an already-sent prompt.
+      const alreadySent = messagesStateRef.current.some(
+        (message) =>
+          message.role === "user" &&
+          partsToText(message.parts).trim() === text.trim(),
+      );
+      if (alreadySent) return;
       // Deferred a tick — same convention as the LS conversation restore.
       timeout = window.setTimeout(() => {
         fillComposer(text);
