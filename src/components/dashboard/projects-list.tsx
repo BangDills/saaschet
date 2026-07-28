@@ -81,13 +81,20 @@ export function ProjectsList({ initialProjects }: ProjectsListProps) {
     }
   }, []);
 
+  // set-state-in-effect is disabled on both effects below: `reload` only
+  // touches state after `await fetch(...)`, so nothing is set synchronously
+  // during the effect and no cascading render happens. The rule can't see
+  // past the async boundary. Fetch-on-mount is the intended pattern here.
+
   React.useEffect(() => {
     if (initialProjects) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void reload();
   }, [initialProjects, reload]);
 
   // Keep the list fresh when navigating to/from a project view.
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void reload();
     // We intentionally only re-sync on pathname change, not on every
     // searchParam tweak, to avoid refetch churn while toggling projects.

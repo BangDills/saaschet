@@ -11,6 +11,7 @@
     "start": "next start",
     "start:cpanel": "NODE_ENV=production node server.js",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "test": "tsx src/lib/agent/action-registry.test.ts && tsx src/components/chat/activity/build-timeline.selfcheck.ts && tsx src/lib/chat/run-registry.selfcheck.ts && tsx src/lib/chat/background-run.selfcheck.ts"
   },
   "dependencies": {

@@ -81,6 +81,19 @@ npm run dev
 # Open http://localhost:3000
 ```
 
+## ✅ Checks
+
+```bash
+npm run lint        # eslint — must stay at 0 errors
+npm run typecheck   # tsc --noEmit
+npm test            # selfchecks (quick actions, activity timeline, agent runs)
+npm run build       # next build
+```
+
+GitHub Actions runs all four on every push to `main` and every pull request
+(`.github/workflows/ci.yml`), cheapest step first. No secrets are needed —
+the app builds without them.
+
 ## 🔑 Environment Variables
 
 Copy `.env.example` to `.env.local` and fill in your keys:

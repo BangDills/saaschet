@@ -131,6 +131,11 @@ function isFatalFailure(message: string): boolean {
   });
 }
 
+// `any` is load-bearing: StopCondition<TOOLS> is invariant in TOOLS, and
+// streamText infers a concrete tool set per call. Naming any real ToolSet here
+// makes the `stopWhen` array unassignable. The SDK's own helpers are typed the
+// same way — `declare function stepCountIs(n: number): StopCondition<any>`.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const stopOnToolFailure: StopCondition<any> = ({ steps }) => {
   for (const step of steps) {
     for (const tr of step.toolResults ?? []) {

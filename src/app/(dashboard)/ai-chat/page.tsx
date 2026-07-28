@@ -296,9 +296,17 @@ export default function AIChatPage() {
 
   // When the URL ?project= param changes (e.g. clicked from the sidebar),
   // default new chats to that project.
-  React.useEffect(() => {
+  //
+  // Adjusted during render instead of in an effect. The value is state, not
+  // derived — the composer lets the user override it — so it can't simply be
+  // computed. Doing it in an effect would render once with the previous
+  // project before correcting itself. This is React's documented
+  // "adjusting state when a prop changes" pattern.
+  const [lastActiveProjectId, setLastActiveProjectId] = React.useState(activeProjectId);
+  if (activeProjectId !== lastActiveProjectId) {
+    setLastActiveProjectId(activeProjectId);
     setNewChatProjectId(activeProjectId);
-  }, [activeProjectId]);
+  }
 
   React.useEffect(() => {
     if (active.initialMessages.length === 0) return;
