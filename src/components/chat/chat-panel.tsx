@@ -14,7 +14,7 @@ import { StreamingPill } from "./streaming-pill";
 import { ProcessingIndicator } from "./processing-indicator";
 import { fireCreditsRefresh } from "@/components/dashboard/credits-meter";
 import { resolveActions, type AgentCompletionState } from "@/lib/agent/action-registry";
-import { AlertCircle, ArrowDown, Clock3, RefreshCcw, WifiOff } from "lucide-react";
+import { AlertCircle, ArrowDown, Clock3, GitBranch, RefreshCcw, WifiOff } from "lucide-react";
 import useSWR from "swr";
 
 type FeedbackResponse = {
@@ -960,8 +960,36 @@ export function ChatPanel({
             </div>
 
             <ChatInput variant="centered" {...inputProps} />
+
+            {/* Agent-mode onboarding — the strongest feature was invisible
+                unless you already knew the little Repo control existed. */}
+            {!repo && githubAccessMode === "read_only" && (
+              <a
+                href="/api/github/oauth"
+                className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <GitBranch className="size-3.5 shrink-0" />
+                <span>
+                  <span className="font-semibold text-foreground">Mode Agent:</span>{" "}
+                  hubungkan GitHub agar AI bisa membaca &amp; menulis kode di repo Anda →
+                </span>
+              </a>
+            )}
+            {!repo && githubAccessMode === "full" && (
+              <p className="text-center text-xs text-muted-foreground">
+                {githubUsername ? (
+                  <>GitHub <span className="font-mono">@{githubUsername}</span> terhubung — </>
+                ) : (
+                  <>GitHub terhubung — </>
+                )}
+                pilih repo lewat tombol <span className="font-semibold">Repo</span> di
+                composer untuk mengaktifkan Mode Agent.
+              </p>
+            )}
           </div>
-          <div className="shrink-0 pb-20 sm:pb-8" />
+          {/* Mirror the top spacer so the greeting sits centered, not sunk
+              to the bottom of the viewport. */}
+          <div className="flex-1 shrink-0 pb-20 sm:pb-8" />
         </div>
       )}
     </div>

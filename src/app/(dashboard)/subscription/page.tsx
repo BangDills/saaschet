@@ -17,9 +17,9 @@ export default async function SubscriptionPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Subscription</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Langganan</h2>
         <p className="text-sm text-muted-foreground">
-          Choose a plan that fits your usage. Upgrade or downgrade at any time.
+          Pilih paket sesuai kebutuhan. Upgrade atau downgrade kapan saja.
         </p>
       </div>
       <SubscriptionPlans

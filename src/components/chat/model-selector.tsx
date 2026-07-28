@@ -1,59 +1,28 @@
 "use client";
 
 import * as React from "react";
-import {
-  Bot,
-  BrainCircuit,
-  Check,
-  ChevronDown,
-  Code2,
-  Eye,
-  Gauge,
-  Scale,
-  Zap,
-} from "lucide-react";
+import { Check, ChevronDown, Eye } from "lucide-react";
 import type { ModelInfo } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
+import { ModelIcon, type ModelIconName } from "@/components/model-icon";
 
-const LOBE_ICON_BASE =
-  "https://unpkg.com/@lobehub/icons-static-svg@latest/icons";
-
-const PROVIDER_LOGOS: Record<string, string> = {
-  DeepSeek: `${LOBE_ICON_BASE}/deepseek-color.svg`,
-  Kimi: `${LOBE_ICON_BASE}/kimi.svg`,
-  GLM: `${LOBE_ICON_BASE}/chatglm-color.svg`,
-  Qwen: `${LOBE_ICON_BASE}/qwen-color.svg`,
-  MiniMax: `${LOBE_ICON_BASE}/minimax-color.svg`,
+/** Bundled brand icons (no CDN fetch — see @/components/model-icon). */
+const VENDOR_ICONS: Record<string, ModelIconName> = {
+  GLM: "chatglm",
+  Kimi: "kimi",
+  DeepSeek: "deepseek",
+  Qwen: "qwen",
+  MiniMax: "minimax",
 };
 
-const TAG_ICONS = {
-  "Agent · Default": Bot,
-  "Strong Coder": Code2,
-  Balanced: Scale,
-  Fast: Zap,
-  "Reasoning Pro": BrainCircuit,
-  "Speed & Quality": Gauge,
-} as const;
-
-function ModelTagIcon({ tag }: { tag: string }) {
-  const Icon = TAG_ICONS[tag as keyof typeof TAG_ICONS] ?? Gauge;
-
-  return (
-    <span title={tag} className="flex shrink-0 text-muted-foreground">
-      <Icon className="size-3.5" aria-hidden="true" />
-      <span className="sr-only">{tag}</span>
-    </span>
-  );
-}
-
 function ProviderLogo({ vendor }: { vendor: string }) {
-  const src = PROVIDER_LOGOS[vendor];
+  const name = VENDOR_ICONS[vendor];
 
-  if (src) {
+  if (name) {
     return (
-      // Brand assets are served from the official Lobe Icons static package.
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt="" className="size-4 shrink-0 object-contain" />
+      <span aria-hidden className="flex size-4 shrink-0 items-center justify-center">
+        <ModelIcon name={name} size={16} />
+      </span>
     );
   }
 
@@ -126,7 +95,7 @@ export function ModelSelector({
       {open && (
         <div
           className={cn(
-            "absolute z-30 max-h-72 w-56 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-lg sm:w-60",
+            "absolute z-30 max-h-80 w-60 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-lg sm:w-64",
             // Show dropdown ABOVE the trigger when compact (it sits at bottom of input)
             variant === "compact"
               ? "bottom-full right-0 mb-2"
@@ -145,20 +114,29 @@ export function ModelSelector({
                   setOpen(false);
                 }}
                 className={cn(
-                  "flex h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-xs transition-colors hover:bg-accent",
+                  "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent",
                   active && "bg-accent",
                   dimmed && "opacity-40",
                 )}
               >
                 <ProviderLogo vendor={m.vendor} />
-                <span className="min-w-0 flex-1 truncate font-medium">{m.label}</span>
-                {m.multimodal && (
-                  <span title="Vision" className="flex shrink-0 text-muted-foreground">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">{m.label}</span>
+                  {/* Spell the capability out — the icon-only tags read as
+                      mystery glyphs in testing. */}
+                  {m.tag && (
+                    <span className="block truncate text-[10px] text-muted-foreground">
+                      {m.tag}
+                      {m.multimodal ? " · Vision" : ""}
+                    </span>
+                  )}
+                </span>
+                {m.multimodal && !m.tag && (
+                  <span title="Bisa membaca gambar" className="flex shrink-0 text-muted-foreground">
                     <Eye className="size-3.5" aria-hidden="true" />
-                    <span className="sr-only">Vision</span>
+                    <span className="sr-only">Bisa membaca gambar</span>
                   </span>
                 )}
-                {m.tag && !active && <ModelTagIcon tag={m.tag} />}
                 {m.free && !active && (
                   <span className="text-[8px] font-semibold uppercase text-muted-foreground">Free</span>
                 )}

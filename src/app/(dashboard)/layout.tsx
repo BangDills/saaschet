@@ -3,6 +3,7 @@ import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
 import { createClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/lib/nav";
+import { getInitials } from "@/lib/utils";
 
 export default async function DashboardLayout({
   children,
@@ -29,13 +30,7 @@ export default async function DashboardLayout({
 
   const displayName =
     profile?.full_name?.trim() || user.email?.split("@")[0] || "Member";
-  const initials = displayName
-    .split(/\s+/)
-    .map((p: string) => p[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+  const initials = getInitials(displayName);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

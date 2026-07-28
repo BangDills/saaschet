@@ -21,10 +21,10 @@ export default async function AuthSettingsPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">
-          Authentication Settings
+          Pengaturan Autentikasi
         </h2>
         <p className="text-sm text-muted-foreground">
-          Manage your account security and connected services.
+          Kelola keamanan akun dan layanan yang terhubung.
         </p>
       </div>
       <AuthSettings

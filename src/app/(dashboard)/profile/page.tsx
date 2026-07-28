@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCreditSnapshot } from "@/lib/credits/server";
 import { ProfileTierSwitcher } from "@/components/dashboard/profile-tier-switcher";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getInitials } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export default async function ProfilePage() {
   const displayName =
     profile?.full_name?.trim() || user.email?.split("@")[0] || "Member";
   const memberSince = profile?.created_at
-    ? new Date(profile.created_at).toLocaleDateString("en-US", {
+    ? new Date(profile.created_at).toLocaleDateString("id-ID", {
         year: "numeric",
         month: "long",
         day: "numeric",
@@ -34,16 +35,16 @@ export default async function ProfilePage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Profile</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Profil</h2>
         <p className="text-sm text-muted-foreground">
-          Your account, plan, and usage at a glance.
+          Akun, paket, dan pemakaian Anda dalam satu tempat.
         </p>
       </div>
 
       {/* Account card */}
       <Card>
         <CardHeader>
-          <CardTitle>Account</CardTitle>
+          <CardTitle>Akun</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4">
@@ -56,7 +57,7 @@ export default async function ProfilePage() {
               />
             ) : (
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-secondary text-lg font-semibold text-secondary-foreground">
-                {displayName.slice(0, 2).toUpperCase()}
+                {getInitials(displayName)}
               </div>
             )}
             <div className="min-w-0">
@@ -72,7 +73,7 @@ export default async function ProfilePage() {
               )}
               {memberSince && (
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Member since {memberSince}
+                  Bergabung sejak {memberSince}
                 </p>
               )}
             </div>

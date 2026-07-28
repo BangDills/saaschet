@@ -115,7 +115,7 @@ export function HistoryTable({ rows }: { rows: HistoryRow[] }) {
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
               )}
             >
-              {r === "7d" ? "7 days" : r === "30d" ? "30 days" : "All time"}
+              {r === "7d" ? "7 hari" : r === "30d" ? "30 hari" : "Semua"}
             </button>
           ))}
         </div>
@@ -124,13 +124,13 @@ export function HistoryTable({ rows }: { rows: HistoryRow[] }) {
             <strong className="font-semibold text-foreground">
               {filtered.length}
             </strong>{" "}
-            {filtered.length === 1 ? "entry" : "entries"}
+            {"entri"}
           </span>
           <span>
             <strong className="font-semibold text-foreground">
               {totalCredits}
             </strong>{" "}
-            credits used
+            kredit terpakai
           </span>
         </div>
       </div>
@@ -141,12 +141,12 @@ export function HistoryTable({ rows }: { rows: HistoryRow[] }) {
           <table className="w-full min-w-[700px] text-left">
             <thead>
               <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <th className="px-4 py-3">When</th>
-                <th className="px-4 py-3">Type</th>
+                <th className="px-4 py-3">Waktu</th>
+                <th className="px-4 py-3">Tipe</th>
                 <th className="px-4 py-3">Model</th>
                 <th className="px-4 py-3 text-center">Tools</th>
-                <th className="px-4 py-3 text-right">Cost</th>
-                <th className="px-4 py-3">Conversation</th>
+                <th className="px-4 py-3 text-right">Biaya</th>
+                <th className="px-4 py-3">Percakapan</th>
               </tr>
             </thead>
             <tbody>
@@ -156,7 +156,7 @@ export function HistoryTable({ rows }: { rows: HistoryRow[] }) {
                     colSpan={6}
                     className="px-4 py-12 text-center text-sm text-muted-foreground"
                   >
-                    No usage history yet — start a chat to see activity here.
+                    Belum ada riwayat pemakaian — mulai chat untuk melihat aktivitas di sini.
                   </td>
                 </tr>
               ) : (

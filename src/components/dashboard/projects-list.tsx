@@ -46,6 +46,11 @@ function colorClass(color: string): string {
   return PROJECT_COLORS[color] ?? PROJECT_COLORS.default;
 }
 
+// Module-level cache: the list survives navigations, so route changes
+// refresh silently in the background instead of flashing "Memuat…" —
+// previously the skeleton blinked on every single page switch.
+let projectsCache: Project[] | null = null;
+
 export function ProjectsList({ initialProjects }: ProjectsListProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -53,9 +58,10 @@ export function ProjectsList({ initialProjects }: ProjectsListProps) {
   const activeProjectId = searchParams.get("project");
 
   const [projects, setProjects] = React.useState<Project[]>(
-    initialProjects ?? [],
+    initialProjects ?? projectsCache ?? [],
   );
   const [open, setOpen] = React.useState(true);
+  const [showCreate, setShowCreate] = React.useState(false);
   const [menuId, setMenuId] = React.useState<string | null>(null);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [draftName, setDraftName] = React.useState("");
@@ -63,7 +69,9 @@ export function ProjectsList({ initialProjects }: ProjectsListProps) {
   const [newName, setNewName] = React.useState("");
   const [pendingId, setPendingId] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const [loaded, setLoaded] = React.useState<boolean>(!!initialProjects);
+  const [loaded, setLoaded] = React.useState<boolean>(
+    !!initialProjects || projectsCache !== null,
+  );
 
   const containerRef = React.useRef<HTMLDivElement>(null);
   const renameRef = React.useRef<HTMLInputElement>(null);
@@ -73,9 +81,12 @@ export function ProjectsList({ initialProjects }: ProjectsListProps) {
       const res = await fetch("/api/projects", { cache: "no-store" });
       if (!res.ok) throw new Error(await readApiError(res, "Failed to load projects"));
       const json = (await res.json()) as { projects?: Project[] };
-      if (Array.isArray(json.projects)) setProjects(json.projects);
+      if (Array.isArray(json.projects)) {
+        projectsCache = json.projects;
+        setProjects(json.projects);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load projects");
+      setError(err instanceof Error ? err.message : "Gagal memuat project");
     } finally {
       setLoaded(true);
     }
@@ -225,16 +236,19 @@ export function ProjectsList({ initialProjects }: ProjectsListProps) {
           <ChevronDown
             className={cn("size-3 transition-transform", !open && "-rotate-90")}
           />
-          Projects
+          Project
         </button>
         <button
           type="button"
-          aria-label="New project"
+          aria-label="Project baru"
           onClick={() => {
             setOpen(true);
-            document
-              .getElementById("projects-new-input")
-              ?.focus();
+            setShowCreate(true);
+            // Focus after the input mounts.
+            window.setTimeout(
+              () => document.getElementById("projects-new-input")?.focus(),
+              0,
+            );
           }}
           className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
@@ -244,46 +258,52 @@ export function ProjectsList({ initialProjects }: ProjectsListProps) {
 
       {open && (
         <div className="flex flex-col gap-0.5 px-2">
-          {/* Inline create row */}
-          <div className="flex items-center gap-1 rounded-lg px-1 py-1">
-            <input
-              id="projects-new-input"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void createProject();
-                if (e.key === "Escape") setNewName("");
-              }}
-              placeholder="New project name"
-              maxLength={100}
-              className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            {newName.trim() && (
-              <button
-                type="button"
-                aria-label="Create project"
-                onClick={() => void createProject()}
-                disabled={creating}
-                className="flex size-8 items-center justify-center rounded-md text-primary transition-colors hover:bg-muted disabled:opacity-50"
-              >
-                {creating ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Check className="size-4" />
-                )}
-              </button>
-            )}
-          </div>
+          {/* Inline create row — hidden until the + button asks for it, so
+              the sidebar isn't permanently occupied by an empty form. */}
+          {showCreate && (
+            <div className="flex items-center gap-1 rounded-lg px-1 py-1">
+              <input
+                id="projects-new-input"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void createProject();
+                  if (e.key === "Escape") {
+                    setNewName("");
+                    setShowCreate(false);
+                  }
+                }}
+                placeholder="Nama project baru"
+                maxLength={100}
+                className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              {newName.trim() && (
+                <button
+                  type="button"
+                  aria-label="Buat project"
+                  onClick={() => void createProject()}
+                  disabled={creating}
+                  className="flex size-8 items-center justify-center rounded-md text-primary transition-colors hover:bg-muted disabled:opacity-50"
+                >
+                  {creating ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Check className="size-4" />
+                  )}
+                </button>
+              )}
+            </div>
+          )}
 
           {error && (
             <p className="px-2 py-1 text-[11px] text-destructive">{error}</p>
           )}
 
           {!loaded ? (
-            <p className="px-2 py-2 text-[11px] text-muted-foreground">Loading…</p>
+            <p className="px-2 py-2 text-[11px] text-muted-foreground">Memuat…</p>
           ) : projects.length === 0 ? (
             <p className="px-2 py-2 text-[11px] text-muted-foreground">
-              No projects yet. Group your chats by creating one above.
+              Belum ada project. Klik + untuk mengelompokkan chat Anda.
             </p>
           ) : (
             projects.map((project) => {
@@ -376,7 +396,7 @@ export function ProjectsList({ initialProjects }: ProjectsListProps) {
                         onClick={() => beginRename(project)}
                         className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[13px] hover:bg-accent"
                       >
-                        <Pencil className="size-3.5" /> Rename
+                        <Pencil className="size-3.5" /> Ubah nama
                       </button>
                       <button
                         type="button"
@@ -389,7 +409,7 @@ export function ProjectsList({ initialProjects }: ProjectsListProps) {
                         ) : (
                           <Trash2 className="size-3.5" />
                         )}
-                        Delete
+                        Hapus
                       </button>
                     </div>
                   )}

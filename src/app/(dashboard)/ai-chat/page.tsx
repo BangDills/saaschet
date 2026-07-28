@@ -92,8 +92,8 @@ function ProjectSelector({
   const label = activeProject
     ? activeProject.name
     : activeProjectId === null
-      ? "All projects"
-      : "Unfiled";
+      ? "Semua project"
+      : "Tanpa project";
 
   return (
     <div ref={ref} className="relative">
@@ -131,13 +131,13 @@ function ProjectSelector({
             )}
           >
             <Folder className="size-4 shrink-0 text-muted-foreground" />
-            All projects
+            Semua project
           </button>
           {!loaded ? (
-            <p className="px-2.5 py-2 text-xs text-muted-foreground">Loading…</p>
+            <p className="px-2.5 py-2 text-xs text-muted-foreground">Memuat…</p>
           ) : projects.length === 0 ? (
             <p className="px-2.5 py-2 text-xs text-muted-foreground">
-              No projects yet. Create one from the sidebar.
+              Belum ada project. Buat lewat sidebar.
             </p>
           ) : (
             projects.map((project) => (
@@ -239,10 +239,10 @@ export default function AIChatPage() {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const yesterday = today - 86_400_000;
     return [
-      ["Pinned", filtered.filter((conversation) => conversation.isPinned)],
-      ["Today", unpinned.filter((conversation) => conversation.updatedAt >= today)],
-      ["Yesterday", unpinned.filter((conversation) => conversation.updatedAt >= yesterday && conversation.updatedAt < today)],
-      ["Earlier", unpinned.filter((conversation) => conversation.updatedAt < yesterday)],
+      ["Disematkan", filtered.filter((conversation) => conversation.isPinned)],
+      ["Hari ini", unpinned.filter((conversation) => conversation.updatedAt >= today)],
+      ["Kemarin", unpinned.filter((conversation) => conversation.updatedAt >= yesterday && conversation.updatedAt < today)],
+      ["Sebelumnya", unpinned.filter((conversation) => conversation.updatedAt < yesterday)],
     ];
   }, [conversations, debouncedQuery, activeProjectId]);
 
@@ -371,6 +371,18 @@ export default function AIChatPage() {
     };
   }, [openChat]);
 
+  // The sidebar's recent-chats list asks us to switch conversations in
+  // place when this page is already mounted (navigation would be a no-op).
+  React.useEffect(() => {
+    function onOpenConversation(event: Event) {
+      const id = (event as CustomEvent<{ id?: string }>).detail?.id;
+      if (id) void openChat(id);
+    }
+    window.addEventListener("celiuz:open-conversation", onOpenConversation);
+    return () =>
+      window.removeEventListener("celiuz:open-conversation", onOpenConversation);
+  }, [openChat]);
+
   React.useEffect(() => {
     let cancelled = false;
     fetch("/api/models")
@@ -495,7 +507,7 @@ export default function AIChatPage() {
             className={cn("flex size-9 items-center justify-center rounded-lg border border-border text-sm font-medium transition-colors sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-1.5", historyOpen ? "bg-accent text-accent-foreground" : "bg-background text-foreground hover:bg-accent/60")}
           >
             <History className="size-4" />
-            <span className="hidden sm:inline">History</span>
+            <span className="hidden sm:inline">Riwayat</span>
             <ChevronDown className={cn("hidden size-3.5 transition-transform sm:block", historyOpen && "rotate-180")} />
           </button>
 
@@ -503,11 +515,11 @@ export default function AIChatPage() {
             <div role="dialog" aria-label="Conversation history" className="fixed inset-x-3 bottom-3 top-20 z-50 flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl sm:absolute sm:inset-auto sm:left-0 sm:top-full sm:mt-1 sm:max-h-[30rem] sm:w-96 sm:rounded-xl">
               <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:py-2.5">
                 <div>
-                  <p className="text-sm font-semibold">Conversations</p>
+                  <p className="text-sm font-semibold">Percakapan</p>
                   <p className="text-xs text-muted-foreground">
                     {scopedProject
-                      ? `${scopedCount} ${scopedCount === 1 ? "chat" : "chats"} in ${scopedProject.name}`
-                      : `${conversations.length} saved chats`}
+                      ? `${scopedCount} chat di ${scopedProject.name}`
+                      : `${conversations.length} chat tersimpan`}
                   </p>
                 </div>
                 <button type="button" aria-label="Close history" onClick={() => setHistoryOpen(false)} className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -518,8 +530,8 @@ export default function AIChatPage() {
               <div className="px-3 pt-3">
                 <label className="flex h-10 items-center gap-2 rounded-lg border border-border px-3 text-muted-foreground focus-within:border-ring focus-within:text-foreground focus-within:ring-2 focus-within:ring-ring/30">
                   <Search className="size-4 shrink-0" />
-                  <span className="sr-only">Search conversations</span>
-                  <input value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder="Search conversations" className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground" />
+                  <span className="sr-only">Cari percakapan</span>
+                  <input value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder="Cari percakapan" className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground" />
                   {historyQuery && <button type="button" aria-label="Clear search" onClick={() => setHistoryQuery("")}><X className="size-3.5" /></button>}
                 </label>
               </div>
@@ -528,18 +540,18 @@ export default function AIChatPage() {
 
               <div className="min-h-0 flex-1 overflow-y-auto p-2">
                 {conversations.length === 0 ? (
-                  <p className="px-3 py-8 text-center text-sm text-muted-foreground">No conversations yet.<br />Start chatting to begin.</p>
+                  <p className="px-3 py-8 text-center text-sm text-muted-foreground">Belum ada percakapan.<br />Mulai chat untuk memulainya.</p>
                 ) : conversationGroups.every(([, group]) => group.length === 0) ? (
                   debouncedQuery ? (
-                    <div className="px-3 py-8 text-center"><p className="text-sm font-medium text-foreground">No matching conversations</p><p className="mt-1 text-xs text-muted-foreground">Try a different title.</p></div>
+                    <div className="px-3 py-8 text-center"><p className="text-sm font-medium text-foreground">Tidak ada percakapan yang cocok</p><p className="mt-1 text-xs text-muted-foreground">Coba kata kunci lain.</p></div>
                   ) : (
-                    <div className="px-3 py-8 text-center"><p className="text-sm font-medium text-foreground">No chats in {scopedProject?.name ?? "this project"} yet</p><p className="mt-1 text-xs text-muted-foreground">New chats you start now will be filed here.</p></div>
+                    <div className="px-3 py-8 text-center"><p className="text-sm font-medium text-foreground">Belum ada chat di {scopedProject?.name ?? "project ini"}</p><p className="mt-1 text-xs text-muted-foreground">Chat baru yang Anda mulai akan masuk ke sini.</p></div>
                   )
                 ) : (
                   <div className="flex flex-col gap-3">
                     {conversationGroups.map(([label, group]) => group.length > 0 && (
                       <section key={label}>
-                        <h3 className="flex items-center gap-1.5 px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label === "Pinned" && <Pin className="size-3" />}{label}</h3>
+                        <h3 className="flex items-center gap-1.5 px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label === "Disematkan" && <Pin className="size-3" />}{label}</h3>
                         <div className="flex flex-col gap-0.5">
                           {group.map((conversation) => {
                             const isActive = conversation.id === active.conversationId;
@@ -563,9 +575,9 @@ export default function AIChatPage() {
                                     </button>
                                     {menuId === conversation.id && (
                                       <div className="order-last mb-2 ml-auto flex w-full basis-full flex-col rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-sm">
-                                        <button type="button" onClick={() => beginRename(conversation)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent"><Pencil className="size-3.5" />Rename</button>
-                                        <button type="button" onClick={() => void togglePin(conversation)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent">{conversation.isPinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}{conversation.isPinned ? "Unpin" : "Pin"}</button>
-                                        <button type="button" onClick={() => { setDeleteTarget(conversation); setMenuId(null); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-destructive hover:bg-destructive/10"><Trash2 className="size-3.5" />Delete</button>
+                                        <button type="button" onClick={() => beginRename(conversation)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent"><Pencil className="size-3.5" />Ubah nama</button>
+                                        <button type="button" onClick={() => void togglePin(conversation)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent">{conversation.isPinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}{conversation.isPinned ? "Lepas semat" : "Sematkan"}</button>
+                                        <button type="button" onClick={() => { setDeleteTarget(conversation); setMenuId(null); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-destructive hover:bg-destructive/10"><Trash2 className="size-3.5" />Hapus</button>
                                       </div>
                                     )}
                                   </>
@@ -623,7 +635,7 @@ export default function AIChatPage() {
 
         <button type="button" aria-label="Start new chat" onClick={startNewChat} className="flex size-9 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-1.5">
           <Plus className="size-4" />
-          <span className="hidden sm:inline">New chat</span>
+          <span className="hidden sm:inline">Chat baru</span>
         </button>
       </div>
 
@@ -650,11 +662,11 @@ export default function AIChatPage() {
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-foreground/20 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && pendingId !== deleteTarget.id) setDeleteTarget(null); }}>
           <div role="alertdialog" aria-modal="true" aria-labelledby="delete-title" aria-describedby="delete-description" className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-xl">
             <div className="flex size-10 items-center justify-center rounded-full bg-destructive/10 text-destructive"><Trash2 className="size-5" /></div>
-            <h2 id="delete-title" className="mt-4 text-lg font-semibold text-balance">Delete conversation?</h2>
-            <p id="delete-description" className="mt-2 text-sm leading-6 text-muted-foreground">“{deleteTarget.title}” and all of its messages will be permanently deleted.</p>
+            <h2 id="delete-title" className="mt-4 text-lg font-semibold text-balance">Hapus percakapan?</h2>
+            <p id="delete-description" className="mt-2 text-sm leading-6 text-muted-foreground">“{deleteTarget.title}” beserta seluruh pesannya akan dihapus permanen.</p>
             <div className="mt-5 flex justify-end gap-2">
-              <button type="button" disabled={pendingId === deleteTarget.id} onClick={() => setDeleteTarget(null)} className="h-9 rounded-lg border border-border px-3 text-sm font-medium hover:bg-accent disabled:opacity-50">Cancel</button>
-              <button type="button" disabled={pendingId === deleteTarget.id} onClick={() => void confirmDelete()} className="flex h-9 items-center gap-2 rounded-lg bg-destructive px-3 text-sm font-semibold text-destructive-foreground hover:opacity-90 disabled:opacity-50">{pendingId === deleteTarget.id && <Loader2 className="size-4 animate-spin" />}Delete</button>
+              <button type="button" disabled={pendingId === deleteTarget.id} onClick={() => setDeleteTarget(null)} className="h-9 rounded-lg border border-border px-3 text-sm font-medium hover:bg-accent disabled:opacity-50">Batal</button>
+              <button type="button" disabled={pendingId === deleteTarget.id} onClick={() => void confirmDelete()} className="flex h-9 items-center gap-2 rounded-lg bg-destructive px-3 text-sm font-semibold text-destructive-foreground hover:opacity-90 disabled:opacity-50">{pendingId === deleteTarget.id && <Loader2 className="size-4 animate-spin" />}Hapus</button>
             </div>
           </div>
         </div>

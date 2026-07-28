@@ -55,7 +55,7 @@ export function ChatInput({
   onStop,
   disabled,
   isStreaming,
-  placeholder = "Ask a question or describe a task…",
+  placeholder = "Tanya apa saja atau jelaskan tugas Anda…",
   models,
   modelId,
   onModelChange,

@@ -22,18 +22,20 @@ export type NavItem = {
 
 /** Sidebar nav items — main features only. */
 const sidebarNavItems: NavItem[] = [
-  { label: "Admin Dashboard", href: "/dashboard", icon: LayoutDashboard, adminOnly: true },
-  { label: "Manage Users", href: "/users", icon: Users, adminOnly: true },
+  { label: "Dashboard Admin", href: "/dashboard", icon: LayoutDashboard, adminOnly: true },
+  { label: "Kelola User", href: "/users", icon: Users, adminOnly: true },
   { label: "AI Agent", href: "/ai-chat", icon: MessageSquare },
   { label: "PRD Generator", href: "/prd-generator", icon: ClipboardList },
-  { label: "History", href: "/history", icon: History },
+  // "Pemakaian", not "History": the chat header already has a History
+  // (conversations) control — one word must not mean two things.
+  { label: "Pemakaian", href: "/history", icon: History },
 ];
 
 /** Profile dropdown items — shown in topbar avatar menu. */
 export const profileMenuItems: NavItem[] = [
-  { label: "Profile Settings", href: "/profile", icon: Settings },
-  { label: "Subscription", href: "/subscription", icon: CreditCard },
-  { label: "Authentication", href: "/auth", icon: Lock },
+  { label: "Profil", href: "/profile", icon: Settings },
+  { label: "Langganan", href: "/subscription", icon: CreditCard },
+  { label: "Autentikasi", href: "/auth", icon: Lock },
 ];
 
 /** Return only the nav items visible to the given role. */

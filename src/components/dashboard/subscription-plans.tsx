@@ -37,16 +37,16 @@ const PLANS: {
   {
     tier: "free",
     name: "Free",
-    price: "$0",
-    description: "Great for trying out Celiuz AI",
+    price: "Rp0",
+    description: "Pas untuk mencoba Celiuz AI",
     limit: 50,
     features: [
-      "50 credits per day",
-      "AI Chat with all models",
-      "Web search integration",
-      "GitHub repo context",
-      "Basic agent mode",
-      "Chat history",
+      "50 kredit per hari",
+      "AI Chat dengan semua model",
+      "Integrasi web search",
+      "Konteks repo GitHub",
+      "Agent mode dasar",
+      "Riwayat chat",
     ],
     icon: <Sparkles className="size-6" />,
     accent: "from-sky-500 to-blue-600",
@@ -58,14 +58,14 @@ const PLANS: {
     description: "24-hour trial — promo pembukaan minggu ini",
     limit: 3000,
     features: [
-      "3,000 credits per 24 hours",
-      "AI Chat with all models",
-      "Web search integration",
-      "GitHub repo context",
-      "Full agent mode (read + write + PR)",
-      "Priority support",
-      "Chat history",
-      "Usage analytics",
+      "3.000 kredit per 24 jam",
+      "AI Chat dengan semua model",
+      "Integrasi web search",
+      "Konteks repo GitHub",
+      "Agent mode penuh (baca + tulis + PR)",
+      "Dukungan prioritas",
+      "Riwayat chat",
+      "Analitik pemakaian",
     ],
     icon: <Crown className="size-6" />,
     accent: "from-amber-500 to-orange-600",
@@ -100,6 +100,14 @@ export function SubscriptionPlans({
 
   async function switchTier(newTier: Tier) {
     if (newTier === activeTier || switching) return;
+    // Downgrading from Pro forfeits the rest of a PAID 24-hour window —
+    // never let one stray tap do that silently.
+    if (activeTier === "pro" && newTier === "free") {
+      const ok = window.confirm(
+        "Turun ke Free sekarang? Sisa waktu Pro Anda (yang sudah dibayar) akan hangus dan limit kembali ke 50 kredit/hari.",
+      );
+      if (!ok) return;
+    }
     setSwitching(true);
     try {
       const res = await fetch("/api/profile/tier", {
@@ -127,21 +135,21 @@ export function SubscriptionPlans({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <Zap className="size-5 text-violet-500" />
-            Today&apos;s Usage
+            Pemakaian Hari Ini
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
             <div>
-              <p className="text-sm text-muted-foreground">Used today</p>
+              <p className="text-sm text-muted-foreground">Terpakai hari ini</p>
               <p className="text-2xl font-bold tabular-nums">{usedToday}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Remaining</p>
+              <p className="text-sm text-muted-foreground">Sisa</p>
               <p className="text-2xl font-bold tabular-nums">{remaining}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">All-time total</p>
+              <p className="text-sm text-muted-foreground">Total sepanjang waktu</p>
               <p className="text-2xl font-bold tabular-nums">
                 {totalUsed.toLocaleString()}
               </p>
@@ -149,8 +157,8 @@ export function SubscriptionPlans({
           </div>
           <div className="mt-4">
             <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
-              <span>{pct}% used</span>
-              <span>Resets in ~{fmtResetsIn(resetsAt)}</span>
+              <span>{pct}% terpakai</span>
+              <span>Reset dalam ~{fmtResetsIn(resetsAt)}</span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
@@ -207,7 +215,7 @@ export function SubscriptionPlans({
                 <div className="mb-4">
                   <span className="text-4xl font-bold">{plan.price}</span>
                   <span className="text-muted-foreground">
-                    {plan.tier === "pro" ? "/24 jam" : "/month"}
+                    {plan.tier === "pro" ? "/24 jam" : "/hari"}
                   </span>
                 </div>
 
@@ -249,7 +257,7 @@ export function SubscriptionPlans({
                       {switching ? (
                         <Loader2 className="mr-2 size-4 animate-spin" />
                       ) : null}
-                      Switch to Free
+                      Ganti ke Free
                     </Button>
                   )}
                 </div>

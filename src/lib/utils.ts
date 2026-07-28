@@ -9,3 +9,16 @@ export function cn(...inputs: ClassValue[]) {
 export function formatNumber(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
 }
+
+/** Word-initials for an avatar, e.g. "Adela Parkson" -> "AP", "claude" -> "C".
+ *  Single source of truth — the sidebar and the profile page previously
+ *  computed initials differently and disagreed for the same user. */
+export function getInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}

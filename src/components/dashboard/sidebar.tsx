@@ -9,6 +9,7 @@ import { SignOutButton } from "@/components/auth/sign-out-button";
 import { CreditsMeter } from "./credits-meter";
 import { CeliuzLogo } from "@/components/celiuz-logo";
 import { ProjectsList } from "./projects-list";
+import { RecentChats } from "./recent-chats";
 
 export type SidebarProps = {
   displayName: string;
@@ -42,7 +43,8 @@ export function Sidebar({
         </Link>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-2">
+      <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-2">
+        <div className="flex flex-col gap-0.5">
         {items.map((item) => {
           const active =
             item.href === "/"
@@ -65,6 +67,9 @@ export function Sidebar({
             </Link>
           );
         })}
+        </div>
+        {/* Recent conversations fill the former dead zone below the nav. */}
+        <RecentChats />
       </nav>
 
       <div className="border-t border-sidebar-border px-1 pb-1 pt-1">

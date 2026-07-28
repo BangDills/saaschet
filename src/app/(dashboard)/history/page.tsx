@@ -65,9 +65,9 @@ export default async function HistoryPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Usage History</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Riwayat Pemakaian</h2>
         <p className="text-sm text-muted-foreground">
-          Track your credit usage across all chat and agent sessions.
+          Pantau pemakaian kredit di semua sesi chat dan agent.
         </p>
       </div>
       <HistoryTable rows={historyRows} />

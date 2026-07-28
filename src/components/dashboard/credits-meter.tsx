@@ -85,7 +85,13 @@ export function CreditsMeter() {
     );
   }
 
-  const pct = Math.min(100, Math.round((snap.usedToday / snap.dailyLimit) * 100));
+  // Fuel-gauge semantics: the bar shows what is LEFT, matching the
+  // "remaining/limit" number beside it. It previously showed percent USED,
+  // so a full quota rendered an empty bar — reading as "habis".
+  const pct = Math.max(
+    0,
+    Math.min(100, Math.round((snap.remaining / snap.dailyLimit) * 100)),
+  );
   const isLow = snap.remaining <= 5;
   const isEmpty = snap.remaining <= 0;
   const proExpiresIn =
@@ -131,8 +137,8 @@ export function CreditsMeter() {
 
       <p className="mt-1.5 text-[10px] text-muted-foreground">
         {isEmpty
-          ? `Daily limit reached · resets in ~${fmtResetsIn(snap.resetsAt)}`
-          : `Resets in ~${fmtResetsIn(snap.resetsAt)}`}
+          ? `Limit harian habis · kuota reset ~${fmtResetsIn(snap.resetsAt)}`
+          : `Kuota harian reset ~${fmtResetsIn(snap.resetsAt)}`}
       </p>
     </div>
   );

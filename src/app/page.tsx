@@ -16,7 +16,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { CeliuzLogo } from "@/components/celiuz-logo";
 import { Reveal } from "@/components/landing/reveal";
-import { ModelIcon, type ModelIconName } from "@/components/landing/model-icon";
+import { ModelIcon, type ModelIconName } from "@/components/model-icon";
 
 export const dynamic = "force-dynamic";
 
