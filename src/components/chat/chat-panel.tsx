@@ -709,6 +709,35 @@ export function ChatPanel({
     setFocusRequestKey((key) => key + 1);
   }, []);
 
+  // ── PRD → Agent handoff ─────────────────────────────────────────────
+  // The PRD generator stores a pending composer draft (keyed to ITS
+  // conversation) and navigates here. The ai-chat page restores that
+  // conversation and remounts this panel; only the panel whose id matches
+  // consumes the draft — the transient fresh panel that mounts first must
+  // not eat it.
+  const [prdBuildPending, setPrdBuildPending] = React.useState(false);
+  React.useEffect(() => {
+    let timeout: number | undefined;
+    try {
+      const raw = localStorage.getItem("celiuz:pendingComposerDraft");
+      if (!raw) return;
+      const pending = JSON.parse(raw) as { conversationId?: string; text?: string };
+      if (pending.conversationId !== conversationId || !pending.text) return;
+      localStorage.removeItem("celiuz:pendingComposerDraft");
+      const text = pending.text;
+      // Deferred a tick — same convention as the LS conversation restore.
+      timeout = window.setTimeout(() => {
+        fillComposer(text);
+        setPrdBuildPending(true);
+      }, 0);
+    } catch {
+      // Malformed handoff state is not worth surfacing.
+    }
+    return () => {
+      if (timeout !== undefined) window.clearTimeout(timeout);
+    };
+  }, [conversationId, fillComposer]);
+
   const starterSuggestions = React.useMemo(() => {
     if (repo && agentMode) {
       return [
@@ -929,6 +958,17 @@ export function ChatPanel({
               </button>
             )}
             <div className="relative">
+              {/* PRD build handoff needs a repo before the agent can write code. */}
+              {prdBuildPending && !repo && (
+                <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  <GitBranch className="size-3.5 shrink-0" />
+                  <span>
+                    Pilih repo tujuan lewat tombol{" "}
+                    <span className="font-semibold text-foreground">Repo</span> di
+                    composer supaya agent bisa menulis kode dari PRD ini.
+                  </span>
+                </div>
+              )}
               <ChatInput {...inputProps} />
             </div>
           </div>

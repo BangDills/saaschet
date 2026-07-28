@@ -14,6 +14,7 @@ import {
   MessageSquare,
   FileText,
   FilePlus2,
+  Hammer,
   Send,
   Sparkles,
 } from "lucide-react";
@@ -25,6 +26,13 @@ import type { ModelInfo } from "@/lib/chat/types";
 import { newId } from "@/lib/chat/storage";
 
 const LS_KEY = "celiuz:lastConversationId";
+/** Handoff to the chat composer — consumed by ChatPanel on mount. */
+const BUILD_DRAFT_KEY = "celiuz:pendingComposerDraft";
+
+const BUILD_INSTRUCTION =
+  "Implementasikan PRD di atas ke repo yang saya pilih. Mulai dari Phase 1 " +
+  "(MVP): siapkan struktur project dan fitur inti sesuai spesifikasi, " +
+  "kerjakan bertahap, dan jalankan build untuk verifikasi sebelum membuka PR.";
 
 const PRD_SYSTEM_PROMPT = `You are an expert Principal Product Manager. Your task is to transform the user's application idea into a comprehensive, high-level Product Requirement Document (PRD).
 
@@ -253,6 +261,22 @@ export default function PRDGeneratorPage() {
     }
   }
 
+  /** PRD → Agent: open this same conversation in the chat (the PRD is
+   *  already in its history, so the agent has full context) with a build
+   *  instruction pre-filled in the composer. The user picks a repo, hits
+   *  send, and Agent Mode starts implementing. */
+  function handleBuildFromPrd() {
+    if (!conversationId) return;
+    try {
+      localStorage.setItem(LS_KEY, conversationId);
+      localStorage.setItem(
+        BUILD_DRAFT_KEY,
+        JSON.stringify({ conversationId, text: BUILD_INSTRUCTION }),
+      );
+    } catch {}
+    router.push("/ai-chat");
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-6 py-6">
       {/* Title */}
@@ -424,7 +448,17 @@ export default function PRDGeneratorPage() {
                     className="flex items-center gap-1.5 h-8 text-xs"
                   >
                     <MessageSquare className="size-3.5" />
-                    Open in Chat
+                    Buka di Chat
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    onClick={handleBuildFromPrd}
+                    disabled={!prdOutput}
+                    className="flex items-center gap-1.5 h-8 text-xs"
+                  >
+                    <Hammer className="size-3.5" />
+                    Bangun dari PRD
                   </Button>
                 </>
               )}
