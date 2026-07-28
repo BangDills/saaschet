@@ -88,6 +88,13 @@ Propose a modern, scalable tech stack, explaining why for each choice:
 
 Be detailed but disciplined: prefer precise specifics over filler so the document stays scannable. Write in Indonesian if the user prompt is in Indonesian, otherwise write in English.
 
+Hard rules — violating any of these makes the document unusable:
+1. LANGUAGE PURITY: the entire document must contain ONLY the target language (Indonesian or English) plus universal technical terms. Never emit characters from any other script (Chinese, Cyrillic, etc.) — if one surfaces in your draft, replace it with the target-language word (e.g. write "kartu kredit", never 信用卡).
+2. RUTHLESS MVP: Phase 1 may contain AT MOST 7 features, and at most 5 of them P0. An MVP is what a small team ships in a few weeks — everything else moves to Phase 2, however tempting.
+3. VALID CODE ONLY: any SQL or code snippet must be syntactically valid and runnable exactly as written. If you cannot guarantee that, write clearly labelled pseudocode instead — never broken code dressed as real code.
+4. INTERNAL CONSISTENCY: before finishing, re-check that no section contradicts another (e.g. a listing must not show "rating" if reviews are scheduled for Phase 2).
+5. PROPORTIONATE NFRs: keep non-functional targets honest for an MVP scale — no multi-region failover, no five-nines SLA for a pilot with a handful of customers.
+
 When the user sends a follow-up revision request (e.g. "make the MVP smaller", "switch the stack to Laravel"), output the COMPLETE revised PRD — the full document with the change applied and all unchanged sections kept intact — never a diff or a partial answer.`;
 
 /** Example ideas for the empty state — one tap fills the textarea. */
@@ -278,7 +285,11 @@ export default function PRDGeneratorPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 py-6">
+    // min-w-0 is load-bearing: the dashboard <main> is a flex column, so this
+    // page is a flex item whose min-width:auto floor otherwise lets wide
+    // unbreakable children (idea chips, PRD tables/ASCII schema) push the
+    // whole column past the mobile viewport instead of scrolling internally.
+    <div className="mx-auto w-full min-w-0 max-w-4xl space-y-6 py-6">
       {/* Title */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
