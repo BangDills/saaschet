@@ -41,8 +41,10 @@ import { createContext7Tools } from "@/lib/context7/tools";
 import type { Sandbox } from "@daytona/sdk";
 import {
   assertCanSpend,
-  recordSpend,
+  reserveSpend,
+  settleSpend,
   OutOfCreditsError,
+  type CreditReservation,
 } from "@/lib/credits/server";
 import { searchMemories } from "@/lib/chat/memory";
 import { extractAndSaveMemories } from "@/lib/chat/memory-extractor";
@@ -805,6 +807,9 @@ export async function POST(req: Request) {
   const githubToken: string | undefined = profile?.github_token ?? undefined;
 
   // ── Pre-flight: daily credit check ───────────────────────────────────
+  // Read-only and purely for UX: a fast 402 before any expensive work.
+  // The AUTHORITATIVE gate is the atomic reserveSpend right before the
+  // model run starts — this check alone can be raced by parallel requests.
   const turnKind: "chat" | "agent" = wantsAgent ? "agent" : "chat";
   try {
     await assertCanSpend(userId, turnKind);
@@ -1314,6 +1319,11 @@ When the user asks about library APIs, setup, migrations, or version-specific be
   // registered but never handed to the background driver. Left dangling, such
   // a run would answer resume probes as "still working" until the watchdog.
   let unstartedRun: AgentRun | null = null;
+  // The atomic credit reservation for this turn. Settled exactly once: by
+  // finalizeSuccessfulTurn (success), the run driver's finalize (failure/
+  // abort), or the catch below (run never started).
+  let reservation: CreditReservation | null = null;
+  let reservationSettled = false;
 
   try {
     const modelMessages = await convertToModelMessages(processedMessages);
@@ -1342,6 +1352,10 @@ When the user asks about library APIs, setup, migrations, or version-specific be
       messageId: crypto.randomUUID(),
     });
     unstartedRun = run;
+
+    // Atomic reservation — the authoritative credit gate. Placed after
+    // createRun so the catch below owns cleanup of both on any throw.
+    reservation = await reserveSpend(userId, turnKind);
     // Every write that outlives the request goes through the service-role
     // client — the request-scoped one is tied to cookies from a connection
     // that may already be gone.
@@ -1417,15 +1431,18 @@ When the user asks about library APIs, setup, migrations, or version-specific be
       await markConversationIdle();
 
       try {
-        await recordSpend({
+        reservationSettled = true;
+        await settleSpend({
           userId,
           conversationId,
           kind: turnKind,
           toolCount: totalToolCount,
           modelId: finalModelId,
+          reservation: reservation ?? { reserved: 0 },
+          success: true,
         });
       } catch (err) {
-        console.error("[credits] recordSpend failed:", err);
+        console.error("[credits] settleSpend failed:", err);
       }
 
       await cleanupSandbox("after completion");
@@ -1697,10 +1714,23 @@ ${recoveryInstruction}`;
       persistMessage: persistAssistantMessage,
       finalize: async (outcome) => {
         // finalizeSuccessfulTurn already ran for a clean turn; this covers the
-        // aborted/failed paths so the conversation never stays "processing"
-        // and the sandbox never leaks.
+        // aborted/failed paths so the conversation never stays "processing",
+        // the sandbox never leaks, and the credit reservation is refunded —
+        // failed and stopped turns stay free.
         if (!finishedSuccessfully) {
           await markConversationIdle();
+          if (reservation && !reservationSettled) {
+            reservationSettled = true;
+            await settleSpend({
+              userId,
+              conversationId,
+              kind: turnKind,
+              toolCount: totalToolCount,
+              modelId: finalModelId,
+              reservation,
+              success: false,
+            });
+          }
           await cleanupSandbox(`after run ${outcome}`);
         }
       },
@@ -1716,8 +1746,30 @@ ${recoveryInstruction}`;
     });
   } catch (err) {
     // Nothing is driving this run, so retire it rather than let it advertise
-    // itself as resumable.
-    if (unstartedRun) endRun(unstartedRun, "failed");
+    // itself as resumable — and give the credit reservation back, since no
+    // model work happened.
+    if (unstartedRun) {
+      endRun(unstartedRun, "failed");
+      if (reservation && !reservationSettled) {
+        reservationSettled = true;
+        await settleSpend({
+          userId,
+          conversationId,
+          kind: turnKind,
+          toolCount: 0,
+          modelId,
+          reservation,
+          success: false,
+        }).catch(() => {});
+      }
+    }
+
+    if (err instanceof OutOfCreditsError) {
+      return NextResponse.json(
+        { error: err.message, code: "out_of_credits", credits: err.snapshot },
+        { status: 402 },
+      );
+    }
 
     // Mark conversation as idle on error so polling clients stop waiting.
     await supabase

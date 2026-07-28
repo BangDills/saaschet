@@ -90,7 +90,7 @@ ownership gate on `match_memories` gets the final word.
 
 ## Applying to a fresh database
 
-Paste each file into the SQL Editor in order, `0001` → `0026`. Note that the
+Paste each file into the SQL Editor in order, `0001` → `0027`. Note that the
 editor only shows the result of the **last** statement when you run several at
 once — run one file at a time.
 

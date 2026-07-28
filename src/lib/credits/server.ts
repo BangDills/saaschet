@@ -187,6 +187,123 @@ export async function assertCanSpend(
   return { snapshot, estimated };
 }
 
+// ── Reserve-then-settle (atomic, closes the parallel-request hole) ─────
+//
+// assertCanSpend only READS a snapshot; N parallel requests could all pass
+// it with one credit left and all reach the model provider. reserveSpend
+// increments the counter atomically BEFORE the turn runs, and settleSpend
+// adjusts to the real cost (success) or refunds (failure/abort) afterwards
+// — so failed turns stay free, exactly like before.
+//
+// Both call RPCs introduced in migration 0027. Migrations in this repo are
+// applied by hand, so a deploy can precede the SQL: when the function is
+// missing we fall back to the legacy read-only gate + spend_credits path
+// and warn loudly instead of breaking chat.
+
+export type CreditReservation = {
+  /** Credits atomically added to used_today up front. 0 = legacy fallback. */
+  reserved: number;
+};
+
+function isMissingFunction(error: { code?: string; message?: string }): boolean {
+  // 42883: Postgres "function does not exist"; PGRST202: PostgREST cannot
+  // find the function in its schema cache.
+  return (
+    error.code === "42883" ||
+    error.code === "PGRST202" ||
+    /could not find the function|does not exist/i.test(error.message ?? "")
+  );
+}
+
+/**
+ * Atomically reserve the base cost of a turn before running it. Throws
+ * OutOfCreditsError when the quota can't cover it.
+ */
+export async function reserveSpend(
+  userId: string,
+  kind: "chat" | "agent",
+): Promise<CreditReservation> {
+  const amount = estimatePreflightCost(kind);
+  const admin = createAdminClient();
+
+  const { data, error } = await admin.rpc("reserve_credits", {
+    p_user_id: userId,
+    p_amount: amount,
+  });
+
+  if (error) {
+    if (isMissingFunction(error)) {
+      console.warn(
+        "[credits] reserve_credits missing — run migration 0027. Falling back to the non-atomic gate.",
+      );
+    } else {
+      console.error("[credits] reserve_credits RPC failed:", error);
+    }
+    // Legacy path: read-only gate now, spend_credits at settle time.
+    await assertCanSpend(userId, kind);
+    return { reserved: 0 };
+  }
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { ok: boolean | null }
+    | null;
+
+  if (!row?.ok) {
+    const snapshot = await getCreditSnapshot(userId);
+    throw new OutOfCreditsError(snapshot, amount);
+  }
+  return { reserved: amount };
+}
+
+/**
+ * Settle a reservation after the turn ends. Success: adjust to the real
+ * cost and write the ledger row. Failure/abort: refund. Best-effort —
+ * a settle error is logged, never thrown.
+ */
+export async function settleSpend(opts: {
+  userId: string;
+  conversationId: string | null;
+  kind: "chat" | "agent";
+  toolCount: number;
+  modelId: string;
+  reservation: CreditReservation;
+  success: boolean;
+}): Promise<void> {
+  // Legacy fallback (reservation never happened): keep the old behavior —
+  // charge on success only.
+  if (opts.reservation.reserved === 0) {
+    if (opts.success) {
+      await recordSpend({
+        userId: opts.userId,
+        conversationId: opts.conversationId,
+        kind: opts.kind,
+        toolCount: opts.toolCount,
+        modelId: opts.modelId,
+      });
+    }
+    return;
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.rpc("settle_reserved_credits", {
+    p_user_id: opts.userId,
+    p_reserved: opts.reservation.reserved,
+    p_final_cost: opts.success ? computeFinalCost(opts.kind, opts.toolCount) : 0,
+    p_success: opts.success,
+    p_kind: opts.kind,
+    p_model_id: opts.modelId,
+    p_conversation_id: opts.conversationId,
+    p_tool_count: opts.toolCount,
+  });
+
+  if (error) {
+    console.error("[credits] settle_reserved_credits failed:", error);
+    // Reserved but unsettled: the base cost stays counted until the next
+    // UTC rollover. Deliberately NOT retried via spend_credits here — that
+    // could double-charge.
+  }
+}
+
 /**
  * Record a spend after the turn finishes. Increments the daily counter
  * + lifetime counter and writes a ledger row. Best-effort: failure to

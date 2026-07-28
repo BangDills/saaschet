@@ -158,7 +158,7 @@ src/
     supabase/             # Supabase client (server + browser)
     url.ts                # resolveOrigin + redactVendorPath
     nav.ts                # Sidebar navigation config
-  supabase/migrations/    # SQL migrations (0001-0026) — see its README.md for apply order
+  supabase/migrations/    # SQL migrations (0001-0027) — see its README.md for apply order
   Dockerfile              # Multi-stage Docker build (standalone, Coolify)
 ```
 
