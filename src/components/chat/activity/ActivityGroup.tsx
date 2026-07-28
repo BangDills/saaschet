@@ -38,9 +38,8 @@ const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  success: "text-emerald-600",
-  failed: "text-destructive",
-  partial: "text-amber-600 dark:text-amber-400",
+  completed: "text-emerald-600",
+  "needs-attention": "text-amber-600 dark:text-amber-400",
   running: "text-muted-foreground",
 };
 
@@ -86,10 +85,10 @@ export function ActivityGroup({
         <span className="shrink-0 text-xs text-muted-foreground">({group.count})</span>
 
         <span className="ml-auto flex shrink-0 items-center gap-1">
-          {group.status === "partial" && (
+          {group.needsAttentionCount > 0 && (
             <span className="flex items-center gap-0.5 text-[11px] text-amber-600 dark:text-amber-400">
               <AlertTriangle className="size-3" aria-hidden="true" />
-              {group.failedCount} failed
+              {group.needsAttentionCount > 1 ? `${group.needsAttentionCount} need attention` : "needs attention"}
             </span>
           )}
           {group.status === "running" && (

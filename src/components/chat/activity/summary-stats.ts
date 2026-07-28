@@ -4,16 +4,16 @@ const CATEGORY_VERBS: Record<string, (n: number) => string> = {
   exploring: (n) => `${n} ${n === 1 ? "folder" : "folders"} explored`,
   analyzing: (n) => `${n} ${n === 1 ? "file" : "files"} analyzed`,
   searching: (n) => `${n} codebase ${n === 1 ? "search" : "searches"}`,
-  planning: (n) => `${n} ${n === 1 ? "plan" : "plans"}`,
+  planning: (n) => `${n} execution ${n === 1 ? "plan" : "plans"}`,
   updating: (n) => `${n} ${n === 1 ? "file" : "files"} updated`,
   creating: (n) => `${n} ${n === 1 ? "file" : "files"} created`,
   deleting: (n) => `${n} ${n === 1 ? "file" : "files"} deleted`,
-  executing: (n) => `${n} ${n === 1 ? "task" : "tasks"} executed`,
-  validating: (n) => `${n} ${n === 1 ? "validation" : "validations"}`,
+  executing: (n) => `${n} ${n === 1 ? "task" : "tasks"} completed`,
+  validating: (n) => `${n} validation ${n === 1 ? "check" : "checks"}`,
   applying: (n) => `${n} ${n === 1 ? "change" : "changes"} applied`,
 };
 
-function formatElapsed(ms: number): string {
+export function formatElapsed(ms: number): string {
   const totalSec = Math.floor(ms / 1000);
   if (totalSec < 1) return "<1s";
   if (totalSec < 60) return `${totalSec}s`;
@@ -27,12 +27,18 @@ export function computeSummaryStats(
   elapsedMs: number | null,
 ): SummaryStats {
   const lines: string[] = [];
+  let needsAttention = 0;
   for (const g of groups) {
     const verb = CATEGORY_VERBS[g.id];
     if (verb) lines.push(verb(g.count));
+    needsAttention += g.needsAttentionCount;
   }
   return {
     lines,
+    needsAttentionLine:
+      needsAttention > 0
+        ? `${needsAttention} ${needsAttention === 1 ? "item needs" : "items need"} attention`
+        : null,
     elapsedLabel: elapsedMs != null ? formatElapsed(elapsedMs) : null,
   };
 }

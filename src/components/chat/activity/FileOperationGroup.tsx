@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { X, FileCode, FileText, Trash2, PencilLine } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { FileCode, FileText, Trash2, PencilLine } from "lucide-react";
 import type { ActivityGroupData } from "./activity-types";
 
 const FILE_OP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -24,8 +23,9 @@ export function FileOperationGroup({
     <div className="space-y-0.5">
       {group.items.map((item) => {
         const OpIcon = FILE_OP_ICONS[item.fileOp ?? "created"] ?? FileText;
-        const textColor = item.isError
-          ? "text-destructive"
+        const needsAttention = item.status === "needs-attention";
+        const textColor = needsAttention
+          ? "text-amber-600 dark:text-amber-400"
           : "text-foreground";
         return (
           <div key={item.key}>
@@ -37,6 +37,11 @@ export function FileOperationGroup({
               >
                 {item.filePath ?? item.title}
               </span>
+              {needsAttention && (
+                <span className="shrink-0 text-[10px] text-amber-600 dark:text-amber-400">
+                  Needs attention
+                </span>
+              )}
               {item.isRunning && (
                 <span className="shrink-0 text-[10px] text-muted-foreground">…</span>
               )}

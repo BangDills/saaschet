@@ -1,9 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, ChevronRight, Loader2, XCircle } from "lucide-react";
-import { TOOL_META, FALLBACK_META, DetailSection, ReadFileTruncationNotice } from "../tool-call";
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  CircleSlash,
+  Loader2,
+  MinusCircle,
+} from "lucide-react";
+import { TOOL_META, FALLBACK_META, DetailSection } from "../tool-call";
 import { ExpandableSection } from "./ExpandableSection";
+import { formatElapsed } from "./summary-stats";
 import type { ActivityItem as ActivityItemType } from "./activity-types";
 
 function getMetaIcon(toolName: string): React.ComponentType<{ className?: string }> {
@@ -11,9 +19,30 @@ function getMetaIcon(toolName: string): React.ComponentType<{ className?: string
   return meta.Icon;
 }
 
+/** Short user-facing label for non-nominal outcomes. */
+const STATUS_LABELS: Record<string, string> = {
+  "needs-attention": "Needs attention",
+  unavailable: "Unavailable",
+  skipped: "Skipped",
+};
+
+function StatusIcon({ item, Icon }: { item: ActivityItemType; Icon: React.ComponentType<{ className?: string }> }) {
+  switch (item.status) {
+    case "running":
+      return <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" />;
+    case "needs-attention":
+      return <AlertTriangle className="size-3.5 text-amber-600 dark:text-amber-400" aria-hidden="true" />;
+    case "unavailable":
+      return <CircleSlash className="size-3.5 text-muted-foreground" aria-hidden="true" />;
+    case "skipped":
+      return <MinusCircle className="size-3.5 text-muted-foreground" aria-hidden="true" />;
+    default:
+      return <Icon className="size-3.5" aria-hidden="true" />;
+  }
+}
+
 export function ActivityItem({
   item,
-  onActionPrompt,
 }: {
   item: ActivityItemType;
   onActionPrompt?: (text: string) => void;
@@ -21,6 +50,7 @@ export function ActivityItem({
   const [open, setOpen] = React.useState(false);
   const [detailOpen, setDetailOpen] = React.useState(false);
   const Icon = getMetaIcon(item.toolName);
+  const statusLabel = STATUS_LABELS[item.status];
 
   return (
     <div className="text-sm">
@@ -31,13 +61,7 @@ export function ActivityItem({
         className="group flex min-h-8 w-full items-center gap-2 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-          {item.isRunning ? (
-            <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
-          ) : item.isError ? (
-            <XCircle className="size-3.5 text-destructive" aria-hidden="true" />
-          ) : (
-            <Icon className="size-3.5" aria-hidden="true" />
-          )}
+          <StatusIcon item={item} Icon={Icon} />
         </span>
 
         <span className="min-w-0 flex-1 text-xs text-foreground">
@@ -48,6 +72,18 @@ export function ActivityItem({
             </span>
           )}
         </span>
+
+        {statusLabel && (
+          <span
+            className={`shrink-0 text-[10px] ${
+              item.status === "needs-attention"
+                ? "text-amber-600 dark:text-amber-400"
+                : "text-muted-foreground"
+            }`}
+          >
+            {statusLabel}
+          </span>
+        )}
 
         {item.lineStats && (
           <span className="shrink-0 font-mono text-[10px] font-medium">
@@ -72,7 +108,7 @@ export function ActivityItem({
           )}
 
           {/* Technical Details — only shown on explicit click */}
-          {(item.technicalDetails || item.inputPreview || item.errorText) && (
+          {(item.technicalDetails || item.inputPreview || item.errorText || item.durationMs != null) && (
             <>
               <button
                 type="button"
@@ -88,6 +124,11 @@ export function ActivityItem({
               </button>
               <ExpandableSection open={detailOpen}>
                 <div className="space-y-2">
+                  {item.durationMs != null && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Duration: {formatElapsed(item.durationMs)}
+                    </p>
+                  )}
                   {item.technicalDetails && (
                     <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-2 font-mono text-[11px] text-foreground">
                       {item.technicalDetails}
@@ -119,7 +160,7 @@ export const ActivityItemMemo = React.memo(
   (prev, next) =>
     prev.item.key === next.item.key &&
     prev.item.state === next.item.state &&
-    prev.item.isError === next.item.isError &&
+    prev.item.status === next.item.status &&
     prev.item.isDone === next.item.isDone &&
     prev.item.outputSummary === next.item.outputSummary,
 );

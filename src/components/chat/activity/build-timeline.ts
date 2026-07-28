@@ -6,40 +6,35 @@ import {
   summarizeOutput,
   getLineStats,
 } from "../tool-call";
-import { classifyToolName, classifyFileOp, CATEGORY_LABELS, CATEGORY_ORDER } from "./classify";
-import { deriveCopy } from "./derive-reason";
+import { classifyFileOp, CATEGORY_ORDER } from "./classify";
+import {
+  deriveSemanticEvent,
+  classifyOutcome,
+  extractDurationMs,
+} from "./semantic-events";
+import { resolveWorkflow, workflowGroupLabel } from "./workflow";
 import type {
   ActivityCategory,
   ActivityItem,
   ActivityGroupData,
   ActivityTimelineData,
-  FileOp,
 } from "./activity-types";
 
 const RUNNING_STATES = new Set(["input-streaming", "input-available", "executing", "approval-requested"]);
 
-function isObj(v: unknown): v is Record<string, unknown> {
-  return v !== null && typeof v === "object";
-}
-
-function isItemError(part: ToolCallPart): boolean {
-  if (part.state === "output-error") return true;
-  if (part.errorText) return true;
-  const o = part.output;
-  if (isObj(o) && o.success === false) return true;
-  if (isObj(o) && "error" in o && typeof o.error === "string" && o.error) return true;
-  return false;
-}
-
 function isItemDone(part: ToolCallPart): boolean {
-  return part.state === "output-available" || (!RUNNING_STATES.has(part.state) && !isItemError(part) && part.output !== undefined);
+  return part.state === "output-available" || (!RUNNING_STATES.has(part.state) && part.output !== undefined);
 }
 
-function isItemRunning(part: ToolCallPart): boolean {
-  return RUNNING_STATES.has(part.state);
-}
-
-export function buildTimeline(parts: ToolCallPart[]): ActivityTimelineData {
+/**
+ * Build the semantic timeline from raw tool-call parts. Each part becomes a
+ * structured activity (category/title/description/status/duration) via the
+ * semantic-event layer; the UI renders those, never terminal output.
+ */
+export function buildTimeline(
+  parts: ToolCallPart[],
+  opts?: { taskType?: string | null },
+): ActivityTimelineData {
   const seenPaths = new Set<string>();
   const grouped = new Map<ActivityCategory, ActivityItem[]>();
 
@@ -49,26 +44,41 @@ export function buildTimeline(parts: ToolCallPart[]): ActivityTimelineData {
 
     try {
       const toolName = getToolName(part);
-      const category = classifyToolName(toolName, part.input);
+      const event = deriveSemanticEvent(toolName, part.input);
       const filePath = extractFilePath(toolName, part.input);
       const fileOp = classifyFileOp(toolName, part.output, seenPaths, filePath);
-      const copy = deriveCopy(toolName, part.input, category);
-      const isRunning = isItemRunning(part);
-      const isError = isItemError(part);
-      const isDone = isItemDone(part);
+      const isRunning = RUNNING_STATES.has(part.state);
+      const status = isRunning
+        ? "running"
+        : classifyOutcome({
+            toolName,
+            input: part.input,
+            output: part.output,
+            state: part.state,
+            errorText: part.errorText,
+          });
+      const isDone = !isRunning && isItemDone(part);
 
       item = {
         key: part.toolCallId || `tc-${i}`,
         toolName,
-        category: fileOp === "created" ? "creating" : fileOp === "updated" ? "updating" : fileOp === "deleted" ? "deleting" : category,
+        category:
+          fileOp === "created"
+            ? "creating"
+            : fileOp === "updated"
+              ? "updating"
+              : fileOp === "deleted"
+                ? "deleting"
+                : event.category,
         fileOp,
         filePath: filePath ?? undefined,
-        title: copy.title,
-        description: copy.description,
-        technicalDetails: copy.technicalDetails,
+        title: event.title,
+        description: event.description,
+        technicalDetails: event.technicalDetails,
+        status,
+        durationMs: extractDurationMs(part.output),
         state: part.state,
         isRunning,
-        isError,
         isDone,
         input: part.input,
         output: part.output,
@@ -82,11 +92,11 @@ export function buildTimeline(parts: ToolCallPart[]): ActivityTimelineData {
         key: part.toolCallId || `tc-${i}`,
         toolName: "unknown",
         category: "planning",
-        title: "Executing tasks",
-        description: "Working",
+        title: "Working on the task",
+        description: "Processing",
+        status: "completed",
         state: part.state,
         isRunning: false,
-        isError: true,
         isDone: false,
         input: part.input,
         output: part.output,
@@ -101,9 +111,12 @@ export function buildTimeline(parts: ToolCallPart[]): ActivityTimelineData {
     grouped.set(item.category, list);
   }
 
+  const workflow = resolveWorkflow(opts?.taskType, new Set(grouped.keys()));
+
   const groups: ActivityGroupData[] = [];
   let totalActions = 0;
   let anyRunning = false;
+  let needsAttention = 0;
 
   for (const cat of CATEGORY_ORDER) {
     const items = grouped.get(cat);
@@ -111,27 +124,25 @@ export function buildTimeline(parts: ToolCallPart[]): ActivityTimelineData {
 
     const count = items.length;
     totalActions += count;
-    const failedCount = items.filter((it) => it.isError).length;
-    const runningCount = items.filter((it) => it.isRunning).length;
+    const needsAttentionCount = items.filter((it) => it.status === "needs-attention").length;
+    const runningCount = items.filter((it) => it.status === "running").length;
+    needsAttention += needsAttentionCount;
     if (runningCount > 0) anyRunning = true;
 
-    let status: ActivityGroupData["status"];
-    if (runningCount > 0 && failedCount === 0) status = "running";
-    else if (failedCount === 0) status = "success";
-    else if (failedCount === count) status = "failed";
-    else status = "partial";
+    const status: ActivityGroupData["status"] =
+      runningCount > 0 ? "running" : needsAttentionCount > 0 ? "needs-attention" : "completed";
 
     groups.push({
       id: cat,
-      label: CATEGORY_LABELS[cat],
+      label: workflowGroupLabel(workflow, cat),
       iconKey: cat,
       items,
       count,
       status,
-      failedCount,
+      needsAttentionCount,
       runningCount,
     });
   }
 
-  return { groups, totalActions, anyRunning };
+  return { groups, workflow, totalActions, anyRunning, needsAttention };
 }

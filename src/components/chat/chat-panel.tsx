@@ -786,13 +786,19 @@ export function ChatPanel({
                 const isStreamingThis =
                   isStreaming && isLast && m.role === "assistant";
                 if (m.role === "assistant") {
+                  const meta = m.metadata as
+                    | { agentState?: AgentCompletionState; durationMs?: number }
+                    | undefined;
                   return (
                     <MessageBubble
                       key={m.id}
                       role="assistant"
                       parts={toBubbleParts(m.parts)}
                       streaming={isStreamingThis}
-                      startedAt={isStreamingThis ? (streamStartedAt ?? undefined) : undefined}
+                      durationMs={
+                        typeof meta?.durationMs === "number" ? meta.durationMs : undefined
+                      }
+                      taskType={meta?.agentState?.taskType}
                       onToolActionPrompt={handleToolActionPrompt}
                       feedback={feedbackByMessage[m.id] ?? null}
                       feedbackPending={pendingFeedbackIds.has(m.id)}

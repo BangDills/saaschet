@@ -37,8 +37,10 @@ export type MessageBubbleProps = {
   content?: string;
   /** when true, shows a subtle pulsing cursor at the end (streaming) */
   streaming?: boolean;
-  /** Turn start timestamp (ms) for the summary card elapsed time. */
-  startedAt?: number;
+  /** Persisted turn duration (from message metadata) for "Completed in Xs". */
+  durationMs?: number;
+  /** AgentState taskType (from message metadata) — selects the timeline workflow. */
+  taskType?: string;
   /** Callback to submit a tool action prompt. */
   onToolActionPrompt?: (text: string) => void;
   /** Retry the preceding user request. */
@@ -60,12 +62,14 @@ function isToolPart(part: AnyPart): part is AnyPart & ToolCallPart {
 function AssistantParts({
   parts,
   streaming,
-  startedAt,
+  durationMs,
+  taskType,
   onToolActionPrompt,
 }: {
   parts: AnyPart[];
   streaming?: boolean;
-  startedAt?: number;
+  durationMs?: number;
+  taskType?: string;
   onToolActionPrompt?: (text: string) => void;
 }) {
   const toolParts = parts.filter(isToolPart);
@@ -89,7 +93,8 @@ function AssistantParts({
         <ActivityTimeline
           parts={toolParts as ToolCallPart[]}
           streaming={Boolean(streaming)}
-          startedAt={startedAt}
+          durationMs={durationMs}
+          taskType={taskType}
           onActionPrompt={onToolActionPrompt}
         />
       )}
@@ -123,7 +128,8 @@ function MessageBubbleImpl({
   parts,
   content,
   streaming,
-  startedAt,
+  durationMs,
+  taskType,
   onToolActionPrompt,
   onRetry,
   feedback,
@@ -212,7 +218,8 @@ function MessageBubbleImpl({
             <AssistantParts
               parts={parts}
               streaming={streaming}
-              startedAt={startedAt}
+              durationMs={durationMs}
+              taskType={taskType}
               onToolActionPrompt={onToolActionPrompt}
             />
             {streaming && (
@@ -374,6 +381,8 @@ export const MessageBubble = React.memo(MessageBubbleImpl, (prev, next) => {
   if (prev.role !== next.role) return false;
   if (prev.streaming !== next.streaming) return false;
   if (prev.content !== next.content) return false;
+  if (prev.durationMs !== next.durationMs) return false;
+  if (prev.taskType !== next.taskType) return false;
   if (prev.onToolActionPrompt !== next.onToolActionPrompt) return false;
   if (prev.onRetry !== next.onRetry) return false;
   if (prev.onFeedback !== next.onFeedback) return false;

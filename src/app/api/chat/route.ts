@@ -693,6 +693,9 @@ function findExistingWorkBranch(messages: UIMessage[]): string | null {
 }
 
 export async function POST(req: Request) {
+  // Turn start — emitted with the message metadata so the UI can show
+  // "Completed in 18s" (cumulative across model-fallback attempts).
+  const turnStartedAt = Date.now();
   // ── Auth ─────────────────────────────────────────────────────────────
   const supabase = await createClient();
   const {
@@ -1488,6 +1491,7 @@ ${recoveryInstruction}`;
             userText,
             totalToolCount,
           );
+          const durationMs = Date.now() - turnStartedAt;
           if (pendingAgentState) {
             console.log("[agent-state] emit", {
               taskType: pendingAgentState.taskType,
@@ -1496,10 +1500,15 @@ ${recoveryInstruction}`;
             });
             writer.write({
               type: "message-metadata",
-              messageMetadata: { agentState: pendingAgentState },
+              messageMetadata: { agentState: pendingAgentState, durationMs },
             });
           } else {
             console.log("[agent-state] no state derived (null)");
+            // Still emit the duration so the timeline can show elapsed time.
+            writer.write({
+              type: "message-metadata",
+              messageMetadata: { durationMs },
+            });
           }
         } catch (stateErr) {
           console.warn("[chat] agent state derive/emit failed:", stateErr);
