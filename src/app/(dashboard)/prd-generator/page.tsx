@@ -167,6 +167,10 @@ export default function PRDGeneratorPage() {
   const { messages, sendMessage, status, error, stop } = useChat({
     id: conversationId,
     transport,
+    // Without a throttle every SSE chunk re-renders (and re-parses) the whole
+    // growing document — on phones the main thread saturates and the page
+    // freezes until the stream ends. 4 flushes/second reads just as live.
+    experimental_throttle: 250,
   });
 
   const isStreaming = status === "submitted" || status === "streaming";

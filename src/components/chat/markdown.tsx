@@ -14,6 +14,7 @@ import {
   Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { splitStreamingSegments } from "./markdown-segments";
 
 /* ─────────────────────────────────────────────────────────────────────────
  * Streaming context
@@ -489,6 +490,16 @@ export function Markdown({
     [children, streaming],
   );
 
+  // While streaming, render per-heading segments so each flush only re-parses
+  // the trailing segment instead of the whole growing document. Segments only
+  // ever get appended, so index keys keep earlier memoized trees stable.
+  // ReactMarkdown adds no wrapper element, so the segment elements land as
+  // direct children of the prose container exactly like a single-pass render.
+  const segments = React.useMemo(
+    () => (streaming ? splitStreamingSegments(body) : null),
+    [streaming, body],
+  );
+
   return (
     <div
       className={cn(
@@ -497,7 +508,13 @@ export function Markdown({
       )}
     >
       <StreamingContext.Provider value={streaming}>
-        <ReactMarkdownMemo content={body} />
+        {segments ? (
+          segments.map((segment, index) => (
+            <ReactMarkdownMemo key={index} content={segment} />
+          ))
+        ) : (
+          <ReactMarkdownMemo content={body} />
+        )}
       </StreamingContext.Provider>
       {references.length > 0 && <CompactReferences references={references} />}
     </div>
