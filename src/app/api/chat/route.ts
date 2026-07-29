@@ -1437,17 +1437,22 @@ When the user asks about library APIs, setup, migrations, or version-specific be
       });
     }
 
-    // Sandboxes are NOT deleted at end of turn anymore — they stay labeled
-    // to the conversation so the next turn reuses them (no cold start, no
-    // re-clone). The reaper is Daytona itself: autoStopInterval stops the
-    // sandbox after 5 idle minutes and autoDeleteInterval 0 deletes it the
-    // moment it stops, so quota frees itself without us tracking anything.
+    // End of turn deletes the sandbox immediately — an idle sandbox holds a
+    // multi-GiB slot of the org quota for nothing. The conversation label +
+    // the reuse lookup above still earn their keep: a run that dies before
+    // reaching cleanup (crash, server restart) leaves an orphan, and the
+    // NEXT turn adopts it instead of stacking a second sandbox. Orphans
+    // nobody adopts are reaped by Daytona (autoStop 5 min → autoDelete 0).
     async function cleanupSandbox(reason: string) {
       if (!sandbox || sandboxCleaned) return;
       sandboxCleaned = true;
-      console.log(
-        `[sandbox] Sandbox ${sandbox.id} left for reuse ${reason} (auto-reaped after 5 idle minutes)`,
-      );
+
+      try {
+        await sandbox.delete();
+        console.log(`[sandbox] Sandbox ${sandbox.id} deleted ${reason}`);
+      } catch (err) {
+        console.warn("[sandbox] Sandbox cleanup failed:", err);
+      }
     }
 
     async function finalizeSuccessfulTurn() {
