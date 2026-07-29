@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Crown, Loader2, Sparkles } from "lucide-react";
+import { Check, Crown, Loader2 } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -18,7 +18,6 @@ const PLANS: Array<{
   name: string;
   limit: number;
   price: string;
-  icon: React.ComponentType<{ className?: string }>;
   perks: string[];
 }> = [
   {
@@ -26,7 +25,6 @@ const PLANS: Array<{
     name: "Free",
     limit: 50,
     price: "Rp 0 / hari",
-    icon: Sparkles,
     perks: [
       "50 kredit per hari",
       "Semua model chat",
@@ -39,7 +37,6 @@ const PLANS: Array<{
     name: "Pro",
     limit: 3000,
     price: "Rp 10.000 / 24 jam",
-    icon: Crown,
     perks: [
       "3.000 kredit per 24 jam",
       "Semua di Free",
@@ -110,7 +107,6 @@ export function ProfileTierSwitcher({
           {PLANS.map((plan) => {
             const isCurrent = tier === plan.id;
             const isPending = pending === plan.id;
-            const Icon = plan.icon;
             return (
               <div
                 key={plan.id}
@@ -122,17 +118,7 @@ export function ProfileTierSwitcher({
                 )}
               >
                 <div className="mb-2 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Icon
-                      className={cn(
-                        "size-5",
-                        plan.id === "pro"
-                          ? "text-amber-500"
-                          : "text-violet-500",
-                      )}
-                    />
-                    <span className="text-base font-semibold">{plan.name}</span>
-                  </div>
+                  <span className="text-base font-semibold">{plan.name}</span>
                   {isCurrent && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
                       <Check className="size-3" />
@@ -154,7 +140,7 @@ export function ProfileTierSwitcher({
                 <ul className="mb-4 space-y-1.5 text-sm">
                   {plan.perks.map((p) => (
                     <li key={p} className="flex items-start gap-2">
-                      <Check className="mt-0.5 size-4 shrink-0 text-emerald-500" />
+                      <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                       <span>{p}</span>
                     </li>
                   ))}
