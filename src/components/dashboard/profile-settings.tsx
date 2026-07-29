@@ -455,7 +455,7 @@ export function ProfileSettings({
               </span>
               <div className="min-w-0">
                 <p className="text-sm font-medium">GitHub</p>
-                <p className="truncate text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {githubUsername ? (
                     <>
                       Terhubung sebagai{" "}
