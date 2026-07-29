@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { ChatRole } from "@/lib/chat/types";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("conversations");
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -82,7 +85,7 @@ export async function GET(
   const c = conv as ConversationRow;
   const m = (msgs ?? []) as MessageRow[];
 
-  console.log("[conversations] get history", {
+  log.debug("history loaded", {
     conversationId: c.id,
     messageCount: m.length,
     assistantCount: m.filter((row) => row.role === "assistant").length,

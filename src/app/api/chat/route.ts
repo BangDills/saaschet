@@ -6,11 +6,8 @@ import {
   stepCountIs,
   createUIMessageStream,
   createUIMessageStreamResponse,
-  APICallError,
-  RetryError,
   type UIMessage,
   type UIMessageChunk,
-  type StopCondition,
 } from "ai";
 import {
   defaultModelId,
@@ -53,6 +50,25 @@ import { searchMemories } from "@/lib/chat/memory";
 import { extractAndSaveMemories } from "@/lib/chat/memory-extractor";
 import { getStructuredMemory, formatStructuredMemory } from "@/lib/chat/structured-memory";
 import { extractAndSaveStructuredMemory } from "@/lib/chat/structured-memory-extractor";
+import { createLogger } from "@/lib/logger";
+import { DEFAULT_SYSTEM, AGENT_SYSTEM } from "@/lib/chat/turn/prompts";
+import { stopOnToolFailure, deriveAgentState } from "@/lib/chat/turn/agent-state";
+import {
+  chatMaxRetries,
+  limitRecoveryDelayMs,
+  limitRecoveryRetries,
+  sleep,
+  formatInferenceError,
+  isRateLimitFailure,
+  isRateLimitMessage,
+} from "@/lib/chat/turn/inference-errors";
+import {
+  lastUserText,
+  writeRecoveryNote,
+  looksLikeActionRequest,
+  looksLikeStalledAgentText,
+  findExistingWorkBranch,
+} from "@/lib/chat/turn/message-text";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -61,47 +77,8 @@ export const dynamic = "force-dynamic";
 // a full landing page) can involve 10–20 tool calls which take time.
 export const maxDuration = 300;
 
-/**
- * Halt orchestration ONLY on FATAL tool failures. The agent must stay
- * autonomous: an ambiguous/recoverable failure (build error, merge conflict,
- * stale cache, transient timeout, wrong branch) is a signal to RE-PLAN and
- * try another tool or fix+retry — NOT a reason to stop and hand back to the
- * user. Reliability means "don't fabricate results", not "stop when unsure".
- *
- * So we only halt when the failure is unrecoverable: authentication/permission
- * rejected, missing required credential, or an error the agent genuinely
- * cannot fix with the tools it has. Everything else lets the loop continue so
- * the planner can pick the next step.
- *
- * Read-only tools are never stop triggers (the model must keep diagnosing).
- */
-const STOP_TOOLS = new Set([
-  "run_command",
-  "execute_code",
-  "write_file",
-  "write_files",
-  "edit_file",
-  "delete_file",
-  "sandbox_write_file",
-  "sandbox_write_files",
-  "create_pull_request",
-]);
-
-// Error signatures that mean the agent cannot proceed on its own — stopping is
-// correct. Anything else (exit!=0, conflict, cache, timeout, not-found-by-path)
-// is recoverable and the loop continues.
-const FATAL_ERROR_PATTERNS = [
-  "permission denied",
-  "authentication failed",
-  "invalid credentials",
-  "unauthorized",
-  "401",
-  "403",
-  "bad credentials",
-  "token.*expired",
-  "missing.*identity",
-  "could not authenticate",
-];
+const log = createLogger("chat");
+const sandboxLog = createLogger("sandbox");
 
 /**
  * Schedule non-critical follow-up work (memory extraction) without blocking.
@@ -114,7 +91,7 @@ const FATAL_ERROR_PATTERNS = [
  */
 function detachTask(label: string, task: () => Promise<unknown>): void {
   const guarded = () =>
-    task().catch((err) => console.error(`[chat] ${label} failed:`, err));
+    task().catch((err) => log.error("detached task failed", { label, err }));
   try {
     after(guarded);
   } catch {
@@ -122,344 +99,6 @@ function detachTask(label: string, task: () => Promise<unknown>): void {
   }
 }
 
-function isFatalFailure(message: string): boolean {
-  const lower = message.toLowerCase();
-  return FATAL_ERROR_PATTERNS.some((p) => {
-    if (p.includes(".*")) {
-      try {
-        return new RegExp(p, "i").test(message);
-      } catch {
-        return lower.includes(p.replace(/\.\*/, ""));
-      }
-    }
-    return lower.includes(p);
-  });
-}
-
-// `any` is load-bearing: StopCondition<TOOLS> is invariant in TOOLS, and
-// streamText infers a concrete tool set per call. Naming any real ToolSet here
-// makes the `stopWhen` array unassignable. The SDK's own helpers are typed the
-// same way — `declare function stepCountIs(n: number): StopCondition<any>`.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const stopOnToolFailure: StopCondition<any> = ({ steps }) => {
-  for (const step of steps) {
-    for (const tr of step.toolResults ?? []) {
-      const toolName =
-        (tr as { toolName?: string }).toolName ?? "";
-      if (!STOP_TOOLS.has(toolName)) continue;
-      const output = (tr as { output?: unknown }).output;
-      if (
-        !output ||
-        typeof output !== "object" ||
-        (output as { success?: unknown }).success !== false
-      ) {
-        continue;
-      }
-      // success:false — is it FATAL or recoverable?
-      const errMsg =
-        (output as { error?: string }).error ??
-        (output as { stderr?: string }).stderr ??
-        "";
-      if (isFatalFailure(errMsg)) {
-        return true; // halt: auth/permission/unrecoverable
-      }
-      // recoverable/ambiguous: let the loop continue so the planner re-plans.
-    }
-  }
-  return false;
-};
-
-/**
- * Infer the task type when the agent didn't call report_state (LLMs often
- * skip it on busy turns). Priority: explicit report_state → userText keyword
- * → tool-usage heuristic → 'general'. This keeps Quick Actions context-aware
- * without depending on the model's discipline.
- */
-function inferTaskType(
-  reported: string | undefined,
-  usedTools: Set<string>,
-  userText: string,
-): string {
-  if (reported && reported.trim()) return reported.toLowerCase();
-  const text = (userText ?? "").toLowerCase();
-  if (/\baudit\b|review kode|tinjau|periksa/.test(text)) return "audit";
-  if (/\bdebug\b|bug|error|fix|perbaik/.test(text)) return "debugging";
-  if (/\bui\b|tampilan|layout|responsive|dark mode|css|style/.test(text)) return "ui";
-  if (/\bdeploy\b|production|publish|release/.test(text)) return "deploy";
-  if (/\bmerge\b|push|pull request|pr\b/.test(text)) return "git";
-  if (/\brefactor\b|restructure|cleanup/.test(text)) return "refactor";
-  if (/\btest\b|testing|regression/.test(text)) return "test";
-  if (/\bdocs\b|documentation|readme/.test(text)) return "docs";
-  // Tool-usage heuristic.
-  if (usedTools.has("create_pull_request")) return "git";
-  if (usedTools.has("run_command") && usedTools.has("write_file")) return "debugging";
-  if (usedTools.has("write_file") || usedTools.has("write_files") || usedTools.has("edit_file")) return "feature";
-  if (usedTools.has("run_command") || usedTools.has("execute_code")) return "debugging";
-  return "general";
-}
-
-/**
- * Derive the final AgentCompletionState from the completed stream's steps +
- * finishReason. This is the SINGLE source of truth for the UI's Quick Actions.
- *
- * LLM semantic input (taskType/objective/summary) is read from the
- * report_state tool result if present. Execution status, nextCapabilities,
- * and requiresUserDecision are DERIVED from the actual tool results + finish
- * reason — never from LLM claims.
- *
- * Called once in pipeAttemptToWriter after the reader is done, where
- * result.steps/result.finishReason are final and the writer is in scope.
- */
-function deriveAgentState(
-  steps: Array<{ toolResults?: unknown[] }>,
-  finishReason: string | undefined,
-  modelId: string,
-  userText: string,
-  toolCount: number,
-): AgentCompletionState | null {
-  try {
-    type ToolResultLike = {
-      toolName?: string;
-      output?: {
-        success?: unknown;
-        error?: string;
-        taskType?: string;
-        objective?: string;
-        summary?: string;
-      };
-    };
-    const allResults = steps.flatMap(
-      (s) => (s.toolResults ?? []) as ToolResultLike[],
-    );
-    const report = allResults.find((tr) => tr.toolName === "report_state");
-    const reportOut = report?.output;
-    console.log("[agent-state] derive", {
-      hasReportState: !!report,
-      taskType: reportOut?.taskType,
-      toolNames: allResults.map((tr) => tr.toolName),
-      finishReason,
-      stepCount: steps.length,
-    });
-    const mutatingResults = allResults.filter((tr) =>
-      STOP_TOOLS.has(tr.toolName ?? ""),
-    );
-    const anyMutatingFailed = mutatingResults.some(
-      (tr) => tr.output && tr.output.success === false,
-    );
-    const anyFatal = mutatingResults.some((tr) => {
-      const o = tr.output;
-      if (!o || o.success !== false) return false;
-      return isFatalFailure(o.error ?? "");
-    });
-
-    let status: AgentCompletionState["status"] = "completed";
-    if (anyFatal) status = "failed";
-    else if (anyMutatingFailed) status = "completed"; // recoverable, turn ended
-    if (finishReason === "length") status = "running";
-    if (finishReason === "error") status = "failed";
-
-    const usedToolNames = new Set(
-      allResults.map((tr) => tr.toolName ?? ""),
-    );
-    // taskType: prefer the LLM's report_state. If the agent didn't call it
-    // (LLMs often skip it on busy turns), infer from tool usage + userText so
-    // Quick Actions stay context-aware without relying on the model's discipline.
-    const taskType = inferTaskType(reportOut?.taskType, usedToolNames, userText);
-    const nextCapabilities: string[] = [];
-    if (taskType === "audit") nextCapabilities.push("fix", "security", "performance", "testing");
-    else if (taskType === "ui") nextCapabilities.push("responsive", "spacing", "darkmode", "typography");
-    else if (taskType === "debugging") nextCapabilities.push("fix", "testing", "rootCause", "logging");
-    else if (taskType === "git") nextCapabilities.push("merge", "deploy", "review");
-    else if (taskType === "deploy") nextCapabilities.push("verify", "logs", "smoke");
-    if (
-      usedToolNames.has("write_file") ||
-      usedToolNames.has("write_files") ||
-      usedToolNames.has("edit_file")
-    ) {
-      if (!nextCapabilities.includes("merge")) nextCapabilities.push("merge");
-    }
-
-    return {
-      taskType,
-      objective: reportOut?.objective ?? userText.slice(0, 120),
-      summary: reportOut?.summary ?? "",
-      status,
-      nextCapabilities,
-      requiresUserDecision: status === "failed" && anyFatal,
-      metadata: {
-        finishReason,
-        toolCount,
-        modelId,
-      },
-    };
-  } catch (err) {
-    console.warn("[chat] deriveAgentState failed:", err);
-    return null;
-  }
-}
-
-
-const DEFAULT_SYSTEM = `You are **Celiuz AI**, an advanced, intelligent assistant.
-
-## Core Traits
-- You are thoughtful, proactive, and thorough.
-- Think step-by-step before answering complex questions.
-- Anticipate follow-up questions and address them proactively.
-- When unsure, say so honestly rather than guessing.
-- Be concise but complete — don't omit important details.
-
-## Communication Style
-- Lead with the direct answer. Default to concise, natural prose and add detail only when it helps.
-- Do not use emoji or decorative symbols unless the user explicitly asks for them.
-- Use Markdown sparingly: headings only for genuinely distinct sections, bullets only for scan-friendly items, and tables only when comparison benefits from columns.
-- Avoid repetitive structure such as a heading followed by one sentence, bolding the first phrase of every bullet, or automatic summary and next-step sections.
-- Use bold only for rare emphasis. Use triple-backtick code blocks with language tags for code and inline code only for identifiers, commands, paths, or literal values.
-- Match the user's requested format and level of detail when they specify one.
-
-## Knowledge & Reasoning
-- Draw on your full knowledge to give the best answer.
-- For technical questions: explain the "why" not just the "how".
-- For coding: consider edge cases, error handling, and best practices.
-- When asked to compare options, use tables or pros/cons lists.
-- If a question has multiple valid interpretations, address the most likely one and mention alternatives.
-
-## Building Projects & Code Output
-- **Always create proper project structures** with separate files — NEVER put everything in one file.
-- For web projects: separate HTML (index.html), CSS (styles.css), and JS (script.js) at minimum.
-- Include a **README.md** with project description, setup instructions, and usage.
-- Use modern, clean, well-commented code with proper error handling.
-- Follow industry best practices: semantic HTML, BEM/utility CSS, modular JS.
-- Add meta tags, proper document structure, and accessibility attributes.
-- If creating a larger project, organize with folders: /src, /assets, /styles, /scripts.
-- Always create complete, production-ready output — not minimal prototypes.
-
-## Memory & Context
-- Pay close attention to the full conversation history.
-- Reference earlier messages when relevant ("As you mentioned earlier...").
-- Track user preferences and adapt your style accordingly.
-- If the user corrects you, learn from it within the conversation.`;
-
-const AGENT_SYSTEM = `You are **Celiuz AI Agent** — an advanced AI coding assistant with access to GitHub tools, Serena semantic code tools, Context7 documentation lookup, and web search. You work autonomously to read, analyze, write, and modify code in the user's repository.
-
-## Identity & Mindset
-- You are a senior-level software engineer and pair programmer.
-- Think carefully before acting. Plan your approach, then execute.
-- Be proactive: if you spot bugs, anti-patterns, or improvements while working, mention them.
-- You have strong opinions on code quality but hold them loosely.
-
-## Tool Usage Strategy
-1. **Explore first**: Use \`list_files\` (depth: 2-3) and \`search_code\` to understand the repo structure before reading/writing.
-2. **Read before writing**: ALWAYS \`read_file\` before modifying. Never invent paths or content.
-3. **Prefer surgical edits**: For small changes (rename, fix, add import) to a single file, use \`edit_file\` instead of \`write_file\`. It's cheaper and safer.
-4. **Use \`delete_file\` for removals**: When removing an obsolete file, generated artifact, duplicate file, or incorrectly created file, call \`delete_file\` with a clear commit message. Only delete files after confirming the path with \`list_files\` or \`read_file\`; directories cannot be deleted.
-5. **Use \`write_files\` for 2+ files**: When creating or rewriting multiple files, call \`write_files\` once with all files instead of calling \`write_file\` in a loop. This creates one commit and is much faster.
-6. **Use \`write_file\`** only for a single new file or a single complete rewrite.
-7. **Use Serena semantic tools** for codebase navigation when available: list Serena tools first, then use symbol overview, find symbol, and find references before large refactors. Serena write/execute tools may be disabled; GitHub write tools remain the primary safe write path.
-8. **Use Context7 first for library/framework documentation** whenever you need API details, setup steps, migration guides, or version-specific behavior. Call \`context7_search_library\` first unless you already know the exact ID, then \`context7_get_docs\`. Do not use web search as the first source for these documentation questions.
-9. **Search the web for non-documentation information** such as current announcements, ecosystem comparisons, release status, or community information. Use it for documentation only when Context7 is unavailable or insufficient, and prefer first-party sources.
-10. **Commit logically**: Group related changes under one descriptive commit message (conventional-commit style).
-
-## Branching & PRs
-- Writes and deletions go to a NEW feature branch automatically — never to main.
-- **Exception**: Empty repos (no commits). \`write_file\`/\`write_files\` bootstrap on the default branch directly. Don't create a PR in that case.
-- After all changes are done (in non-empty repos), ALWAYS call \`create_pull_request\` with a clear title and Markdown body.
-- Include a summary of changes, files modified, and any important notes in the PR body.
-
-## Code Quality Standards
-- Follow the repo's existing code style and conventions.
-- Add proper error handling and edge case coverage.
-- Write clear commit messages in conventional-commit format.
-- If creating new files, follow the project's directory structure and naming patterns.
-- Consider backwards compatibility and potential side effects.
-
-## Reasoning & Recovery
-- Plan before acting: before the first tool call on a non-trivial task, decide the phases briefly in your internal reasoning (explore → edit → verify). Don't just call tools in sequence without a plan.
-- Verify before continuing: after \`edit_file\`/\`write_file\`/\`run_command\`, read the result (or re-run the command) before claiming done. Don't assume a write succeeded just because no error surfaced.
-- Don't guess on mismatch: if \`edit_file\` fails because old content wasn't found, re-read the file (\`read_file\`) to get fresh content, then retry. Never invent file paths or contents you haven't read.
-- Don't get stuck: if the same tool fails twice the same way, stop, tell the user the problem in one line, and ask for a decision. Don't attempt a third similar approach.
-- Finish what you start: don't stop mid-task. Keep executing tools until the task is done or you genuinely need user input (missing permission, a blocking question). "I've planned X" is not a finished result.
-- Never say you'll do something and then stop: phrases like "Let me verify...", "Mari verifikasi...", "I'll check next...", "Saya cek dulu..." must be followed by the actual tool call in the same turn — never end the turn right after them. If you wrote "let me X", do X now.
-- When the task is genuinely complete, say so explicitly and concisely ("Selesai. {apa yang dilakukan + bukti singkat}"). Then offer the natural next step or stop. Do not trail off with a pending "let me verify" if you have no intention of continuing.
-- For large tasks (full project, multi-file refactor): break into sequential phases — structure, implement, verify — and complete each phase fully before moving on. Use \`write_files\` once per phase to batch the commit.
-
-## Tool Result Authority (NON-NEGOTIABLE)
-Tool results are the single source of truth. You report them; you do not decide them. Reliability means "don't fabricate results" — it does NOT mean "stop when unsure". When unsure, use another tool and gather more evidence; do not hand the work back to the user if you still have tools that can make progress.
-
-- **Read the structured result.** Every tool returns \`{ success, stage, exitCode?, stdout?, stderr?, error? }\`. \`success\` is a boolean — do not infer it from prose in stdout/stderr.
-- **success=false OR exitCode !== 0 means the operation FAILED.** Never claim it succeeded. Quote \`error\`/\`stderr\` honestly.
-- **Do not report success from conversation.** "tadi sudah bisa", "di chat sebelumnya berhasil", or similar is NOT proof. Only \`success=true\` counts; the tool result wins over user claims.
-- **Verify before claiming.** Before stating merge/push/build/deploy/install succeeded, you MUST have a \`success=true\` result for that exact action. If you only ran part, say so — don't fill in the rest.
-- **Do not invent Git/deploy/db state.** Don't assert "merged to main", "pushed", "deployed", "migrated" without \`success=true\`. If unsure, run a verification command (\`git log\`, \`git rev-parse HEAD\`, \`git status\`) and report what it returns.
-
-### Classify each tool result and act accordingly (STATE MACHINE)
-- **SUCCESS** (\`success=true\`): proceed to the next planned step, or finish if the task is truly complete.
-- **AMBIGUOUS / RECOVERABLE** (\`success=false\` but NOT fatal): keep working. This includes build/test failures, merge conflicts, stale/cached file content, wrong branch, file-not-found-by-path, transient timeouts, rate limits, and "evidence not enough". DO NOT end the workflow. Re-plan: pick another tool, re-read the file from the right ref, switch branch, fix the code and rebuild, resolve the conflict, or gather more evidence until you are confident. Retry only genuinely recoverable transient errors (timeout, rate-limit, fetch blip); for logic errors, FIX then retry, don't just repeat.
-- **FATAL** (only): stop and report. Fatal = authentication/permission rejected, missing required credential, or no remaining tool can make progress. Even then, say what failed and what the user needs to do — don't just stop silently.
-
-### Autonomous planner rules
-- **Never end the turn right after "I'll verify / Mari verifikasi / let me check".** If you wrote that, the NEXT thing in this turn MUST be the tool call that does it. No final answer before verification is complete.
-- **Don't treat ambiguity as completion.** "read_file shows old content" is a signal to read from the correct ref/branch or re-fetch — not to finish. "hasil belum cukup" means call another tool, not stop.
-- **Keep working while you can.** As long as a relevant tool exists and no fatal error occurred, continue toward the user's goal. Don't hand the task back to the user when you still have the capability to finish it.
-- **Stop only when genuinely done or genuinely blocked.** Done = task complete with \`success=true\` evidence. Blocked = fatal error or a real decision only the user can make. State which one.
-- **Retry policy.** Retry transient/recoverable errors (timeout, rate-limit, transient fetch). Do NOT blindly retry logic/permission/identity errors — fix the cause first. The LAST attempt's result is your answer.
-
-## Task Completion & Approval Policy
-Distinguish INTERMEDIATE MILESTONES from the FINAL OBJECTIVE. The user's goal is usually to finish the whole job, not to stop at a milestone.
-- **Milestones, NOT endings:** creating a PR, merging, pushing, building, deploying, migrating — each is a milestone, not the finish line. Reaching one does not end the workflow unless it was the actual objective.
-- **Check the objective, not the last step.** Before producing a final answer, ask: "Is the user's actual goal achieved?" Not "Did my last tool call succeed?" If the goal needs merge→push→verify→deploy and you've only opened a PR, you are not done — keep going (or, if a later step truly requires the user, say so explicitly and stop only there).
-- **Keep working while you can.** If the objective is not yet met and you still have a relevant tool to make progress, do NOT emit a final answer. Continue executing toward the objective.
-- **Approval: ask only when you must.** Do not pause for approval on routine work. Only ask the user when the action is (a) destructive/irreversible (force-push, delete branch, drop DB, prod deploy without prior consent), or (b) a genuine fork that only the user can decide. Routine edits, commits, PRs, builds, and tests do not need approval.
-- **Honor standing permission.** If the user already said "kerjakan sampai selesai", "jangan berhenti", "lakukan semuanya", "push ke main", "merge sendiri", or similar — treat that as standing consent for the whole task. Do NOT stop to re-ask approval for steps covered by that consent. Proceed autonomously until the objective is met or a fatal blocker appears.
-- **When you DO stop**, state plainly: the objective, what's done, what's left, and exactly what you need from the user (or why no tool can continue). Don't stop with a vague "PR opened, let me know".
-
-## Building Projects (IMPORTANT)
-When the user asks you to build a web page, app, tool, or any project:
-- **ALWAYS create proper multi-file project structures** — separate HTML, CSS, and JS files.
-- **ALWAYS include a README.md** with: project title, description, features, setup/usage instructions.
-- For web projects at minimum create: index.html, styles.css, script.js, README.md
-- Use \`write_files\` once to commit all generated/modified files in a single batch commit. Do not call \`write_file\` in a loop.
-- Use modern, clean, well-organized code with clear comments.
-- Create **production-quality output**: proper meta tags, responsive design, error handling, accessibility.
-- Use semantic HTML5, modern CSS (flexbox/grid, variables, animations), and clean ES6+ JavaScript.
-- If the project is larger, organize with folders: /src, /assets, /styles, /scripts.
-- Add a .gitignore if relevant.
-- **Do NOT put everything in a single file.** Separation of concerns is mandatory.
-- Think like a senior engineer: write code you'd be proud to show in a code review.
-- Do not stop after describing what you are about to do. For action requests, actually use the available tools to read, write/edit files, and open a PR when appropriate.
-- If you have not called any repo/sandbox tool yet, the task is not done. Continue with tool execution instead of ending with a plan or preface.
-
-## Communication
-- For action requests, work silently between tool calls. Do not narrate plans, observations, hypotheses, retries, or upcoming actions in user-visible text (for example: "Mari saya...", "Bagus...", "Coba saya cek...", or "Ini aneh..."). The activity UI already reports real tool progress.
-- Do not emit progress updates before or between tool calls. Call the next appropriate tool directly.
-- Emit user-visible text before completion only when you need a user decision, missing permission/credential, or information that genuinely blocks further work. Ask one concise, specific question in that case.
-- After all tool work is complete, send exactly one concise final response that states the outcome, relevant verification, changed files or PR URL when useful, and any unresolved blocker. Do not replay the chronological tool history.
-- **Call \`report_state\` once at the end of the turn** (before your final text). Send only semantic context: \`taskType\` (audit/ui/debugging/git/deploy/feature/refactor/test/docs or a short custom label), \`objective\` (the user's goal, one sentence), \`summary\` (what you did/found, 1-2 sentences, factual). DO NOT report success/failure/exitCode/tool status — the orchestrator derives those from actual tool results. This powers the context-aware next-step buttons in the UI.
-- End with a short, relevant follow-up question that offers the natural next step(s) — e.g. "Mau lanjut audit (X, Y), atau selesai?". Keep it to the 1-2 most relevant options; skip it only when there's genuinely nothing meaningful to suggest next.
-- Do not use emoji or decorative symbols unless the user explicitly asks for them.
-- Prefer short natural paragraphs. Use headings, bullets, bold, tables, and dividers sparingly rather than as a template for every response.
-- Do not bold the first phrase of every bullet, repeat information in a summary, or add a next-step section unless there is a meaningful unresolved action.
-- If something failed or was unexpected, state it plainly and give the specific recovery step.
-- Use fenced code blocks with language tags for code. For read-only requests ("explain", "find", "what does X do"), just answer — don't write or open a PR.
-
-## Productive Response Style
-- Default to a practical engineering-assistant tone. If the user writes Indonesian, answer in Indonesian.
-- For repository analysis, lead with the conclusion, then include only the inspected evidence, meaningful gaps or risks, and actionable follow-up that the user needs.
-- Keep simple answers short. For complex findings, group related points without turning every thought into a heading or bullet.
-- Never overclaim. If you have not inspected something, say it is not checked yet. If a file result is truncated, keep reading with offset/limit before claiming full understanding.
-- If the user requests an action and tools are available, proceed with tool use instead of only suggesting a plan. If blocked by missing auth/permissions, state exactly what is needed.
-
-## Memory & Context
-- Track what you've already read/modified in this conversation.
-- Don't re-read files you've already seen unless the user asks for a fresh look.
-- Reference your earlier findings when making decisions.
-- If the user provides feedback, adapt your approach accordingly.`;
-
-const DEFAULT_MAX_RETRIES = 0;
-const MAX_ALLOWED_RETRIES = 2;
-const DEFAULT_LIMIT_RECOVERY_DELAY_MS = 20_000;
-const MAX_LIMIT_RECOVERY_DELAY_MS = 60_000;
-const DEFAULT_LIMIT_RECOVERY_RETRIES = 1;
-const MAX_LIMIT_RECOVERY_RETRIES = 2;
 const MAX_AGENT_STALL_RECOVERIES = 2;
 
 type ChatRequestBody = {
@@ -480,249 +119,6 @@ type ChatRequestBody = {
   /** Optional system prompt override. */
   system?: string;
 };
-
-function partsToText(parts: UIMessage["parts"] | undefined): string {
-  if (!parts) return "";
-  return parts
-    .map((p) => (p.type === "text" ? p.text : ""))
-    .filter(Boolean)
-    .join("");
-}
-
-function lastUserText(messages: UIMessage[]): string {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (m.role !== "user") continue;
-    const text = partsToText(m.parts);
-    if (text.trim()) return text;
-  }
-  return "";
-}
-
-function chatMaxRetries(): number {
-  const raw = process.env.AI_CHAT_MAX_RETRIES;
-  if (!raw) return DEFAULT_MAX_RETRIES;
-
-  const parsed = Number(raw);
-  if (!Number.isInteger(parsed) || parsed < 0) return DEFAULT_MAX_RETRIES;
-
-  return Math.min(parsed, MAX_ALLOWED_RETRIES);
-}
-
-function envInteger(
-  key: string,
-  fallback: number,
-  min: number,
-  max: number,
-): number {
-  const raw = process.env[key];
-  if (!raw) return fallback;
-
-  const parsed = Number(raw);
-  if (!Number.isInteger(parsed)) return fallback;
-
-  return Math.min(Math.max(parsed, min), max);
-}
-
-function limitRecoveryDelayMs(): number {
-  return envInteger(
-    "AI_AGENT_LIMIT_RECOVERY_DELAY_MS",
-    DEFAULT_LIMIT_RECOVERY_DELAY_MS,
-    0,
-    MAX_LIMIT_RECOVERY_DELAY_MS,
-  );
-}
-
-function limitRecoveryRetries(): number {
-  return envInteger(
-    "AI_AGENT_LIMIT_RECOVERY_RETRIES",
-    DEFAULT_LIMIT_RECOVERY_RETRIES,
-    0,
-    MAX_LIMIT_RECOVERY_RETRIES,
-  );
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function findApiCallError(err: unknown, seen = new Set<unknown>()): APICallError | null {
-  if (!err || seen.has(err)) return null;
-  seen.add(err);
-
-  if (APICallError.isInstance(err)) return err;
-
-  if (RetryError.isInstance(err)) {
-    const fromLast = findApiCallError(err.lastError, seen);
-    if (fromLast) return fromLast;
-
-    for (const retryErr of err.errors) {
-      const found = findApiCallError(retryErr, seen);
-      if (found) return found;
-    }
-  }
-
-  if (typeof err === "object" && "cause" in err) {
-    return findApiCallError((err as { cause?: unknown }).cause, seen);
-  }
-
-  return null;
-}
-
-function retryAfterSeconds(headers: Record<string, string> | undefined): number | null {
-  if (!headers) return null;
-
-  const retryAfterMs = headers["retry-after-ms"];
-  if (retryAfterMs) {
-    const ms = Number(retryAfterMs);
-    if (Number.isFinite(ms) && ms > 0) return Math.ceil(ms / 1000);
-  }
-
-  const retryAfter = headers["retry-after"];
-  if (!retryAfter) return null;
-
-  const seconds = Number(retryAfter);
-  if (Number.isFinite(seconds) && seconds > 0) return Math.ceil(seconds);
-
-  const dateMs = Date.parse(retryAfter);
-  if (!Number.isNaN(dateMs)) {
-    return Math.max(1, Math.ceil((dateMs - Date.now()) / 1000));
-  }
-
-  return null;
-}
-
-function formatInferenceError(err: unknown): { message: string; status: number; code: string } {
-  const apiErr = findApiCallError(err);
-  const rawMessage = err instanceof Error ? err.message : "Unknown inference error";
-  const lowerMessage = rawMessage.toLowerCase();
-  const statusCode = apiErr?.statusCode;
-
-  if (
-    lowerMessage.includes("does not support image input") ||
-    lowerMessage.includes("does not support images") ||
-    lowerMessage.includes("image input")
-  ) {
-    return {
-      message: "Maaf Model tersebut tidak support Vision hehe",
-      status: 400,
-      code: "vision_not_supported",
-    };
-  }
-
-  if (
-    statusCode === 429 ||
-    lowerMessage.includes("rate limit") ||
-    lowerMessage.includes("quota") ||
-    lowerMessage.includes("limit exceeded")
-  ) {
-    const wait = retryAfterSeconds(apiErr?.responseHeaders);
-    return {
-      message: wait
-        ? `Server lagi sibuk nih. Coba lagi sekitar ${wait} detik ya.`
-        : "Server lagi sibuk nih. Coba lagi sebentar ya.",
-      status: 429,
-      code: "provider_rate_limited",
-    };
-  }
-
-  if (statusCode === 401 || statusCode === 403) {
-    return {
-      message: "API key model ditolak. Cek konfigurasi atau hubungi admin.",
-      status: statusCode,
-      code: "provider_auth_failed",
-    };
-  }
-
-  if (statusCode && statusCode >= 500) {
-    return {
-      message: "Model lagi tidak tersedia sebentar. Coba lagi ya.",
-      status: 502,
-      code: "provider_unavailable",
-    };
-  }
-
-  return {
-    message: "Maaf, ada gangguan pas memproses. Coba lagi ya.",
-    status: 502,
-    code: "inference_failed",
-  };
-}
-
-function isRateLimitFailure(err: unknown): boolean {
-  return formatInferenceError(err).code === "provider_rate_limited";
-}
-
-function isRateLimitMessage(message: string): boolean {
-  const lower = message.toLowerCase();
-  return (
-    lower.includes("rate limit") ||
-    lower.includes("rate-limit") ||
-    lower.includes("quota") ||
-    lower.includes("limit reached") ||
-    lower.includes("limit exceeded")
-  );
-}
-
-function writeRecoveryNote(
-  writer: { write: (part: UIMessageChunk) => void },
-  text: string,
-) {
-  const id = `recovery-${crypto.randomUUID()}`;
-  writer.write({ type: "text-start", id });
-  writer.write({ type: "text-delta", id, delta: text });
-  writer.write({ type: "text-end", id });
-}
-
-function looksLikeActionRequest(text: string): boolean {
-  const lower = text.toLowerCase();
-  return [
-    "buat",
-    "bikin",
-    "ubah",
-    "edit",
-    "fix",
-    "perbaiki",
-    "pasang",
-    "tambah",
-    "implement",
-    "create",
-    "build",
-    "update",
-    "refactor",
-    "generate",
-    "deploy",
-  ].some((word) => lower.includes(word));
-}
-
-function looksLikeStalledAgentText(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed) return true;
-  if (trimmed.endsWith(":")) return true;
-
-  const lower = trimmed.toLowerCase();
-  return [
-    "sekarang saya akan",
-    "sekarang buat",
-    "akan saya",
-    "i will",
-    "i'll",
-    "next,",
-    "now i",
-    "let me",
-  ].some((phrase) => lower.includes(phrase));
-}
-
-function findExistingWorkBranch(messages: UIMessage[]): string | null {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (m.role !== "assistant") continue;
-    const text = partsToText(m.parts);
-    const match = text.match(/(celiuz|saaschet)\/\d{4}-\d{2}-\d{2}-[a-z0-9]{6}/i);
-    if (match) return match[0];
-  }
-  return null;
-}
 
 export async function POST(req: Request) {
   // Turn start — emitted with the message metadata so the UI can show
@@ -861,7 +257,7 @@ export async function POST(req: Request) {
       status: "processing",
     });
     if (insertErr) {
-      console.error("[chat] create conversation failed:", insertErr.message);
+      log.error("create conversation failed", { conversationId, err: insertErr.message });
       return NextResponse.json(
         { error: "Failed to create conversation." },
         { status: 500 },
@@ -905,7 +301,7 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (latestMessageErr) {
-      console.error("[chat] retry prepare failed:", latestMessageErr.message);
+      log.error("retry prepare failed", { conversationId, err: latestMessageErr.message });
       return NextResponse.json(
         { error: "Failed to prepare retry." },
         { status: 500 },
@@ -921,7 +317,7 @@ export async function POST(req: Request) {
         .eq("id", latestPersistedMessage.id)
         .eq("conversation_id", conversationId);
       if (deleteAssistantErr) {
-        console.error("[chat] replace response failed:", deleteAssistantErr.message);
+        log.error("replace response failed", { conversationId, err: deleteAssistantErr.message });
         return NextResponse.json(
           { error: "Failed to replace response." },
           { status: 500 },
@@ -935,7 +331,7 @@ export async function POST(req: Request) {
       content: dbContent,
     });
     if (userMsgErr) {
-      console.error("[chat] save user message failed:", userMsgErr.message);
+      log.error("save user message failed", { conversationId, err: userMsgErr.message });
       return NextResponse.json(
         { error: "Failed to save user message." },
         { status: 500 },
@@ -961,7 +357,7 @@ export async function POST(req: Request) {
       memoryContext = `\n\n## Recent Conversation Memory\nThe user has had these recent conversations with you. Use this context to provide continuity and personalized responses:\n${summaries}`;
     }
   } catch (err) {
-    console.warn("[chat] failed to fetch memory context:", err);
+    log.warn("memory context fetch failed", { err });
   }
 
   // ── Retrieve long-term vector memories ───────────────────────────────
@@ -973,7 +369,7 @@ export async function POST(req: Request) {
         vectorMemoryContext = `\n\n## Long-term Memory (User Preferences & Project Context)\n${memories.map((m) => `- ${m}`).join("\n")}`;
       }
     } catch (err) {
-      console.warn("[chat] vector memory search failed:", err);
+      log.warn("vector memory search failed", { err });
     }
   }
 
@@ -983,7 +379,7 @@ export async function POST(req: Request) {
     const structuredMemory = await getStructuredMemory(userId);
     structuredMemoryContext = formatStructuredMemory(structuredMemory);
   } catch (err) {
-    console.warn("[chat] structured memory fetch failed:", err);
+    log.warn("structured memory fetch failed", { err });
   }
 
   // ── Build system prompt ──────────────────────────────────────────────
@@ -1006,12 +402,10 @@ export async function POST(req: Request) {
           system = `${system}\n\n${formatSearchResults(results)}`;
         }
       } catch (err) {
-        console.warn("[chat] web search failed:", err);
+        log.warn("web search failed", { err });
       }
     } else if (!tavilyKey) {
-      console.warn(
-        "[chat] webSearch requested but TAVILY_API_KEY is not set; skipping",
-      );
+      log.warn("web search requested but TAVILY_API_KEY is not set — skipping");
     }
   }
 
@@ -1027,7 +421,7 @@ export async function POST(req: Request) {
         );
         system = `${system}\n\n${formatRepoForContext(bundle)}`;
       } catch (err) {
-        console.warn("[chat] repo fetch failed:", err);
+        log.warn("repo fetch failed", { repo: `${parsed.owner}/${parsed.name}`, err });
         system = `${system}\n\nNote: the user wanted ${parsed.owner}/${parsed.name} as repo context but it could not be fetched. Politely tell them the repo is unreachable (private without sufficient OAuth scope, or rate-limited) and continue without it.`;
       }
     }
@@ -1096,14 +490,12 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
         for await (const candidate of daytona.list({ labels: sandboxLabels })) {
           if (candidate.state === "started") {
             sandbox = candidate;
-            console.log(
-              `[sandbox] Reusing sandbox ${candidate.id} for conversation ${conversationId}`,
-            );
+            sandboxLog.info("reusing sandbox", { sandboxId: candidate.id });
             break;
           }
         }
       } catch (lookupErr) {
-        console.warn("[sandbox] Label lookup failed, creating fresh:", lookupErr);
+        sandboxLog.warn("label lookup failed — creating fresh", { err: lookupErr });
       }
 
       if (!sandbox && snapshotName) {
@@ -1118,7 +510,7 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
           },
           { timeout: 120 },
         );
-        console.log(`[sandbox] Snapshot sandbox created: ${sandbox.id} (snapshot ${snapshotName})`);
+        sandboxLog.info("created", { sandboxId: sandbox.id, source: "snapshot", snapshot: snapshotName });
       } else if (!sandbox && sandboxImage) {
         sandbox = await daytona.create(
           {
@@ -1133,9 +525,7 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
           // Image-based sandboxes pull the image first — allow up to 5 min.
           { timeout: 300 },
         );
-        console.log(
-          `[sandbox] Image sandbox created: ${sandbox.id} (${cpu} CPU, ${memory}GB RAM, ${disk}GB disk)`,
-        );
+        sandboxLog.info("created", { sandboxId: sandbox.id, source: "image", image: sandboxImage, cpu, memoryGb: memory, diskGb: disk });
       } else if (!sandbox) {
         // Fast, language-based instantiation using cached sandbox container
         sandbox = await daytona.create(
@@ -1148,7 +538,7 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
           },
           { timeout: 90 },
         );
-        console.log(`[sandbox] Fast language-based sandbox created: ${sandbox.id} (default resources)`);
+        sandboxLog.info("created", { sandboxId: sandbox.id, source: "language-default" });
       }
 
       sandboxTools = createSandboxTools({
@@ -1177,7 +567,7 @@ Available tools:
 The user's repo is automatically cloned when you first use a sandbox tool.
 Workflow: read code → create files (batch) → install deps → test → commit via GitHub.`;
     } catch (err) {
-      console.warn("[sandbox] Sandbox creation failed, proceeding without:", err);
+      sandboxLog.warn("creation failed — continuing without sandbox", { err });
       const errorMsg = err instanceof Error ? err.message : String(err);
       system += `\n\n## Sandbox Initialization Error\nSandbox failed to initialize: "${errorMsg}". If the user asks to run a command or execute code, explain to them that the sandbox failed to initialize with this reason.`;
     }
@@ -1427,10 +817,10 @@ When the user asks about library APIs, setup, migrations, or version-specific be
       );
 
       if (error) {
-        console.error("[chat] server-side assistant save failed:", error.message);
+        log.error("assistant save failed", { conversationId, err: error.message });
         return;
       }
-      console.log("[chat] assistant turn persisted server-side", {
+      log.info("assistant turn persisted", {
         conversationId,
         messageId: run.messageId,
         partsLen: parts.length,
@@ -1449,9 +839,9 @@ When the user asks about library APIs, setup, migrations, or version-specific be
 
       try {
         await sandbox.delete();
-        console.log(`[sandbox] Sandbox ${sandbox.id} deleted ${reason}`);
+        sandboxLog.info("deleted", { sandboxId: sandbox.id, reason });
       } catch (err) {
-        console.warn("[sandbox] Sandbox cleanup failed:", err);
+        sandboxLog.warn("cleanup failed", { sandboxId: sandbox?.id, err });
       }
     }
 
@@ -1473,7 +863,7 @@ When the user asks about library APIs, setup, migrations, or version-specific be
           success: true,
         });
       } catch (err) {
-        console.error("[credits] settleSpend failed:", err);
+        log.error("settleSpend failed", { conversationId, userId, err });
       }
 
       await cleanupSandbox("after completion");
@@ -1638,17 +1028,19 @@ ${recoveryInstruction}`;
           }
           const durationMs = Date.now() - turnStartedAt;
           if (pendingAgentState) {
-            console.log("[agent-state] emit", {
+            log.info("agent state emitted", {
+              conversationId,
               taskType: pendingAgentState.taskType,
               status: pendingAgentState.status,
               nextCapabilities: pendingAgentState.nextCapabilities,
+              suggestedActions: pendingAgentState.suggestedActions?.length ?? 0,
             });
             writer.write({
               type: "message-metadata",
               messageMetadata: { agentState: pendingAgentState, durationMs },
             });
           } else {
-            console.log("[agent-state] no state derived (null)");
+            log.debug("no agent state derived", { conversationId });
             // Still emit the duration so the timeline can show elapsed time.
             writer.write({
               type: "message-metadata",
@@ -1660,9 +1052,9 @@ ${recoveryInstruction}`;
           // the expected outcome of pressing Stop, not a failure worth a
           // stack trace in the logs.
           if ((stateErr as Error)?.name === "AbortError") {
-            console.log("[agent-state] skipped — run was stopped");
+            log.debug("agent state skipped — run was stopped", { conversationId });
           } else {
-            console.warn("[chat] agent state derive/emit failed:", stateErr);
+            log.warn("agent state derive/emit failed", { conversationId, err: stateErr });
           }
         }
         return "completed";

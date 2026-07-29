@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("messages");
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,7 +40,7 @@ export async function POST(
     .eq("user_id", user.id)
     .maybeSingle();
   if (convErr) {
-    console.error("[messages] ownership check failed:", convErr.message);
+    log.error("ownership check failed", { conversationId, err: convErr.message });
     return NextResponse.json(
       { error: "Failed to verify conversation." },
       { status: 500 },
@@ -75,7 +78,7 @@ export async function POST(
   const metadata =
     body.metadata && typeof body.metadata === "object" ? body.metadata : null;
 
-  console.log("[messages] POST", {
+  log.debug("save requested", {
     conversationId,
     clientId,
     contentLen: content.length,
@@ -110,14 +113,14 @@ export async function POST(
     .single();
 
   if (error) {
-    console.error("[messages] upsert failed:", error.message, error);
+    log.error("upsert failed", { conversationId, clientId, err: error.message, code: error.code });
     return NextResponse.json(
       { error: "Failed to save message." },
       { status: 500 },
     );
   }
 
-  console.log("[messages] upsert ok", { messageId: data?.id, conversationId });
+  log.debug("upsert ok", { messageId: data?.id, conversationId });
 
   return NextResponse.json({ ok: true, messageId: data.id });
 }

@@ -1,7 +1,10 @@
 import { streamText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { getStructuredMemory, saveStructuredMemory } from "./structured-memory";
+import { createLogger } from "@/lib/logger";
 
+
+const log = createLogger("structured-memory");
 const STRUCTURED_EXTRACTION_SYSTEM = `You are a Profile Metadata Extractor. Your task is to maintain a structured JSON profile about the user based on their recent chat exchange.
 
 You will be given:
@@ -47,10 +50,10 @@ export async function extractAndSaveStructuredMemory(
 ): Promise<void> {
   const apiKey = process.env.FIREWORKS_API_KEY;
 
-  console.log(`[structured-memory-extractor] Env check: FIREWORKS_API_KEY exists: ${!!apiKey}`);
+  log.debug("env check", { hasFireworksKey: !!apiKey });
 
   if (!apiKey) {
-    console.warn("[structured-memory-extractor] FIREWORKS_API_KEY is not set. Skipping metadata extraction.");
+    log.warn("FIREWORKS_API_KEY not set — skipping metadata extraction");
     return;
   }
 
@@ -84,18 +87,18 @@ Assistant Response: "${cleanAssistant}"`;
         prompt,
         maxOutputTokens: 2000,
         onError: ({ error }) => {
-          console.error("[structured-memory-extractor] streamText error details:", error);
+          log.error("streamText failed", { err: error });
         },
       });
       text = await res.text;
     } catch (err) {
-      console.warn("[structured-memory-extractor] Fireworks call failed:", err instanceof Error ? err.message : String(err));
+      log.warn("Fireworks call failed", { err });
     }
 
     // 4. Robustly extract the JSON object using regex (bypasses reasoning tags, markdown blocks, etc.)
     const jsonMatch = text ? text.match(/\{\s*([\s\S]*)\s*\}/) : null;
     if (!jsonMatch) {
-      console.error("[structured-memory-extractor] Failed to locate JSON object in response. Response length:", text?.length ?? 0, "Response content:", JSON.stringify(text));
+      log.error("no JSON object in response", { responseLength: text?.length ?? 0, response: text });
       return;
     }
 
@@ -104,13 +107,13 @@ Assistant Response: "${cleanAssistant}"`;
     try {
       updatedMemory = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
     } catch (err) {
-      console.error("[structured-memory-extractor] Failed to parse updated JSON profile:", jsonMatch[0], "Error:", err);
+      log.error("profile JSON parse failed", { raw: jsonMatch[0], err });
       return;
     }
 
     // Basic integrity check (must be an object)
     if (typeof updatedMemory !== "object" || updatedMemory === null || Array.isArray(updatedMemory)) {
-      console.error("[structured-memory-extractor] Extracted metadata is not a JSON object");
+      log.error("extracted metadata is not a JSON object");
       return;
     }
 
@@ -121,6 +124,6 @@ Assistant Response: "${cleanAssistant}"`;
       await saveStructuredMemory(userId, updatedMemory);
     }
   } catch (err) {
-    console.error("[structured-memory-extractor] Failed to extract metadata:", err);
+    log.error("extraction failed", { err });
   }
 }

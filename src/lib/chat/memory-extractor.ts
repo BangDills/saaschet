@@ -1,7 +1,10 @@
 import { streamText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { saveMemory } from "./memory";
+import { createLogger } from "@/lib/logger";
 
+
+const log = createLogger("memory-extractor");
 const MEMORY_EXTRACTION_SYSTEM = `You are a memory extractor agent. Your task is to analyze the recent conversation exchange between a user and an AI assistant and extract any persistent facts, preferences, project details, or configurations about the user that should be remembered in future conversations.
 
 Guidelines:
@@ -41,10 +44,10 @@ export async function extractAndSaveMemories(
 ): Promise<void> {
   const apiKey = process.env.FIREWORKS_API_KEY;
 
-  console.log(`[memory-extractor] Env check: FIREWORKS_API_KEY exists: ${!!apiKey}`);
+  log.debug("env check", { hasFireworksKey: !!apiKey });
 
   if (!apiKey) {
-    console.warn("[memory-extractor] FIREWORKS_API_KEY is not set. Skipping memory extraction.");
+    log.warn("FIREWORKS_API_KEY not set — skipping memory extraction");
     return;
   }
 
@@ -68,18 +71,18 @@ export async function extractAndSaveMemories(
         prompt,
         maxOutputTokens: 2000,
         onError: ({ error }) => {
-          console.error("[memory-extractor] streamText error details:", error);
+          log.error("streamText failed", { err: error });
         },
       });
       text = await res.text;
     } catch (err) {
-      console.warn("[memory-extractor] Fireworks call failed:", err instanceof Error ? err.message : String(err));
+      log.warn("Fireworks call failed", { err });
     }
 
     // Robustly extract the JSON array using regex (bypasses reasoning tags, markdown blocks, etc.)
     const jsonMatch = text ? text.match(/\[\s*([\s\S]*)\s*\]/) : null;
     if (!jsonMatch) {
-      console.error("[memory-extractor] Failed to locate JSON array in response. Response length:", text?.length ?? 0, "Response content:", JSON.stringify(text));
+      log.error("no JSON array in response", { responseLength: text?.length ?? 0, response: text });
       return;
     }
 
@@ -87,7 +90,7 @@ export async function extractAndSaveMemories(
     try {
       facts = JSON.parse(jsonMatch[0]);
     } catch (err) {
-      console.error("[memory-extractor] Failed to parse facts JSON:", jsonMatch[0], "Error:", err);
+      log.error("facts JSON parse failed", { raw: jsonMatch[0], err });
       return;
     }
 
@@ -95,7 +98,7 @@ export async function extractAndSaveMemories(
       return;
     }
 
-    console.log(`[memory-extractor] Extracted ${facts.length} potential memories for user ${userId}`);
+    log.info("extracted memories", { userId, count: facts.length });
 
     // Save each memory using our vector helper
     for (const fact of facts) {
@@ -104,6 +107,6 @@ export async function extractAndSaveMemories(
       }
     }
   } catch (err) {
-    console.error("[memory-extractor] Failed to extract memories:", err);
+    log.error("extraction failed", { err });
   }
 }

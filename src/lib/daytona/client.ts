@@ -1,4 +1,7 @@
 import { Daytona } from "@daytona/sdk";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("sandbox");
 
 let _client: Daytona | null = null;
 
@@ -21,12 +24,13 @@ export function getDaytonaClient(): Daytona {
     process.env.DAYTONA_API_URL ||
     "https://app.daytona.io/api";
 
-  // Print diagnostic log safely (only first and last 4 characters)
-  const keyStart = apiKey.substring(0, 4);
-  const keyEnd = apiKey.substring(apiKey.length - 4);
-  console.info(
-    `[sandbox-diag] Init sandbox client with URL: "${apiUrl}", Target: "${target}", Key: ${keyStart}...${keyEnd} (Len: ${apiKey.length})`
-  );
+  // Key is only ever logged as a fingerprint — never the secret itself.
+  log.debug("client initialized", {
+    apiUrl,
+    target,
+    keyFingerprint: `${apiKey.slice(0, 4)}…${apiKey.slice(-4)}`,
+    keyLength: apiKey.length,
+  });
 
   _client = new Daytona({
     apiKey,
