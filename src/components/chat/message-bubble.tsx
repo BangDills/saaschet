@@ -24,34 +24,16 @@ export type MessageFeedback = {
 };
 
 /**
- * The streaming cursor: a Gemini-style four-point sparkle — the shape that
- * now universally reads as "AI is working". It spins with a breathing scale
- * on an ease curve and carries a cool blue→purple gradient, so it stands
- * out in the monochrome UI without shouting.
+ * The streaming cursor: a three-bar equalizer that pumps while the
+ * assistant writes (see .stream-loader in globals.css). currentColor
+ * follows the message text color in both themes.
  */
-function StreamingSparkle() {
+function StreamingBars() {
   return (
     <span
       aria-hidden
-      className="relative ml-1 inline-flex size-4 -translate-y-0.5 align-middle"
-    >
-      <svg
-        viewBox="0 0 24 24"
-        className="size-full motion-safe:animate-[sparkle-spin_1.8s_ease-in-out_infinite]"
-      >
-        <defs>
-          <linearGradient id="celiuz-sparkle" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#60a5fa" />
-            <stop offset="55%" stopColor="#818cf8" />
-            <stop offset="100%" stopColor="#c084fc" />
-          </linearGradient>
-        </defs>
-        <path
-          fill="url(#celiuz-sparkle)"
-          d="M12 0C13.8 7.3 16.7 10.2 24 12 16.7 13.8 13.8 16.7 12 24 10.2 16.7 7.3 13.8 0 12 7.3 10.2 10.2 7.3 12 0Z"
-        />
-      </svg>
-    </span>
+      className="stream-loader ml-1.5 inline-block -translate-y-0.5 align-middle text-foreground"
+    />
   );
 }
 
@@ -266,7 +248,7 @@ function MessageBubbleImpl({
               taskType={taskType}
               onToolActionPrompt={onToolActionPrompt}
             />
-            {streaming && <StreamingSparkle />}
+            {streaming && <StreamingBars />}
           </>
         ) : (
           <>
@@ -287,7 +269,7 @@ function MessageBubbleImpl({
                 </Markdown>
               ) : null;
             })}
-            {streaming && <StreamingSparkle />}
+            {streaming && <StreamingBars />}
           </>
         )}
         {!isUser && !streaming && plainText && (

@@ -206,18 +206,64 @@ details[open] > .faq-answer {
   }
 }
 
-/* Streaming sparkle — the "AI is working" cursor. A full spin per cycle
-   with a breathing scale; ease-in-out gives it a twinkling rhythm instead
-   of a mechanical rotation. */
-@keyframes sparkle-spin {
-  0% {
-    transform: rotate(0deg) scale(0.75);
+/* Streaming cursor — three-bar equalizer (css-loaders "l7"). Bars pump
+   in sequence while the assistant writes. currentColor keeps it correct
+   in both themes; the static background-size shows three resting bars
+   under prefers-reduced-motion. */
+.stream-loader {
+  width: 15px;
+  aspect-ratio: 0.75;
+  --c: no-repeat linear-gradient(currentColor 0 0);
+  background:
+    var(--c) 0% 50%,
+    var(--c) 50% 50%,
+    var(--c) 100% 50%;
+  background-size:
+    20% 50%,
+    20% 50%,
+    20% 50%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .stream-loader {
+    animation: stream-bars 1s infinite linear alternate;
   }
-  50% {
-    transform: rotate(180deg) scale(1.1);
+}
+@keyframes stream-bars {
+  0% {
+    background-size:
+      20% 50%,
+      20% 50%,
+      20% 50%;
+  }
+  20% {
+    background-size:
+      20% 20%,
+      20% 50%,
+      20% 50%;
+  }
+  40% {
+    background-size:
+      20% 100%,
+      20% 20%,
+      20% 50%;
+  }
+  60% {
+    background-size:
+      20% 50%,
+      20% 100%,
+      20% 20%;
+  }
+  80% {
+    background-size:
+      20% 50%,
+      20% 50%,
+      20% 100%;
   }
   100% {
-    transform: rotate(360deg) scale(0.75);
+    background-size:
+      20% 50%,
+      20% 50%,
+      20% 50%;
   }
 }
 
