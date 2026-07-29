@@ -101,24 +101,117 @@ const GENERIC_ACTIONS: AgentAction[] = [
   { id: "example", label: "Berikan contoh" },
 ];
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * Next-step extraction from the assistant's own reply
+ *
+ * When the assistant closes a turn with "Langkah selanjutnya: 1. … 2. …",
+ * THOSE are the right follow-up suggestions — not canned registry labels.
+ * The server runs this over the final message text and puts the result in
+ * `suggestedActions`, which `resolveActions` prioritizes. Deterministic
+ * parsing, no extra LLM call.
+ * ────────────────────────────────────────────────────────────────────── */
+
+/** A line that introduces a list of next steps / options. */
+const NEXT_STEP_CUE =
+  /(langkah\s+(selanjutnya|berikut)|next\s+steps?|selanjutnya|berikutnya|rekomendasi|saran|opsi|pilihan|setelah\s+ini|(kamu|anda)\s+bisa|bisa\s+(di)?lanjut|mau\s+lanjut|lanjutannya)/i;
+
+const LIST_ITEM_RE = /^\s*(?:[-*•]|\d{1,2}[.)])\s+(.*)$/;
+
+/** An offer-question closing the message ("Mau saya lanjutkan?"). */
+const OFFER_QUESTION_RE = /(mau|ingin|apakah|perlu|boleh|lanjut)/i;
+
+function cleanActionLabel(raw: string): string | null {
+  let label = raw
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // links → text
+    .replace(/[*_`~]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  // A long "Title — long explanation" item keeps just the actionable title.
+  if (label.length > 64) {
+    const cut = label.split(/\s+[—–]\s+/)[0];
+    if (cut.length >= 8) label = cut.trim();
+  }
+  if (label.length > 64) {
+    const cut = label.split(/:\s+/)[0];
+    if (cut.length >= 8) label = cut.trim();
+  }
+  label = label.replace(/[.,;:]+$/, "").trim();
+  if (label.length < 4 || label.length > 80) return null;
+  return label;
+}
+
+/**
+ * Pull concrete follow-up suggestions out of the assistant's final text.
+ *
+ * Looks at the message tail for the LAST list block whose introducing line
+ * reads like a next-step cue and returns up to 3 cleaned items. If there is
+ * no such list but the message closes with an offer question, suggests a
+ * plain "Ya, lanjutkan". Returns [] when nothing trustworthy is found —
+ * callers then fall back to the registry.
+ */
+export function extractSuggestedActions(text: string | null | undefined): string[] {
+  if (!text) return [];
+  const lines = text.slice(-2000).split("\n");
+
+  // Collect [start, end) ranges of consecutive list items.
+  const blocks: Array<{ start: number; end: number }> = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!LIST_ITEM_RE.test(lines[i])) continue;
+    const start = i;
+    while (i + 1 < lines.length && LIST_ITEM_RE.test(lines[i + 1])) i++;
+    blocks.push({ start, end: i + 1 });
+  }
+
+  // Last block introduced by a next-step cue wins.
+  for (let b = blocks.length - 1; b >= 0; b--) {
+    const { start, end } = blocks[b];
+    let intro = "";
+    for (let j = start - 1; j >= 0; j--) {
+      const candidate = lines[j].trim();
+      if (candidate) {
+        intro = candidate;
+        break;
+      }
+    }
+    if (!NEXT_STEP_CUE.test(intro)) continue;
+
+    const labels: string[] = [];
+    for (let j = start; j < end && labels.length < 3; j++) {
+      const item = lines[j].match(LIST_ITEM_RE)?.[1] ?? "";
+      const label = cleanActionLabel(item);
+      if (label && !labels.includes(label)) labels.push(label);
+    }
+    if (labels.length > 0) return labels;
+  }
+
+  // No usable list — but a closing offer question still deserves one tap.
+  const lastLine = [...lines].reverse().find((l) => l.trim())?.trim() ?? "";
+  if (/\?\s*$/.test(lastLine) && OFFER_QUESTION_RE.test(lastLine)) {
+    return ["Ya, lanjutkan"];
+  }
+
+  return [];
+}
+
 /**
  * Resolve the follow-up actions for a given agent state.
  *
  * Priority:
- *  1. If the planner sent `suggestedActions`, use them (mapped to labels as-is).
+ *  1. If the state carries `suggestedActions` (extracted from the reply or
+ *     sent by the planner), use them as-is.
  *  2. Else look up ActionRegistry[taskType][status]; if `nextCapabilities` is
  *     present, filter to actions whose `capability` is in that set; if that
  *     yields nothing, fall back to the unfiltered registry list.
  *  3. Else (unknown taskType / empty registry) use GENERIC_ACTIONS.
  *
- * Always returns 3–5 actions (trimmed/padded sensibly).
+ * Capped at 3 — follow-ups are a nudge, not a menu.
  */
 export function resolveActions(state: AgentCompletionState | null | undefined): AgentAction[] {
-  if (!state) return GENERIC_ACTIONS.slice(0, 4);
+  if (!state) return GENERIC_ACTIONS.slice(0, 3);
 
-  // 1. Planner-provided explicit actions win.
+  // 1. Extracted/planner-provided explicit actions win.
   if (Array.isArray(state.suggestedActions) && state.suggestedActions.length > 0) {
-    const fromPlanner = state.suggestedActions.slice(0, 5).map((label, i) => ({
+    const fromPlanner = state.suggestedActions.slice(0, 3).map((label, i) => ({
       id: `planner-${i}`,
       label,
     }));
@@ -133,11 +226,11 @@ export function resolveActions(state: AgentCompletionState | null | undefined): 
       const filtered = statusActions.filter(
         (a) => !a.capability || caps.includes(a.capability),
       );
-      if (filtered.length > 0) return filtered.slice(0, 5);
+      if (filtered.length > 0) return filtered.slice(0, 3);
     }
-    return statusActions.slice(0, 5);
+    return statusActions.slice(0, 3);
   }
 
   // 3. Fallback.
-  return GENERIC_ACTIONS.slice(0, 4);
+  return GENERIC_ACTIONS.slice(0, 3);
 }

@@ -14,7 +14,7 @@ import { StreamingPill } from "./streaming-pill";
 import { ProcessingIndicator } from "./processing-indicator";
 import { fireCreditsRefresh } from "@/components/dashboard/credits-meter";
 import { resolveActions, type AgentCompletionState } from "@/lib/agent/action-registry";
-import { AlertCircle, ArrowDown, Clock3, GitBranch, RefreshCcw, WifiOff } from "lucide-react";
+import { AlertCircle, ArrowDown, Clock3, CornerDownRight, GitBranch, RefreshCcw, WifiOff } from "lucide-react";
 import useSWR from "swr";
 
 type FeedbackResponse = {
@@ -792,12 +792,6 @@ export function ChatPanel({
     const meta = lastVisibleMessage?.metadata as
       | { agentState?: AgentCompletionState }
       | undefined;
-    console.log("[quick-actions] resolve", {
-      hasMetadata: !!lastVisibleMessage?.metadata,
-      hasAgentState: !!meta?.agentState,
-      agentStateTaskType: meta?.agentState?.taskType,
-      lastRole: lastVisibleMessage?.role,
-    });
     return resolveActions(meta?.agentState);
   }, [lastVisibleMessage?.metadata]);
 
@@ -910,16 +904,20 @@ export function ChatPanel({
                   />
                 )}
 
+              {/* Follow-up suggestions: quiet text rows, not boxed chips —
+                  they should read like a whispered "you could…" under the
+                  reply, not compete with the message itself. */}
               {showFollowUps && (
-                <div className="mt-3 flex flex-wrap gap-2 pl-10 sm:pl-12" aria-label="Saran lanjutan">
+                <div className="mt-2 flex flex-col items-start pl-10 sm:pl-12" aria-label="Saran lanjutan">
                   {followUpActions.map((action) => (
                     <button
                       key={action.id}
                       type="button"
                       onClick={() => fillComposer(action.label)}
-                      className="rounded-lg border border-border bg-background px-3 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="group flex max-w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      {action.label}
+                      <CornerDownRight className="size-3.5 shrink-0 opacity-50 transition-opacity group-hover:opacity-100" />
+                      <span className="truncate">{action.label}</span>
                     </button>
                   ))}
                 </div>

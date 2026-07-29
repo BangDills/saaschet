@@ -34,7 +34,10 @@ import {
   createAgentTools,
   generateWorkBranchName,
 } from "@/lib/agent/tools";
-import type { AgentCompletionState } from "@/lib/agent/action-registry";
+import {
+  extractSuggestedActions,
+  type AgentCompletionState,
+} from "@/lib/agent/action-registry";
 import { getDaytonaClient } from "@/lib/daytona/client";
 import { createSandboxTools } from "@/lib/daytona/sandbox-tools";
 import { createContext7Tools } from "@/lib/context7/tools";
@@ -1585,9 +1588,10 @@ ${recoveryInstruction}`;
       // the client attaches it to the assistant message.
       if (completed) {
         try {
-          const [steps, finishReason] = await Promise.all([
+          const [steps, finishReason, finalText] = await Promise.all([
             result.steps,
             result.finishReason,
+            result.text,
           ]);
           pendingAgentState = deriveAgentState(
             steps ?? [],
@@ -1596,6 +1600,14 @@ ${recoveryInstruction}`;
             userText,
             totalToolCount,
           );
+          // Quick Actions that echo the reply's own "langkah selanjutnya"
+          // beat any canned registry label — extract them from the final text.
+          if (pendingAgentState) {
+            const suggested = extractSuggestedActions(finalText);
+            if (suggested.length > 0) {
+              pendingAgentState.suggestedActions = suggested;
+            }
+          }
           const durationMs = Date.now() - turnStartedAt;
           if (pendingAgentState) {
             console.log("[agent-state] emit", {
