@@ -568,6 +568,31 @@ async function cloneRepo(ctx: SandboxContext): Promise<void> {
   const authenticatedCloneUrl = `https://x-access-token:${cleanToken}@github.com/${owner}/${repo}.git`;
   const primaryCloneUrl = hasValidToken ? authenticatedCloneUrl : publicCloneUrl;
 
+  // A reused sandbox (same conversation, later turn) already has the repo —
+  // cloning into a non-empty directory would fail, so refresh it instead.
+  try {
+    const existing = await ctx.sandbox.process.executeCommand(
+      "test -d workspace/repo/.git && echo EXISTS || echo MISSING",
+      undefined,
+      undefined,
+      10,
+    );
+    if ((existing.result || "").includes("EXISTS")) {
+      await ctx.sandbox.process.executeCommand(
+        "cd workspace/repo && git fetch --all --prune && git pull --ff-only || true",
+        undefined,
+        undefined,
+        60,
+      );
+      ctx.repoCloned = true;
+      console.log(`[sandbox] Repo already present in reused sandbox — refreshed via git pull`);
+      return;
+    }
+  } catch (refreshErr) {
+    // Fall through to a normal clone attempt.
+    console.warn("[sandbox] Repo presence check failed, attempting clone:", refreshErr);
+  }
+
   try {
     // 1. Create workspace directory
     await ctx.sandbox.process.executeCommand(

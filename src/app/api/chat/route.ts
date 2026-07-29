@@ -1087,26 +1087,47 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
       const memory = Number(process.env.DAYTONA_SANDBOX_MEMORY) || 2;
       const disk = Number(process.env.DAYTONA_SANDBOX_DISK) || 5;
 
-      if (snapshotName) {
+      // One live sandbox per conversation: turns reuse it via this label
+      // instead of paying a cold start + re-clone each time — and, just as
+      // important, instead of stacking N concurrent sandboxes against the
+      // org's total-memory quota. autoStopInterval below is the reaper.
+      const sandboxLabels = { "celiuz-conversation": conversationId };
+      try {
+        for await (const candidate of daytona.list({ labels: sandboxLabels })) {
+          if (candidate.state === "started") {
+            sandbox = candidate;
+            console.log(
+              `[sandbox] Reusing sandbox ${candidate.id} for conversation ${conversationId}`,
+            );
+            break;
+          }
+        }
+      } catch (lookupErr) {
+        console.warn("[sandbox] Label lookup failed, creating fresh:", lookupErr);
+      }
+
+      if (!sandbox && snapshotName) {
         sandbox = await daytona.create(
           {
             snapshot: snapshotName,
             language: "typescript",
             envVars: { NODE_ENV: "development" },
-            autoStopInterval: 15,
+            labels: sandboxLabels,
+            autoStopInterval: 5,
             autoDeleteInterval: 0,
           },
           { timeout: 120 },
         );
         console.log(`[sandbox] Snapshot sandbox created: ${sandbox.id} (snapshot ${snapshotName})`);
-      } else if (sandboxImage) {
+      } else if (!sandbox && sandboxImage) {
         sandbox = await daytona.create(
           {
             image: sandboxImage,
             language: "typescript",
             resources: { cpu, memory, disk },
             envVars: { NODE_ENV: "development" },
-            autoStopInterval: 15,
+            labels: sandboxLabels,
+            autoStopInterval: 5,
             autoDeleteInterval: 0,
           },
           // Image-based sandboxes pull the image first — allow up to 5 min.
@@ -1115,13 +1136,14 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
         console.log(
           `[sandbox] Image sandbox created: ${sandbox.id} (${cpu} CPU, ${memory}GB RAM, ${disk}GB disk)`,
         );
-      } else {
+      } else if (!sandbox) {
         // Fast, language-based instantiation using cached sandbox container
         sandbox = await daytona.create(
           {
             language: "typescript",
             envVars: { NODE_ENV: "development" },
-            autoStopInterval: 15,
+            labels: sandboxLabels,
+            autoStopInterval: 5,
             autoDeleteInterval: 0,
           },
           { timeout: 90 },
@@ -1415,16 +1437,17 @@ When the user asks about library APIs, setup, migrations, or version-specific be
       });
     }
 
+    // Sandboxes are NOT deleted at end of turn anymore — they stay labeled
+    // to the conversation so the next turn reuses them (no cold start, no
+    // re-clone). The reaper is Daytona itself: autoStopInterval stops the
+    // sandbox after 5 idle minutes and autoDeleteInterval 0 deletes it the
+    // moment it stops, so quota frees itself without us tracking anything.
     async function cleanupSandbox(reason: string) {
       if (!sandbox || sandboxCleaned) return;
       sandboxCleaned = true;
-
-      try {
-        await sandbox.delete();
-        console.log(`[sandbox] Sandbox ${sandbox.id} deleted ${reason}`);
-      } catch (err) {
-        console.warn("[sandbox] Sandbox cleanup failed:", err);
-      }
+      console.log(
+        `[sandbox] Sandbox ${sandbox.id} left for reuse ${reason} (auto-reaped after 5 idle minutes)`,
+      );
     }
 
     async function finalizeSuccessfulTurn() {
