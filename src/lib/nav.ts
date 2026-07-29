@@ -3,7 +3,6 @@ import {
   Settings,
   CreditCard,
   History,
-  Lock,
   ClipboardList,
   LayoutDashboard,
   Users,
@@ -31,11 +30,12 @@ const sidebarNavItems: NavItem[] = [
   { label: "Pemakaian", href: "/history", icon: History },
 ];
 
-/** Profile dropdown items — shown in topbar avatar menu. */
+/** Profile dropdown items — shown in topbar avatar menu.
+ *  Account settings (name, password, connections) all live on /profile;
+ *  the old /auth page redirects there. */
 export const profileMenuItems: NavItem[] = [
   { label: "Profil", href: "/profile", icon: Settings },
   { label: "Langganan", href: "/subscription", icon: CreditCard },
-  { label: "Autentikasi", href: "/auth", icon: Lock },
 ];
 
 /** Return only the nav items visible to the given role. */
