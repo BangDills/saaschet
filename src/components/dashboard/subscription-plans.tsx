@@ -5,7 +5,6 @@ import {
   Check,
   Crown,
   Loader2,
-  Sparkles,
   Zap,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,8 +30,6 @@ const PLANS: {
   description: string;
   limit: number;
   features: string[];
-  icon: React.ReactNode;
-  accent: string;
 }[] = [
   {
     tier: "free",
@@ -48,8 +45,6 @@ const PLANS: {
       "Agent mode dasar",
       "Riwayat chat",
     ],
-    icon: <Sparkles className="size-6" />,
-    accent: "from-sky-500 to-blue-600",
   },
   {
     tier: "pro",
@@ -67,8 +62,6 @@ const PLANS: {
       "Riwayat chat",
       "Analitik pemakaian",
     ],
-    icon: <Crown className="size-6" />,
-    accent: "from-amber-500 to-orange-600",
   },
 ];
 
@@ -134,7 +127,7 @@ export function SubscriptionPlans({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Zap className="size-5 text-violet-500" />
+            <Zap className="size-5 text-muted-foreground" />
             Pemakaian Hari Ini
           </CardTitle>
         </CardHeader>
@@ -168,7 +161,7 @@ export function SubscriptionPlans({
                     ? "bg-red-500"
                     : pct >= 80
                       ? "bg-amber-500"
-                      : "bg-gradient-to-r from-violet-500 to-fuchsia-500",
+                      : "bg-foreground",
                 )}
                 style={{ width: `${pct}%` }}
               />
@@ -198,14 +191,6 @@ export function SubscriptionPlans({
                 </div>
               )}
               <CardHeader className="pb-2">
-                <div
-                  className={cn(
-                    "mb-2 inline-flex size-12 items-center justify-center rounded-xl bg-gradient-to-br text-white",
-                    plan.accent,
-                  )}
-                >
-                  {plan.icon}
-                </div>
                 <CardTitle className="text-xl">{plan.name}</CardTitle>
                 <p className="text-sm text-muted-foreground">
                   {plan.description}
@@ -229,7 +214,7 @@ export function SubscriptionPlans({
                       key={f}
                       className="flex items-start gap-2 text-sm text-muted-foreground"
                     >
-                      <Check className="mt-0.5 size-4 shrink-0 text-emerald-500" />
+                      <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                       <span>{f}</span>
                     </li>
                   ))}
