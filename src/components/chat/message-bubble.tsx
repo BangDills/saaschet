@@ -24,18 +24,33 @@ export type MessageFeedback = {
 };
 
 /**
- * The streaming cursor: a warm breathing orb with a soft halo (think
- * Claude's orange ball) instead of a barely-visible gray dot — it should
- * read as "the assistant is alive and working" at a glance.
+ * The streaming cursor: a Gemini-style four-point sparkle — the shape that
+ * now universally reads as "AI is working". It spins with a breathing scale
+ * on an ease curve and carries a cool blue→purple gradient, so it stands
+ * out in the monochrome UI without shouting.
  */
-function StreamingOrb() {
+function StreamingSparkle() {
   return (
     <span
       aria-hidden
-      className="relative ml-1 inline-flex size-3 -translate-y-0.5 align-middle"
+      className="relative ml-1 inline-flex size-4 -translate-y-0.5 align-middle"
     >
-      <span className="absolute -inset-1 rounded-full bg-orange-400/50 blur-[4px] motion-safe:animate-[orb-breathe_1.4s_ease-in-out_infinite]" />
-      <span className="absolute inset-0 rounded-full bg-gradient-to-br from-amber-300 via-orange-400 to-rose-400 motion-safe:animate-[orb-breathe_1.4s_ease-in-out_infinite]" />
+      <svg
+        viewBox="0 0 24 24"
+        className="size-full motion-safe:animate-[sparkle-spin_1.8s_ease-in-out_infinite]"
+      >
+        <defs>
+          <linearGradient id="celiuz-sparkle" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#60a5fa" />
+            <stop offset="55%" stopColor="#818cf8" />
+            <stop offset="100%" stopColor="#c084fc" />
+          </linearGradient>
+        </defs>
+        <path
+          fill="url(#celiuz-sparkle)"
+          d="M12 0C13.8 7.3 16.7 10.2 24 12 16.7 13.8 13.8 16.7 12 24 10.2 16.7 7.3 13.8 0 12 7.3 10.2 10.2 7.3 12 0Z"
+        />
+      </svg>
     </span>
   );
 }
@@ -251,7 +266,7 @@ function MessageBubbleImpl({
               taskType={taskType}
               onToolActionPrompt={onToolActionPrompt}
             />
-            {streaming && <StreamingOrb />}
+            {streaming && <StreamingSparkle />}
           </>
         ) : (
           <>
@@ -272,7 +287,7 @@ function MessageBubbleImpl({
                 </Markdown>
               ) : null;
             })}
-            {streaming && <StreamingOrb />}
+            {streaming && <StreamingSparkle />}
           </>
         )}
         {!isUser && !streaming && plainText && (

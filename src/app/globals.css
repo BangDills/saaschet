@@ -206,16 +206,18 @@ details[open] > .faq-answer {
   }
 }
 
-/* Streaming orb — the "alive" cursor while the assistant is writing. */
-@keyframes orb-breathe {
-  0%,
-  100% {
-    transform: scale(0.8);
-    opacity: 0.75;
+/* Streaming sparkle — the "AI is working" cursor. A full spin per cycle
+   with a breathing scale; ease-in-out gives it a twinkling rhythm instead
+   of a mechanical rotation. */
+@keyframes sparkle-spin {
+  0% {
+    transform: rotate(0deg) scale(0.75);
   }
   50% {
-    transform: scale(1.15);
-    opacity: 1;
+    transform: rotate(180deg) scale(1.1);
+  }
+  100% {
+    transform: rotate(360deg) scale(0.75);
   }
 }
 
