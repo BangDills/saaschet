@@ -23,6 +23,23 @@ export type MessageFeedback = {
   reason: string | null;
 };
 
+/**
+ * The streaming cursor: a warm breathing orb with a soft halo (think
+ * Claude's orange ball) instead of a barely-visible gray dot — it should
+ * read as "the assistant is alive and working" at a glance.
+ */
+function StreamingOrb() {
+  return (
+    <span
+      aria-hidden
+      className="relative ml-1 inline-flex size-3 -translate-y-0.5 align-middle"
+    >
+      <span className="absolute -inset-1 rounded-full bg-orange-400/50 blur-[4px] motion-safe:animate-[orb-breathe_1.4s_ease-in-out_infinite]" />
+      <span className="absolute inset-0 rounded-full bg-gradient-to-br from-amber-300 via-orange-400 to-rose-400 motion-safe:animate-[orb-breathe_1.4s_ease-in-out_infinite]" />
+    </span>
+  );
+}
+
 /** A subset of the AI SDK's UIMessagePart that the bubble cares about. */
 export type AnyPart =
   | { type: "text"; text: string }
@@ -234,12 +251,7 @@ function MessageBubbleImpl({
               taskType={taskType}
               onToolActionPrompt={onToolActionPrompt}
             />
-            {streaming && (
-              <span
-                aria-hidden
-                className="ml-0.5 inline-block size-2 -translate-y-0.5 animate-pulse rounded-full bg-foreground/40 align-middle"
-              />
-            )}
+            {streaming && <StreamingOrb />}
           </>
         ) : (
           <>
@@ -260,12 +272,7 @@ function MessageBubbleImpl({
                 </Markdown>
               ) : null;
             })}
-            {streaming && (
-              <span
-                aria-hidden
-                className="ml-0.5 inline-block size-2 -translate-y-0.5 animate-pulse rounded-full bg-foreground/40 align-middle"
-              />
-            )}
+            {streaming && <StreamingOrb />}
           </>
         )}
         {!isUser && !streaming && plainText && (

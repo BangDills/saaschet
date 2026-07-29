@@ -206,6 +206,19 @@ details[open] > .faq-answer {
   }
 }
 
+/* Streaming orb — the "alive" cursor while the assistant is writing. */
+@keyframes orb-breathe {
+  0%,
+  100% {
+    transform: scale(0.8);
+    opacity: 0.75;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .reveal {
     opacity: 1;
