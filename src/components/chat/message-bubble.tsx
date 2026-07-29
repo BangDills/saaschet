@@ -6,6 +6,8 @@ import { DocumentCard, isPrdDocument } from "./document-card";
 import { ReasoningBlock } from "./reasoning-block";
 import { type ToolCallPart } from "./tool-call";
 import { ActivityTimeline } from "./activity/ActivityTimeline";
+import { PullRequestCard } from "./pull-request-card";
+import { extractPullRequest } from "./pull-request-summary";
 import { parseReasoningSegments } from "@/lib/chat/parse-reasoning";
 import { cn } from "@/lib/utils";
 import {
@@ -102,6 +104,13 @@ function AssistantParts({
         : allTextParts.slice(-1)
       : allTextParts;
 
+  // The PR an agent turn opened is its payoff — surface it as a card between
+  // the activity timeline and the closing text, not as a link lost in prose.
+  const pullRequest = React.useMemo(
+    () => (toolParts.length > 0 ? extractPullRequest(toolParts as ToolCallPart[]) : null),
+    [toolParts],
+  );
+
   return (
     <>
       {toolParts.length > 0 && (
@@ -113,6 +122,7 @@ function AssistantParts({
           onActionPrompt={onToolActionPrompt}
         />
       )}
+      {pullRequest && <PullRequestCard pr={pullRequest} />}
       {textParts.map((part, index) => {
         const segments = parseReasoningSegments(part.text || "");
         return (
