@@ -2,39 +2,32 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveOrigin } from "@/lib/url";
+import { createAppJwt } from "@/lib/github/app-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/github/callback
+ * GET /api/github/callback?installation_id=…&setup_action=install|update&state=…
  *
- * Handles the callback from GitHub OAuth. Exchanges the code for an
- * access token and stores it in profiles.github_token.
- *
- * This is the standalone OAuth flow (NOT Supabase identity linking).
+ * GitHub redirects here after the user installs the App — and again after
+ * repo-selection updates (the App's "Redirect on update" setting points
+ * back at this same URL). We record the installation metadata and sync the
+ * visible repo list. Tokens are never stored; they're minted on demand by
+ * app-auth.ts.
  */
 export async function GET(request: NextRequest) {
   const origin = resolveOrigin(request);
   const searchParams = new URL(request.url).searchParams;
-  const code = searchParams.get("code");
+  const installationId = Number(searchParams.get("installation_id"));
   const state = searchParams.get("state");
-  const ghError = searchParams.get("error");
 
-  if (ghError) {
-    console.error("[github/callback] GitHub OAuth error:", ghError);
-    return NextResponse.redirect(
-      `${origin}/ai-chat?error=${encodeURIComponent(`GitHub: ${ghError}`)}`,
-    );
-  }
-
-  if (!code || !state) {
+  if (!installationId || !state) {
     return NextResponse.redirect(
       `${origin}/ai-chat?error=github_callback_missing_params`,
     );
   }
 
-  // Verify the logged-in user matches the state parameter.
   const supabase = await createClient();
   const {
     data: { user },
@@ -44,12 +37,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login`);
   }
 
-  // Decode state and verify userId.
+  // Same state verification as the legacy flow: the userId prefix must
+  // match the signed-in user, so an install link can't be handed off.
   try {
     const decoded = Buffer.from(state, "base64url").toString();
-    const userId = decoded.split(":")[0];
-    if (userId !== user.id) {
-      console.error("[github/callback] State mismatch:", userId, "vs", user.id);
+    if (decoded.split(":")[0] !== user.id) {
+      console.error("[github/callback] State mismatch for user", user.id);
       return NextResponse.redirect(
         `${origin}/ai-chat?error=github_state_mismatch`,
       );
@@ -60,91 +53,124 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Exchange the code for an access token.
-  const clientId = process.env.GITHUB_APP_CLIENT_ID;
-  const clientSecret = process.env.GITHUB_APP_CLIENT_SECRET;
+  // Fetch the installation as the App (JWT). This confirms it exists and
+  // gives us the account, permissions, and repository_selection to record.
+  const instRes = await fetch(
+    `https://api.github.com/app/installations/${installationId}`,
+    {
+      headers: {
+        Authorization: `Bearer ${createAppJwt()}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "celiuz-ai",
+      },
+      cache: "no-store",
+    },
+  );
 
-  if (!clientId || !clientSecret) {
+  if (!instRes.ok) {
+    console.error(
+      "[github/callback] installation lookup failed:",
+      instRes.status,
+    );
     return NextResponse.redirect(
-      `${origin}/ai-chat?error=github_app_not_configured`,
+      `${origin}/ai-chat?error=github_installation_lookup_failed`,
     );
   }
 
-  const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      client_id: clientId,
-      client_secret: clientSecret,
-      code,
-    }),
-  });
-
-  const tokenData = (await tokenRes.json()) as {
-    access_token?: string;
-    token_type?: string;
-    scope?: string;
-    error?: string;
-    error_description?: string;
+  const inst = (await instRes.json()) as {
+    account: { login: string; type: string };
+    repository_selection: string;
+    permissions: Record<string, string>;
   };
 
-  if (tokenData.error || !tokenData.access_token) {
-    console.error("[github/callback] Token exchange error:", tokenData.error);
+  const admin = createAdminClient();
+
+  const { data: row, error } = await admin
+    .from("github_installations")
+    .upsert(
+      {
+        user_id: user.id,
+        installation_id: installationId,
+        account_login: inst.account.login,
+        account_type:
+          inst.account.type === "Organization" ? "Organization" : "User",
+        repository_selection:
+          inst.repository_selection === "selected" ? "selected" : "all",
+        permissions: inst.permissions ?? {},
+      },
+      { onConflict: "user_id,installation_id" },
+    )
+    .select("id")
+    .single();
+
+  if (error || !row) {
+    console.error("[github/callback] upsert failed:", error?.message);
     return NextResponse.redirect(
-      `${origin}/ai-chat?error=${encodeURIComponent(
-        tokenData.error_description ?? tokenData.error ?? "token_exchange_failed",
-      )}`,
+      `${origin}/ai-chat?error=github_install_save_failed`,
     );
   }
 
-  const accessToken = tokenData.access_token;
+  // When the user picked specific repos, record which ones so the repo
+  // picker and agent can answer "what can you see?" without an API call.
+  // (This also runs on setup_action=update redirects, keeping us in sync.)
+  await syncInstallationRepos(row.id, installationId);
 
-  // Fetch the GitHub user's profile to get username.
-  let githubUsername: string | null = null;
-  let avatarUrl: string | null = null;
-  try {
-    const ghUser = await fetch("https://api.github.com/user", {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/vnd.github+json",
-      },
-    });
-    if (ghUser.ok) {
-      const userData = (await ghUser.json()) as {
-        login?: string;
-        avatar_url?: string;
-      };
-      githubUsername = userData.login ?? null;
-      avatarUrl = userData.avatar_url ?? null;
-    }
-  } catch {
-    // Non-fatal — we can still save the token.
-  }
-
-  // Save the token to profiles (use admin client to bypass RLS).
-  const admin = createAdminClient();
-  const { error: updateError } = await admin
+  // Backfill github_username for display purposes.
+  await admin
     .from("profiles")
-    .update({
-      github_token: accessToken,
-      github_username: githubUsername,
-      ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
-    })
+    .update({ github_username: inst.account.login })
     .eq("id", user.id);
 
-  if (updateError) {
-    console.error("[github/callback] Profile update error:", updateError.message);
-    return NextResponse.redirect(
-      `${origin}/ai-chat?error=profile_update_failed`,
+  if (process.env.DEBUG_AUTH) {
+    console.info(
+      `[github/callback] installation ${installationId} saved for ${inst.account.login}`,
     );
   }
 
-  if (process.env.DEBUG_AUTH) {
-    console.info(`[github/callback] token saved for ${githubUsername}`);
-  }
+  return NextResponse.redirect(`${origin}/ai-chat?github=connected`);
+}
 
-  return NextResponse.redirect(`${origin}/ai-chat`);
+/**
+ * Replace the stored repo list for an installation with GitHub's current
+ * answer. Used by both this callback and the webhook.
+ */
+export async function syncInstallationRepos(
+  rowId: string,
+  installationId: number,
+): Promise<void> {
+  const res = await fetch(
+    `https://api.github.com/app/installations/${installationId}/repositories?per_page=100`,
+    {
+      headers: {
+        Authorization: `Bearer ${createAppJwt()}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "celiuz-ai",
+      },
+      cache: "no-store",
+    },
+  );
+  if (!res.ok) return;
+
+  const json = (await res.json()) as {
+    repositories: Array<{ id: number; full_name: string; private: boolean }>;
+  };
+
+  const admin = createAdminClient();
+  await admin
+    .from("github_installation_repos")
+    .delete()
+    .eq("installation_id", rowId);
+
+  if (json.repositories.length > 0) {
+    await admin.from("github_installation_repos").insert(
+      json.repositories.map((r) => ({
+        installation_id: rowId,
+        repo_id: r.id,
+        full_name: r.full_name,
+        is_private: r.private,
+      })),
+    );
+  }
 }
