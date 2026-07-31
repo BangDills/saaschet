@@ -14,6 +14,7 @@ import {
   parseRepoSlug,
 } from "@/lib/github/client";
 import { searchWeb, formatSearchResults } from "@/lib/chat/web-search";
+import { searchCodebase, formatHitsForModel } from "@/lib/indexing/search";
 import { createContext7Tools } from "@/lib/context7/tools";
 import { createSerenaTools } from "@/lib/serena/tools";
 
@@ -27,8 +28,12 @@ import { createSerenaTools } from "@/lib/serena/tools";
 export type AgentContext = {
   /** "owner/repo" — fixed for the entire turn */
   repoSlug: string;
-  /** GitHub access token from profiles.github_token. Optional for public read-only repo access. */
+  /** Celiuz AI user id — scopes semantic index lookups to this user's data. */
+  userId: string;
+  /** GitHub access token (GitHub App installation token). Optional for public read-only repo access. */
   githubToken?: string;
+  /** True when this repo has a ready semantic index — enables search_codebase. */
+  codebaseIndexed: boolean;
   /** Tavily key; null disables the web_search tool */
   tavilyKey: string | null;
   /** Context7 key; null disables Context7 documentation tools */
@@ -289,6 +294,56 @@ export function createAgentTools(ctx: AgentContext) {
         return { count: results.length, results };
       },
     }),
+
+    ...(ctx.codebaseIndexed
+      ? {
+          search_codebase: tool({
+            description:
+              "Semantic search over this repository's indexed code. Use for CONCEPTUAL " +
+              "questions ('where is billing handled', 'what calls spendCredits', 'how does " +
+              "auth flow work') when you don't know exact symbol names — it is faster and " +
+              "cheaper than crawling directories. Returns file pointers (path + line range " +
+              "+ snippet); follow up with read_file for full context. Prefer search_code " +
+              "(lexical) when you know the exact symbol name.",
+            inputSchema: schema<{ query: string; limit?: number }>({
+              type: "object",
+              properties: {
+                query: {
+                  type: "string",
+                  description:
+                    "Natural-language description of what you're looking for.",
+                },
+                limit: {
+                  type: "number",
+                  description: "Max results (1-20). Default 8.",
+                  minimum: 1,
+                  maximum: 20,
+                },
+              },
+              required: ["query"],
+              additionalProperties: false,
+            }),
+            execute: async ({
+              query,
+              limit,
+            }: {
+              query: string;
+              limit?: number;
+            }) => {
+              const hits = await searchCodebase({
+                userId: ctx.userId,
+                repoFullName: ctx.repoSlug,
+                query,
+                limit,
+              });
+              return {
+                count: hits.length,
+                markdown: formatHitsForModel(ctx.repoSlug, hits),
+              };
+            },
+          }),
+        }
+      : {}),
 
     web_search: tool({
       description:
@@ -892,6 +947,7 @@ export const AGENT_TOOL_NAMES = [
   "list_files",
   "read_file",
   "search_code",
+  "search_codebase",
   "web_search",
   "context7_search_library",
   "context7_get_docs",
