@@ -276,10 +276,10 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
                     {reposState.error}
                   </p>
                   <a
-                    href="/api/github/oauth"
+                    href="/api/github/install"
                     className="inline-flex items-center gap-1 rounded text-[11px] font-medium text-amber-700 underline underline-offset-2 hover:opacity-80 dark:text-amber-300"
                   >
-                    Reconnect GitHub
+                    Manage repo access
                   </a>
                 </div>
               )}
@@ -301,13 +301,18 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
                   <div className="px-2 py-3 text-center text-xs text-muted-foreground">
                     {reposState.repos.length === 0 ? (
                       <>
-                        <p>No repositories accessible to your account.</p>
+                        <p>No repositories accessible to the app.</p>
                         <p className="mt-1 text-[11px]">
-                          Make sure your GitHub account has{" "}
-                          <code className="rounded bg-muted px-1 py-0.5">
-                            public_repo
-                          </code>{" "}
-                          scope granted.
+                          Grant access to more repos from{" "}
+                          <a
+                            href="https://github.com/settings/installations"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline underline-offset-2"
+                          >
+                            GitHub → Settings → Applications
+                          </a>
+                          , then reopen this picker.
                         </p>
                       </>
                     ) : (
@@ -372,7 +377,7 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
                 </p>
               )}
               <a
-                href="/api/github/oauth"
+                href="/api/github/install"
                 className={cn(
                   "mt-2 inline-flex w-full items-center justify-center gap-2 rounded-md",
                   "border border-border bg-background px-2.5 py-1.5 text-xs font-medium",
