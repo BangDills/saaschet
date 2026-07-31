@@ -361,7 +361,7 @@ export function ChatInput({
         type="file"
         accept="image/png,image/jpeg,image/webp,image/gif,.pdf,.txt,.md,.markdown,.csv,.json,.ts,.tsx,.js,.py,.sql,.html,.css"
         className="hidden"
-        onChange={handleImageChosen}
+        onChange={handleFileChosen}
       />
     </div>
   );
