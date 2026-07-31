@@ -2,7 +2,7 @@ import {
   resolveActions,
   type AgentCompletionState,
 } from "./action-registry";
-import { normalizeFollowUps } from "../chat/turn/follow-ups";
+import { normalizeFollowUps, parseOptionsPayload } from "../chat/turn/follow-ups";
 
 function assert(cond: unknown, msg: string): void {
   if (!cond) {
@@ -85,33 +85,26 @@ const noMessage = resolveActions({
 });
 check(noMessage[0].message === "Lanjutkan audit", "empty message falls back to label");
 
-// 3. Registry is the last resort, and its labels become their own messages.
-const registry = resolveActions({ ...base, taskType: "ui", status: "completed" });
-check(registry[0].label === "Optimalkan tampilan mobile", "registry hit by taskType+status");
-check(registry[0].message === registry[0].label, "registry label doubles as message");
-
-// Capability filtering still narrows the registry.
-const filtered = resolveActions({
-  ...base,
-  taskType: "debugging",
-  status: "completed",
-  nextCapabilities: ["testing", "rootCause"],
-});
-check(filtered[0].label === "Buat regression test", "capabilities filter the registry");
+// 3. There is no third tier. A taskType that once had canned registry labels
+// now yields nothing, which is the point: the inferred taskType "audit" used to
+// offer "Perbaiki seluruh temuan audit" on a turn about image generation.
 check(
-  filtered.every((a) => a.label !== "Perbaiki bug"),
-  "filtered-out capability is absent",
+  resolveActions({ ...base, taskType: "ui", status: "completed" }).length === 0,
+  "known taskType alone -> no actions",
 );
-
-// A capability set that matches nothing falls back to the unfiltered list
-// rather than collapsing to zero.
-const unmatched = resolveActions({
-  ...base,
-  taskType: "git",
-  status: "completed",
-  nextCapabilities: ["nonexistent"],
-});
-check(unmatched.length > 0, "unmatched capabilities fall back to full registry list");
+check(
+  resolveActions({ ...base, taskType: "audit", status: "completed" }).length === 0,
+  "audit taskType no longer yields canned labels",
+);
+check(
+  resolveActions({
+    ...base,
+    taskType: "debugging",
+    status: "completed",
+    nextCapabilities: ["testing", "rootCause"],
+  }).length === 0,
+  "capabilities alone never synthesise actions",
+);
 
 // Cap: a nudge, not a menu.
 const capped = resolveActions({
@@ -208,4 +201,67 @@ check(
   "message survives the full path",
 );
 
-console.log(`PASS: ${checks} follow-up resolver + normalizer checks`);
+/* ── parseOptionsPayload: surviving reasoning output ─────────────────────── */
+
+// This model emits <think> before answering, which is what made the first
+// version return nothing on every turn.
+const bare = parseOptionsPayload('{"options":[{"label":"Deploy","message":"Deploy sekarang"}]}');
+check(normalizeFollowUps(bare).length === 1, "bare JSON parses");
+
+const thought = parseOptionsPayload(
+  '<think>User asked about image gen. I should offer the three features.</think>\n' +
+    '{"options":[{"label":"Negative prompt","message":"Kerjakan fitur negative prompt."}]}',
+);
+check(normalizeFollowUps(thought)[0]?.label === "Negative prompt", "reasoning tag stripped");
+
+const fenced = parseOptionsPayload(
+  '```json\n{"options":[{"label":"Multi-provider","message":"Kerjakan multi-provider."}]}\n```',
+);
+check(normalizeFollowUps(fenced)[0]?.label === "Multi-provider", "code fence stripped");
+
+// The killer case for a greedy first-brace-to-last-brace match: braces inside
+// the reasoning would splice prose into the candidate and fail to parse.
+const bracesInReasoning = parseOptionsPayload(
+  '<think>Maybe emit { foo: 1 } or { bar: 2 } first, then decide.</think> ' +
+    'Here you go: {"options":[{"label":"History preset","message":"Kerjakan history dan preset."}]} done',
+);
+check(
+  normalizeFollowUps(bracesInReasoning)[0]?.label === "History preset",
+  "braces in surrounding text do not break the parse",
+);
+
+// An unclosed think block (budget ran out mid-reasoning) yields nothing rather
+// than throwing.
+check(
+  parseOptionsPayload("<think>thinking and thinking and never finishing") === null,
+  "unterminated reasoning -> null",
+);
+check(parseOptionsPayload("") === null, "empty text -> null");
+check(parseOptionsPayload(null) === null, "null text -> null");
+check(parseOptionsPayload("no json here at all") === null, "prose only -> null");
+check(parseOptionsPayload('{"options":[{"label":"broken"') === null, "truncated JSON -> null");
+
+// Asked for {"options":[…]}, models sometimes return the bare list instead.
+const bareArray = parseOptionsPayload('[{"label":"Rollback","message":"Rollback rilis."}]');
+check(normalizeFollowUps(bareArray).length === 1, "bare array is accepted");
+
+// Full path: raw reasoning response -> parse -> normalize -> resolve.
+const fullPath = resolveActions({
+  ...base,
+  taskType: "audit",
+  status: "completed",
+  followUps: normalizeFollowUps(
+    parseOptionsPayload(
+      '<think>Three options were offered.</think>{"options":[' +
+        '{"label":"Negative prompt","message":"Kerjakan negative prompt dulu."},' +
+        '{"label":"Multi-provider","message":"Kerjakan multi-provider dulu."}]}',
+    ),
+  ),
+});
+check(fullPath.length === 2, "raw reasoning response reaches the resolver");
+check(
+  fullPath[0].message === "Kerjakan negative prompt dulu.",
+  "generated message survives the full path",
+);
+
+console.log(`PASS: ${checks} follow-up resolver, normalizer, and parser checks`);

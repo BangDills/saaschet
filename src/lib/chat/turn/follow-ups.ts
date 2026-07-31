@@ -31,8 +31,15 @@ const FOLLOW_UP_MODEL = "accounts/fireworks/models/deepseek-v4-flash";
 const MAX_FOLLOW_UPS = 4;
 const LABEL_MAX = 48;
 const MESSAGE_MAX = 400;
+/**
+ * This model family emits `<think>…</think>` before answering (see
+ * lib/chat/parse-reasoning.ts). At 800 tokens the reasoning ate the whole
+ * budget and the JSON never arrived, so every call came back empty. 2000
+ * matches what the memory extractors already prove is enough here.
+ */
+const MAX_OUTPUT_TOKENS = 2000;
 /** Never hold the stream open for a slow side-call; no chips beats a hang. */
-const TIMEOUT_MS = 8000;
+const TIMEOUT_MS = 12000;
 
 const SYSTEM = `You write the follow-up suggestions that appear under an assistant's reply in a chat product.
 
@@ -75,6 +82,82 @@ const OPTIONS_SCHEMA = {
 
 type RawOptions = { options?: Array<{ label?: unknown; message?: unknown }> };
 
+/** Reasoning blocks and code fences wrap the payload we actually want. */
+function stripNoise(text: string): string {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/<\/?think>/gi, "")
+    .replace(/```[a-z]*\n?/gi, "")
+    .replace(/```/g, "")
+    .trim();
+}
+
+/**
+ * Locate the JSON object carrying "options" in a raw model response.
+ *
+ * Anchoring on the key and brace-counting outward, rather than matching the
+ * first `{` to the last `}`, is what makes this survive reasoning text that
+ * contains braces of its own — a greedy match would splice prose into the
+ * candidate and fail to parse. Exported so the shapes are testable.
+ */
+export function parseOptionsPayload(text: string | null | undefined): unknown {
+  if (!text) return null;
+  const s = stripNoise(text);
+  if (!s) return null;
+
+  // A well-behaved response is already a bare object.
+  try {
+    return JSON.parse(s);
+  } catch {
+    // Fall through to locating it inside surrounding chatter.
+  }
+
+  const key = s.indexOf('"options"');
+  if (key < 0) return null;
+
+  let start = -1;
+  for (let i = key; i >= 0; i--) {
+    if (s[i] === "{") {
+      start = i;
+      break;
+    }
+  }
+  if (start < 0) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "{") {
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        try {
+          return JSON.parse(s.slice(start, i + 1));
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
 /**
  * Strip code blocks and cap length. A turn that wrote three files would
  * otherwise ship its whole diff into this prompt.
@@ -104,7 +187,9 @@ function shortenLabel(label: string): string {
  * the generator is only as good as this gate.
  */
 export function normalizeFollowUps(raw: unknown): FollowUp[] {
-  const options = (raw as RawOptions | null)?.options;
+  // Accept a bare array too: asked for {"options":[…]}, models sometimes just
+  // return the list.
+  const options = Array.isArray(raw) ? raw : (raw as RawOptions | null)?.options;
   if (!Array.isArray(options)) return [];
 
   const out: FollowUp[] = [];
@@ -160,7 +245,7 @@ ${cleanAndTruncate(assistantText)}
 async function requestOptions(
   provider: ReturnType<typeof createOpenAI>,
   prompt: string,
-): Promise<unknown> {
+): Promise<{ raw: unknown; via: "generateObject" | "textParse" }> {
   try {
     const { object } = await generateObject({
       model: provider(FOLLOW_UP_MODEL),
@@ -169,29 +254,33 @@ async function requestOptions(
       ),
       system: SYSTEM,
       prompt,
-      maxOutputTokens: 800,
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
     });
-    return object;
+    return { raw: object, via: "generateObject" };
   } catch (err) {
-    log.debug("generateObject path failed, falling back to text parse", { err });
+    // Logged at warn, not debug: if this always fails we want to see it in the
+    // deployment logs rather than discover it from empty chips.
+    log.warn("generateObject path failed, falling back to text parse", {
+      err: err instanceof Error ? err.message : String(err),
+    });
   }
 
   const res = await streamText({
     model: provider(FOLLOW_UP_MODEL),
     system: SYSTEM,
     prompt,
-    maxOutputTokens: 800,
+    maxOutputTokens: MAX_OUTPUT_TOKENS,
     onError: ({ error }) => log.warn("follow-up streamText failed", { err: error }),
   });
   const text = await res.text;
-  const match = text?.match(/\{[\s\S]*\}/);
-  if (!match) return null;
-  try {
-    return JSON.parse(match[0]);
-  } catch (err) {
-    log.debug("follow-up JSON parse failed", { err });
-    return null;
+  const raw = parseOptionsPayload(text);
+  if (!raw) {
+    log.warn("no options payload in follow-up response", {
+      textLength: text?.length ?? 0,
+      preview: text?.slice(0, 300) ?? "",
+    });
   }
+  return { raw, via: "textParse" };
 }
 
 /**
@@ -221,13 +310,21 @@ export async function generateFollowUps(args: {
 
   const startedAt = Date.now();
   try {
-    const raw = await Promise.race([
+    const result = await Promise.race([
       requestOptions(provider, buildPrompt(userText, assistantText, taskType)),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), TIMEOUT_MS)),
     ]);
-    const followUps = normalizeFollowUps(raw);
+    if (!result) {
+      log.warn("follow-up generation timed out", { timeoutMs: TIMEOUT_MS });
+      return [];
+    }
+    const followUps = normalizeFollowUps(result.raw);
+    // `via` answers the open question of whether structured output actually
+    // works against this provider, and `count: 0` distinguishes "the model had
+    // nothing to offer" from "the call fell over" above.
     log.info("follow-ups generated", {
       count: followUps.length,
+      via: result.via,
       durationMs: Date.now() - startedAt,
     });
     return followUps;

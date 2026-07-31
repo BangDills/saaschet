@@ -5,12 +5,18 @@
  * objective, what it can do next). The UI never hardcodes buttons — it reads
  * the resolved actions from that state.
  *
- * Suggestions come from three places, in order: the planner's own
- * `suggestedActions` (report_state), the generated `followUps` produced from
- * the finished turn (see lib/chat/turn/follow-ups.ts), and finally a small
- * registry keyed by taskType × status. When none of those has anything, the
- * answer is an empty list and the UI shows nothing — a suggestion the user
- * cannot act on is worse than no suggestion.
+ * Suggestions come from two places, in order: the planner's own
+ * `suggestedActions` (report_state) and the generated `followUps` produced
+ * from the finished turn (see lib/chat/turn/follow-ups.ts). When neither has
+ * anything, the answer is an empty list and the UI shows nothing.
+ *
+ * There used to be a third tier: a table of canned labels keyed by
+ * taskType × status. It shipped exactly the failure this module is supposed to
+ * prevent — a turn about image-generation features, whose taskType had been
+ * INFERRED as "audit" from the user's wording, was offered "Perbaiki seluruh
+ * temuan audit" and "Audit performa". Confidently wrong and topically
+ * unrelated, which is worse than the generic labels it replaced. A suggestion
+ * the user cannot act on is worse than no suggestion, so the tier is gone.
  */
 
 /** A suggestion the user can tap under a reply. */
@@ -29,15 +35,6 @@ export type FollowUp = {
 export type AgentAction = FollowUp & {
   /** Stable id for the React key. */
   id: string;
-  /** Optional capability this action maps to, for filtering by nextCapabilities. */
-  capability?: string;
-};
-
-/** A registry row. Its label doubles as its message — these are self-explanatory. */
-type RegistryAction = {
-  id: string;
-  label: string;
-  capability?: string;
 };
 
 /**
@@ -65,68 +62,8 @@ export interface AgentCompletionState {
   metadata?: Record<string, unknown>;
 }
 
-/**
- * Registry keyed by taskType → status → list of candidate actions.
- * Last-resort scaffolding only: reached when neither the planner nor the
- * generator produced anything. Keep labels short and action-oriented.
- */
-export const ActionRegistry: Record<
-  string,
-  Partial<Record<AgentCompletionState["status"], RegistryAction[]>>
-> = {
-  audit: {
-    completed: [
-      { id: "fix", label: "Perbaiki seluruh temuan audit", capability: "fix" },
-      { id: "security", label: "Audit keamanan lebih lanjut", capability: "security" },
-      { id: "performance", label: "Audit performa", capability: "performance" },
-      { id: "testing", label: "Buat regression test", capability: "testing" },
-    ],
-    failed: [
-      { id: "retry", label: "Coba ulang audit", capability: "fix" },
-      { id: "narrow", label: "Audit bagian spesifik", capability: "fix" },
-    ],
-  },
-  ui: {
-    completed: [
-      { id: "responsive", label: "Optimalkan tampilan mobile", capability: "responsive" },
-      { id: "spacing", label: "Rapikan spacing", capability: "spacing" },
-      { id: "darkmode", label: "Perbaiki dark mode", capability: "darkmode" },
-      { id: "typography", label: "Rapikan typography", capability: "typography" },
-    ],
-  },
-  debugging: {
-    completed: [
-      { id: "fixBug", label: "Perbaiki bug", capability: "fix" },
-      { id: "regression", label: "Buat regression test", capability: "testing" },
-      { id: "rootCause", label: "Cari akar penyebab", capability: "rootCause" },
-      { id: "logging", label: "Tambahkan logging", capability: "logging" },
-    ],
-  },
-  git: {
-    completed: [
-      { id: "merge", label: "Merge ke main", capability: "merge" },
-      { id: "deploy", label: "Deploy", capability: "deploy" },
-      { id: "review", label: "Review perubahan", capability: "review" },
-    ],
-  },
-  deploy: {
-    completed: [
-      { id: "verifyProd", label: "Verifikasi production", capability: "verify" },
-      { id: "logs", label: "Lihat deployment log", capability: "logs" },
-      { id: "smoke", label: "Jalankan smoke test", capability: "smoke" },
-    ],
-  },
-};
-
 /** Follow-ups are a nudge, not a menu. */
 const MAX_ACTIONS = 4;
-
-function fromRegistry(actions: RegistryAction[]): AgentAction[] {
-  return actions.slice(0, MAX_ACTIONS).map((action) => ({
-    ...action,
-    message: action.label,
-  }));
-}
 
 /**
  * Resolve the follow-up actions for a given agent state.
@@ -136,9 +73,7 @@ function fromRegistry(actions: RegistryAction[]): AgentAction[] {
  *     Labels only, so the label doubles as the message.
  *  2. `followUps` — generated from the finished turn, each with its own
  *     self-contained message.
- *  3. ActionRegistry[taskType][status], filtered by `nextCapabilities` when
- *     that narrowing leaves anything.
- *  4. Nothing. Render no chips.
+ *  3. Nothing. Render no chips.
  */
 export function resolveActions(state: AgentCompletionState | null | undefined): AgentAction[] {
   if (!state) return [];
@@ -172,19 +107,6 @@ export function resolveActions(state: AgentCompletionState | null | undefined): 
     if (generated.length > 0) return generated;
   }
 
-  // 3. Registry lookup by taskType + status.
-  const statusActions = ActionRegistry[state.taskType]?.[state.status];
-  if (statusActions && statusActions.length > 0) {
-    const caps = state.nextCapabilities;
-    if (caps && caps.length > 0) {
-      const filtered = statusActions.filter(
-        (a) => !a.capability || caps.includes(a.capability),
-      );
-      if (filtered.length > 0) return fromRegistry(filtered);
-    }
-    return fromRegistry(statusActions);
-  }
-
-  // 4. Nothing trustworthy to offer.
+  // 3. Nothing trustworthy to offer.
   return [];
 }
