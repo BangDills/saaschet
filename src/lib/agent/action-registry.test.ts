@@ -130,8 +130,13 @@ const extractCases: Array<{ name: string; text: string; expect: string[] }> = [
     expect: ["Integrasi pembayaran"],
   },
   {
-    name: "closing offer question → Ya, lanjutkan",
+    name: "spoken offer with a concrete action is captured as-is",
     text: "Phase 1 selesai dan sudah saya push.\n\nMau saya lanjutkan ke Phase 2?",
+    expect: ["Mau saya lanjutkan ke Phase 2"],
+  },
+  {
+    name: "offer question without a concrete offer → Ya, lanjutkan",
+    text: "Semua audit selesai.\n\nMau lanjut?",
     expect: ["Ya, lanjutkan"],
   },
   {
