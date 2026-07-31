@@ -7,12 +7,9 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/github/status
  *
- * Reports how the current user is connected to GitHub. Never returns any
- * token. The `mode` field drives the migration UI:
- *
- *   - "app"    → connected via the GitHub App (target state)
- *   - "legacy" → still on the old OAuth token; show the upgrade banner
- *   - "none"   → not connected; Agent Mode is read-only
+ * Reports whether the current user has a GitHub App installation connected.
+ * Never returns any token. Agent Mode write tools are available when
+ * connected; otherwise repo access is read-only/public.
  */
 export async function GET() {
   const supabase = await createClient();
@@ -24,8 +21,6 @@ export async function GET() {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  // New path: GitHub App installation(s). The user reads their own rows
-  // under RLS, so the browser client is sufficient here.
   const { data: installations } = await supabase
     .from("github_installations")
     .select("account_login, account_type, repository_selection, permissions")
@@ -46,19 +41,10 @@ export async function GET() {
     });
   }
 
-  // Legacy path — remove in the Phase 3 cutover.
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("github_token, github_username")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  const connected = !!profile?.github_token;
-
   return NextResponse.json({
-    connected,
-    mode: connected ? ("legacy" as const) : ("none" as const),
-    username: profile?.github_username ?? null,
-    accessMode: connected ? "full" : "read_only",
+    connected: false,
+    mode: "none",
+    username: null,
+    accessMode: "read_only",
   });
 }
