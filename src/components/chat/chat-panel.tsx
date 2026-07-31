@@ -784,9 +784,9 @@ export function ChatPanel({
   }, [agentMode, repo]);
 
   // Context-aware Quick Actions: read the orchestrator-validated AgentState
-  // from the last assistant message's metadata, resolve actions via the
-  // Action Registry, and fall back to generic suggestions only when no state
-  // is present. No hardcoded buttons — the registry maps taskType×status.
+  // from the last assistant message's metadata and resolve the follow-ups it
+  // carries. No hardcoded buttons: the state supplies planner offers or
+  // generated suggestions, and the registry is only a last resort.
   const lastVisibleMessage = visibleMessages[visibleMessages.length - 1];
   const followUpActions = React.useMemo(() => {
     const meta = lastVisibleMessage?.metadata as
@@ -795,8 +795,13 @@ export function ChatPanel({
     return resolveActions(meta?.agentState);
   }, [lastVisibleMessage?.metadata]);
 
+  // No chips when there is nothing worth offering — resolveActions returns []
+  // rather than padding with filler, and an empty row would just be noise.
   const showFollowUps =
-    !isStreaming && !error && lastVisibleMessage?.role === "assistant";
+    !isStreaming &&
+    !error &&
+    lastVisibleMessage?.role === "assistant" &&
+    followUpActions.length > 0;
   const recoveryError = error ? getRecoveryError(error) : null;
   const RecoveryIcon =
     recoveryError?.kind === "network"
@@ -914,14 +919,18 @@ export function ChatPanel({
 
               {/* Follow-up suggestions: quiet text rows, not boxed chips —
                   they should read like a whispered "you could…" under the
-                  reply, not compete with the message itself. */}
+                  reply, not compete with the message itself. Tapping sends the
+                  action's own self-contained message, not the short label. */}
               {showFollowUps && (
                 <div className="mt-2 flex flex-col items-start pl-2 sm:pl-12" aria-label="Saran lanjutan">
+                  <span className="px-1.5 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+                    Saran lanjutan
+                  </span>
                   {followUpActions.map((action) => (
                     <button
                       key={action.id}
                       type="button"
-                      onClick={() => fillComposer(action.label)}
+                      onClick={() => handleToolActionPrompt(action.message)}
                       className="group flex max-w-full items-start gap-2 rounded-md px-1.5 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <CornerDownRight className="mt-0.5 size-3.5 shrink-0 opacity-50 transition-opacity group-hover:opacity-100" />

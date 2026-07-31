@@ -33,10 +33,8 @@ import {
   createAgentTools,
   generateWorkBranchName,
 } from "@/lib/agent/tools";
-import {
-  extractSuggestedActions,
-  type AgentCompletionState,
-} from "@/lib/agent/action-registry";
+import { type AgentCompletionState } from "@/lib/agent/action-registry";
+import { generateFollowUps } from "@/lib/chat/turn/follow-ups";
 import { getDaytonaClient } from "@/lib/daytona/client";
 import { createSandboxTools } from "@/lib/daytona/sandbox-tools";
 import { createContext7Tools } from "@/lib/context7/tools";
@@ -1046,14 +1044,17 @@ ${recoveryInstruction}`;
             totalToolCount,
           );
           // Follow-up priority: (1) planner's report_state.suggestedActions,
-          // already set inside deriveAgentState; (2) text extraction from the
-          // reply's closing offer. Only run extraction when the planner gave
-          // nothing — never overwrite the planner's own structured offers.
+          // already set inside deriveAgentState; (2) a small structured call
+          // over the finished turn. Only generate when the planner gave nothing
+          // — never overwrite its own offers, and never pay for a call we do
+          // not need. The reply has already streamed by this point, so this
+          // delays the chips appearing, not the text.
           if (pendingAgentState && !pendingAgentState.suggestedActions?.length) {
-            const suggested = extractSuggestedActions(finalText);
-            if (suggested.length > 0) {
-              pendingAgentState.suggestedActions = suggested;
-            }
+            pendingAgentState.followUps = await generateFollowUps({
+              userText,
+              assistantText: finalText,
+              taskType: pendingAgentState.taskType,
+            });
           }
           const durationMs = Date.now() - turnStartedAt;
           if (pendingAgentState) {
@@ -1063,6 +1064,7 @@ ${recoveryInstruction}`;
               status: pendingAgentState.status,
               nextCapabilities: pendingAgentState.nextCapabilities,
               suggestedActions: pendingAgentState.suggestedActions?.length ?? 0,
+              followUps: pendingAgentState.followUps?.length ?? 0,
             });
             writer.write({
               type: "message-metadata",
