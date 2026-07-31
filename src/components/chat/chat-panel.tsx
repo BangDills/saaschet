@@ -965,8 +965,8 @@ export function ChatPanel({
             </div>
           </div>
 
-          {/* relative, not sticky: this is a flex sibling of the scroller, so it already sits outside the scroll flow. touch-action is gone — the root lock in globals.css handles the URL bar, and touch-action:none here also blocked the textarea's own scrolling on long drafts. */}
-          <div ref={composerRef} className="relative z-10 shrink-0 bg-background px-4 py-3">
+          {/* relative, not sticky: a flex sibling of the scroller already sits outside the scroll flow. No touch-action: the root lock in globals.css handles the URL bar, and touch-action:none here also broke the textarea's own scrolling on long drafts. No pb: main already supplies the bottom inset (py-3 / sm:py-6), and doubling it left a visible dead strip once the shell stopped overflowing. */}
+          <div ref={composerRef} className="relative z-10 shrink-0 bg-background px-4 pt-3">
             {/* Messages fade out into the top of the composer — content vanishes
                 partway down rather than hitting a hard line or bleeding past. */}
             <div className="pointer-events-none absolute inset-x-0 -top-10 h-16 bg-gradient-to-b from-transparent via-background/60 to-background" aria-hidden="true" />

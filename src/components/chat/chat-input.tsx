@@ -66,6 +66,7 @@ export function ChatInput({
   repo,
   onRepoChange,
   agentMode,
+  variant = "default",
   draft,
   onDraftChange,
   focusRequestKey = 0,
@@ -201,7 +202,15 @@ export function ChatInput({
   return (
     <div className="mx-auto w-full max-w-3xl">
       {/* Main input box */}
-      <div className="chat-composer relative rounded-2xl border border-border bg-card transition-shadow focus-within:border-input">
+      <div
+        className={cn(
+          "relative rounded-2xl border border-border bg-card transition-shadow focus-within:border-input",
+          // The drop shadow only earns its keep when the composer floats
+          // mid-screen (empty state). Docked at the bottom of a locked shell it
+          // has nothing to cast onto and just smears a grey band into the inset.
+          variant === "centered" && "chat-composer",
+        )}
+      >
         {selectedFile && (
           <div className="relative inline-block m-3 ml-4">
             {selectedFile.isImage ? (
