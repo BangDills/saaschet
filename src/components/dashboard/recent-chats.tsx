@@ -101,7 +101,7 @@ export function RecentChats() {
         ))}
       </div>
       <Link
-        href="/history"
+        href="/threads"
         className="mt-1 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-sidebar-foreground"
       >
         Semua
