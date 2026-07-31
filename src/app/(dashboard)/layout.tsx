@@ -42,7 +42,13 @@ export default async function DashboardLayout({
         role={role}
       />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <Topbar initials={initials} role={role} />
+        <Topbar
+          initials={initials}
+          role={role}
+          displayName={displayName}
+          email={user.email ?? ""}
+          avatarUrl={profile?.avatar_url ?? null}
+        />
         <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-6 sm:py-6 lg:px-8">{children}</main>
       </div>
     </div>

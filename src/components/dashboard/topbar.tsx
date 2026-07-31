@@ -13,6 +13,7 @@ import { signOut } from "@/app/(auth)/login/actions";
 import { CreditsMeter } from "./credits-meter";
 import { ProjectsList } from "./projects-list";
 import { RecentChats } from "./recent-chats";
+import { MobileUserPanel } from "./mobile-user-panel";
 
 function useCurrentTitle() {
   const pathname = usePathname();
@@ -28,9 +29,18 @@ function useCurrentTitle() {
 export type TopbarProps = {
   initials: string;
   role?: UserRole;
+  displayName?: string;
+  email?: string;
+  avatarUrl?: string | null;
 };
 
-export function Topbar({ initials, role = "user" }: TopbarProps) {
+export function Topbar({
+  initials,
+  role = "user",
+  displayName = "Member",
+  email = "",
+  avatarUrl = null,
+}: TopbarProps) {
   const title = useCurrentTitle();
   const pathname = usePathname();
   const isChatPage = pathname.startsWith("/ai-chat");
@@ -213,44 +223,6 @@ export function Topbar({ initials, role = "user" }: TopbarProps) {
               </div>
 
               <RecentChats />
-
-              {/* Account pages were unreachable from the drawer — they only
-                  lived behind the desktop avatar dropdown. */}
-              <div className="mt-5">
-                <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Akun
-                </p>
-                <div className="flex flex-col gap-0.5">
-                  {profileMenuItems.map((item) => {
-                    const active = pathname.startsWith(item.href);
-                    const Icon = item.icon;
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={cn(
-                          "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
-                          active
-                            ? "bg-accent text-accent-foreground"
-                            : "text-sidebar-foreground hover:bg-muted",
-                        )}
-                      >
-                        <Icon className="size-[18px]" />
-                        {item.label}
-                      </Link>
-                    );
-                  })}
-                  <form action={signOut}>
-                    <button
-                      type="submit"
-                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium text-destructive transition-colors hover:bg-destructive/10"
-                    >
-                      <LogOut className="size-[18px]" />
-                      Keluar
-                    </button>
-                  </form>
-                </div>
-              </div>
             </nav>
             <div className="border-t border-sidebar-border px-1 pb-1 pt-1">
               <Suspense fallback={null}>
@@ -260,6 +232,14 @@ export function Topbar({ initials, role = "user" }: TopbarProps) {
             <div className="border-t border-sidebar-border p-3">
               <CreditsMeter />
             </div>
+            {/* Account control at the very bottom — profile row that opens
+                the slide-in Account panel (Hyperagent pattern). */}
+            <MobileUserPanel
+              displayName={displayName}
+              initials={initials}
+              email={email}
+              avatarUrl={avatarUrl}
+            />
           </div>
         </div>
       )}
