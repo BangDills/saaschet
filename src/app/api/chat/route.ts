@@ -205,6 +205,19 @@ export async function POST(req: Request) {
   const ghAuth = await resolveGitHubAuth(userId, repoSlug ?? undefined);
   const githubToken: string | undefined = ghAuth.token ?? undefined;
 
+  // ── Semantic index status for this repo (enables search_codebase) ──
+  let codebaseIndexed = false;
+  if (wantsAgent && repoSlug) {
+    const { data: ix } = await supabase
+      .from("repo_indexes")
+      .select("status")
+      .eq("user_id", userId)
+      .eq("repo_full_name", repoSlug)
+      .eq("status", "ready")
+      .maybeSingle();
+    codebaseIndexed = !!ix;
+  }
+
   // ── Pre-flight: daily credit check ───────────────────────────────────
   // Read-only and purely for UX: a fast 402 before any expensive work.
   // The AUTHORITATIVE gate is the atomic reserveSpend right before the
@@ -436,6 +449,8 @@ export async function POST(req: Request) {
   const githubTools = wantsAgent
     ? createAgentTools({
         repoSlug: repoSlug!,
+        userId,
+        codebaseIndexed,
         githubToken,
         tavilyKey: process.env.TAVILY_API_KEY ?? null,
         context7Key: process.env.CONTEXT7_API_KEY ?? null,
@@ -457,6 +472,11 @@ The connected repository is being accessed without GitHub authentication. You ma
     system += `\n\n## Recovery & Continuation
 All GitHub write tools (\`write_file\`, \`write_files\`, \`edit_file\`, \`delete_file\`) operate on the same work branch: \`${workBranch}\`.
 If a model attempt is interrupted by provider rate limits, the next attempt must inspect the current repo/branch state and continue from the work already completed instead of starting over.`;
+  }
+
+  if (wantsAgent && codebaseIndexed) {
+    system += `\n\n## Codebase Index
+This repository is semantically indexed. Prefer \`search_codebase\` FIRST for exploratory questions about the codebase — it is faster and cheaper than crawling directories. Follow up with read_file on the reported paths when you need full file context.`;
   }
 
   // Optionally add sandbox tools (code execution, terminal)
