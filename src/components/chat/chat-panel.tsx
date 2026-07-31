@@ -821,11 +821,19 @@ export function ChatPanel({
     );
   }, [stop, conversationId]);
 
+  // Placeholder bergantung state percakapan: sapaan pembuka saat kosong,
+  // ajakan lanjutan setelah ada pesan. ChatInput punya prop placeholder
+  // tapi selama ini tidak pernah dioper — selalu default.
+  const composerPlaceholder = hasMessages
+    ? "Tanya lanjutan…"
+    : "Tanya apa saja atau jelaskan tugas Anda…";
+
   const inputProps = {
     onSubmit: handleSubmit,
     onStop: handleStop,
     isStreaming,
     disabled: isStreaming,
+    placeholder: composerPlaceholder,
     models,
     modelId,
     onModelChange,
