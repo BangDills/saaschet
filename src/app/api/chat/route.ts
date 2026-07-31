@@ -27,6 +27,7 @@ import { createRun, subscribeToRun, endRun, type AgentRun } from "@/lib/chat/run
 import { driveRunInBackground } from "@/lib/chat/background-run";
 import { fetchRepoBundle, parseRepoSlug } from "@/lib/github/client";
 import { resolveGitHubAuth } from "@/lib/github/app-client";
+import { ensureRepoIndexed } from "@/lib/indexing/index-repo";
 import { formatRepoForContext } from "@/lib/github/format";
 import {
   createAgentTools,
@@ -204,6 +205,12 @@ export async function POST(req: Request) {
   // until the Phase 3 cutover. Null → read-only public repo access.
   const ghAuth = await resolveGitHubAuth(userId, repoSlug ?? undefined);
   const githubToken: string | undefined = ghAuth.token ?? undefined;
+
+  // ── Auto-index: silently ensure a connected repo gets indexed ─────
+  // Fire-and-forget; the index "just appears" without any button or UI.
+  if (repoSlug) {
+    ensureRepoIndexed({ userId, repoFullName: repoSlug });
+  }
 
   // ── Semantic index status for this repo (enables search_codebase) ──
   let codebaseIndexed = false;

@@ -20,6 +20,7 @@ import {
 } from "@/lib/github/client";
 import { chunkFile, isIndexablePath, looksBinary } from "./chunk";
 import { embedBatch } from "./embed";
+import { createAppJwt, getInstallationToken } from "@/lib/github/app-auth";
 
 const MAX_FILES = 2000;
 const MAX_CHUNKS = 8000;
@@ -259,5 +260,99 @@ export async function indexRepo(opts: {
       })
       .eq("id", indexRow.id);
     throw err;
+  }
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Auto / invisible indexing
+ * ────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Mint an installation token for a repo without a user session.
+ * Used by background paths (auto-index on connect, webhook push) where no
+ * request-scoped user auth exists. Finds the installation by account owner.
+ */
+async function systemTokenForRepo(repoFullName: string): Promise<string | null> {
+  const admin = createAdminClient();
+  const owner = repoFullName.split("/")[0];
+  const { data } = await admin
+    .from("github_installations")
+    .select("installation_id")
+    .eq("account_login", owner)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data) return null;
+  try {
+    return await getInstallationToken(data.installation_id);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Kick off indexing for a repo ONLY if it isn't already indexed/indexing.
+ * Silent by design — never throws, never blocks the caller. Used to
+ * auto-index when a user connects a repo, so the index "just appears"
+ * without any button or status UI.
+ */
+export function ensureRepoIndexed(opts: {
+  userId: string;
+  repoFullName: string;
+}): void {
+  // Fire-and-forget; all failures are swallowed and recorded on the row.
+  void (async () => {
+    const admin = createAdminClient();
+    const { data: existing } = await admin
+      .from("repo_indexes")
+      .select("status")
+      .eq("user_id", opts.userId)
+      .eq("repo_full_name", opts.repoFullName)
+      .maybeSingle();
+
+    // Already ready or in-flight — nothing to do.
+    if (existing && (existing.status === "ready" || existing.status === "indexing")) {
+      return;
+    }
+
+    const token = await systemTokenForRepo(opts.repoFullName);
+    if (!token) return; // no installation covers this repo — skip quietly
+
+    await indexRepo({
+      userId: opts.userId,
+      repoFullName: opts.repoFullName,
+      token,
+    }).catch(() => {
+      /* status recorded as error on the row; nothing to surface */
+    });
+  })();
+}
+
+/**
+ * Re-index every user's ready index for a repo after a push (webhook path).
+ * Incremental — only changed files are reprocessed via the compare API.
+ */
+export async function reindexOnPush(repoFullName: string): Promise<void> {
+  const admin = createAdminClient();
+  const { data: indexes } = await admin
+    .from("repo_indexes")
+    .select("user_id, head_sha")
+    .eq("repo_full_name", repoFullName)
+    .eq("status", "ready");
+
+  if (!indexes || indexes.length === 0) return;
+
+  const token = await systemTokenForRepo(repoFullName);
+  if (!token) return;
+
+  for (const ix of indexes) {
+    await indexRepo({
+      userId: ix.user_id,
+      repoFullName,
+      token,
+    }).catch(() => {
+      /* stale index remains usable; error recorded on the row */
+    });
   }
 }

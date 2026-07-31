@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { reindexOnPush } from "@/lib/indexing/index-repo";
 import crypto from "crypto";
 
 export const runtime = "nodejs";
@@ -54,6 +55,8 @@ export async function POST(request: NextRequest) {
 
   let payload: {
     action?: string;
+    after?: string;
+    repository?: { full_name?: string };
     installation?: {
       id?: number;
       account?: { login?: string; type?: string };
@@ -141,6 +144,15 @@ export async function POST(request: NextRequest) {
       ok: true,
       handled: `installation_repositories.${payload.action}`,
     });
+  }
+
+  if (event === "push") {
+    const repo = payload.repository?.full_name;
+    if (repo) {
+      // Fire-and-forget incremental re-index for all users indexing this repo.
+      void reindexOnPush(repo).catch(() => {});
+    }
+    return NextResponse.json({ ok: true, handled: "push" });
   }
 
   // Other events aren't subscribed to in the App settings; acknowledge and
