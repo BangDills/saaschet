@@ -113,7 +113,17 @@ const GENERIC_ACTIONS: AgentAction[] = [
 
 /** A line that introduces a list of next steps / options. */
 const NEXT_STEP_CUE =
-  /(langkah\s+(selanjutnya|berikut)|next\s+steps?|selanjutnya|berikutnya|rekomendasi|saran|opsi|pilihan|setelah\s+ini|(kamu|anda)\s+bisa|bisa\s+(di)?lanjut|mau\s+lanjut|lanjutannya)/i;
+  /(langkah\s+(selanjutnya|berikut)|next\s+steps?|selanjutnya|berikutnya|rekomendasi|saran|opsi|pilihan|setelah\s+ini|(kamu|anda)\s+bisa|bisa\s+(di)?lanjut|mau\s+lanjut|lanjutannya|mau\s+(aku|saya)\s+bantu|atau\s+kita|saya\s+bisa|aku\s+bisa|bisa\s+juga)/i;
+
+/**
+ * A single spoken offer sentence, e.g. "Mau aku bantu merapikan X?",
+ * "Atau kita coba deploy sekarang?", "Saya bisa tambahkan testnya."
+ * These are the most common way the agent offers a next step — one
+ * sentence, not a bulleted list — and were previously missed entirely,
+ * dropping the UI to generic fallbacks.
+ */
+const SPOKEN_OFFER_RE =
+  /^(?:mau\s+(?:aku|saya)\s+bantu|atau\s+kita|saya\s+bisa|aku\s+bisa|kamu\s+bisa|anda\s+bisa|mau\s+(?:aku|saya)|bagaimana\s+kalau|gimana\s+kalau)\s+(.+?)\??$/i;
 
 const LIST_ITEM_RE = /^\s*(?:[-*•]|\d{1,2}[.)])\s+(.*)$/;
 
@@ -184,8 +194,28 @@ export function extractSuggestedActions(text: string | null | undefined): string
     if (labels.length > 0) return labels;
   }
 
-  // No usable list — but a closing offer question still deserves one tap.
-  const lastLine = [...lines].reverse().find((l) => l.trim())?.trim() ?? "";
+  // No usable list. Scan the last few non-empty lines for a SPOKEN OFFER
+  // ("Mau aku bantu…", "Atau kita…") — the agent's most natural way to
+  // suggest a next step. Collect up to 2 distinct offers as tappable
+  // follow-ups instead of collapsing to a bare "Ya, lanjutkan".
+  const tail = lines
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .slice(-4);
+  const spokenOffers: string[] = [];
+  for (const line of tail) {
+    const m = line.match(SPOKEN_OFFER_RE);
+    if (m) {
+      const label = cleanActionLabel(line.replace(/\?\s*$/, ""));
+      if (label && !spokenOffers.includes(label)) spokenOffers.push(label);
+    }
+    if (spokenOffers.length >= 2) break;
+  }
+  if (spokenOffers.length > 0) return spokenOffers;
+
+  // No offer phrasing either — but a closing offer question still deserves
+  // one tap.
+  const lastLine = tail[tail.length - 1] ?? "";
   if (/\?\s*$/.test(lastLine) && OFFER_QUESTION_RE.test(lastLine)) {
     return ["Ya, lanjutkan"];
   }
