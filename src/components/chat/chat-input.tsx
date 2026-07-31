@@ -256,7 +256,7 @@ export function ChatInput({
           placeholder={placeholder}
           rows={2}
           disabled={disabled}
-          className="block w-full resize-none rounded-2xl bg-transparent px-4 pb-14 pt-4 text-[15px] leading-6 outline-none placeholder:text-muted-foreground focus-visible:outline-1 focus-visible:outline-offset-2"
+          className="composer-focus-ring block w-full resize-none rounded-2xl bg-transparent px-4 pb-14 pt-4 text-[15px] leading-6 outline-none placeholder:text-muted-foreground"
           style={{ minHeight: "104px" }}
         />
 

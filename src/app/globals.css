@@ -140,6 +140,26 @@ body:has([data-app-shell]) {
   box-shadow: 0 8px 24px color-mix(in srgb, var(--foreground) 7%, transparent);
 }
 
+/* Composer focus ring — 1px hairline instead of the global 2px, which read as
+   a heavy black frame around a control this large.
+
+   Written as explicit longhands rather than Tailwind's outline-* utilities on
+   purpose. Those resolve outline-style through --tw-outline-style, and the
+   textarea's own outline-none pins that variable to `none` on the same element,
+   so a utility-based override wins the cascade and then paints nothing at all.
+
+   (0,2,0) here beats both the global :focus-visible rule and outline-none at
+   (0,1,0). outline-color stays var(--ring) so the ring inverts correctly in
+   dark mode. Overhang past the card is offset + width - 1px (the card's own
+   border sits in between) = 2px, which fits the room the composer wrapper
+   reserves with pb-1 -- the page section clips anything beyond it. */
+.composer-focus-ring:focus-visible {
+  outline-width: 1px;
+  outline-style: solid;
+  outline-color: var(--ring);
+  outline-offset: 2px;
+}
+
 .mono-grid {
   background-image: linear-gradient(to right, color-mix(in srgb, var(--foreground) 8%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 8%, transparent) 1px, transparent 1px);
   background-size: 32px 32px;
