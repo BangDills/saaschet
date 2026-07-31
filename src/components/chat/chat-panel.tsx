@@ -965,12 +965,8 @@ export function ChatPanel({
             </div>
           </div>
 
-          {/* touchAction: none — a swipe that starts ON the composer must not
-              scroll the page. Scrolling the page is what collapses the mobile
-              Chrome URL bar, which in turn shoves the sticky composer up. The
-              textarea inside still scrolls its own text (its own touch action),
-              so typing/long drafts keep working. */}
-          <div ref={composerRef} className="sticky bottom-0 z-10 shrink-0 bg-background px-4 py-3" style={{ touchAction: "none" }}>
+          {/* relative, not sticky: this is a flex sibling of the scroller, so it already sits outside the scroll flow. touch-action is gone — the root lock in globals.css handles the URL bar, and touch-action:none here also blocked the textarea's own scrolling on long drafts. */}
+          <div ref={composerRef} className="relative z-10 shrink-0 bg-background px-4 py-3">
             {/* Messages fade out into the top of the composer — content vanishes
                 partway down rather than hitting a hard line or bleeding past. */}
             <div className="pointer-events-none absolute inset-x-0 -top-10 h-16 bg-gradient-to-b from-transparent via-background/60 to-background" aria-hidden="true" />
@@ -1001,7 +997,7 @@ export function ChatPanel({
           </div>
         </>
       ) : (
-        <div className="flex h-full flex-col overflow-y-auto px-4">
+        <div className="flex h-full flex-col overflow-y-auto overscroll-contain px-4">
           <div className="flex-1" />
           <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-5">
             <div className="text-center">

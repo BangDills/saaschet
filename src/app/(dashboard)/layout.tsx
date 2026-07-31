@@ -33,7 +33,7 @@ export default async function DashboardLayout({
   const initials = getInitials(displayName);
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-background">
+    <div data-app-shell className="flex h-dvh overflow-hidden bg-background">
       <Sidebar
         displayName={displayName}
         initials={initials}
@@ -49,7 +49,7 @@ export default async function DashboardLayout({
           email={user.email ?? ""}
           avatarUrl={profile?.avatar_url ?? null}
         />
-        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-6 sm:py-6 lg:px-8">{children}</main>
+        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-6 lg:px-8">{children}</main>
       </div>
     </div>
   );

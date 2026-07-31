@@ -112,6 +112,25 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* App shell lock — dashboard only, the landing page must still scroll.
+   Root cause of the composer swipe bug: body carries min-height:100vh, and on
+   mobile Chrome 100vh is the LARGE viewport (URL bar hidden) while the visible
+   area is the SMALL viewport (URL bar shown). The document is therefore
+   scrollable by exactly the height of the URL bar. A swipe up spends that
+   scroll on collapsing the URL bar, the viewport grows, and every dvh-sized
+   child — the composer included — gets shoved. Pinning the shell to the dynamic
+   viewport with no overflow removes the scrollable root entirely: there is
+   nothing for the gesture to consume, so the URL bar has no reason to move.
+   Scoped with :has() so this needs no client JS and shows no unlocked flash.
+   min-height:0 is required to defeat Tailwind's min-h-screen on body. */
+html:has([data-app-shell]),
+body:has([data-app-shell]) {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 ::selection {
   background: var(--foreground);
   color: var(--background);
