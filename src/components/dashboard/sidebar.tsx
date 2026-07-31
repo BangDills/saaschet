@@ -5,8 +5,8 @@ import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { getNavItems, type UserRole } from "@/lib/nav";
 import { cn } from "@/lib/utils";
-import { SignOutButton } from "@/components/auth/sign-out-button";
 import { CreditsMeter } from "./credits-meter";
+import { SidebarUserMenu } from "./sidebar-user-menu";
 import { CeliuzLogo } from "@/components/celiuz-logo";
 import { ProjectsList } from "./projects-list";
 import { RecentChats } from "./recent-chats";
@@ -82,34 +82,14 @@ export function Sidebar({
         <CreditsMeter />
       </div>
 
-      {/* User info */}
-      <div className="border-t border-sidebar-border px-3 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex min-w-0 items-center gap-2.5">
-            {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={avatarUrl}
-                alt=""
-                className="h-8 w-8 shrink-0 rounded-full object-cover"
-              />
-            ) : (
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                {initials || "U"}
-              </div>
-            )}
-            <div className="min-w-0 leading-tight">
-              <p className="truncate text-[13px] font-medium">{displayName}</p>
-              {email && (
-                <p className="truncate text-[11px] text-muted-foreground">
-                  {email}
-                </p>
-              )}
-            </div>
-          </div>
-          <SignOutButton />
-        </div>
-      </div>
+      {/* Account menu — avatar/name at the very bottom opens the popup
+          (profile, billing, theme, logout), the Hyperagent pattern. */}
+      <SidebarUserMenu
+        displayName={displayName}
+        initials={initials}
+        email={email}
+        avatarUrl={avatarUrl}
+      />
     </aside>
   );
 }
