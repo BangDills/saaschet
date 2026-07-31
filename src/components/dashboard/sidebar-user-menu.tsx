@@ -10,7 +10,6 @@ import {
   LogOut,
   Monitor,
   Moon,
-  Settings,
   Sun,
   User,
 } from "lucide-react";

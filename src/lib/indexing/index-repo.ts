@@ -20,7 +20,7 @@ import {
 } from "@/lib/github/client";
 import { chunkFile, isIndexablePath, looksBinary } from "./chunk";
 import { embedBatch } from "./embed";
-import { createAppJwt, getInstallationToken } from "@/lib/github/app-auth";
+import { getInstallationToken } from "@/lib/github/app-auth";
 
 const MAX_FILES = 2000;
 const MAX_CHUNKS = 8000;
