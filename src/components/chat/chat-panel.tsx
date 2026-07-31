@@ -851,7 +851,7 @@ export function ChatPanel({
     <div className="flex h-full min-h-0 flex-1 flex-col">
       {hasMessages ? (
         <>
-          <div ref={scrollRef} className="relative flex-1 overflow-y-auto">
+          <div ref={scrollRef} className="relative flex-1 overflow-y-auto overscroll-contain">
             <div ref={messagesRef} className="mx-auto w-full max-w-3xl px-4 pb-4 pt-4 sm:px-6">
               {visibleMessages.map((m) => {
                 const isLast =
@@ -965,7 +965,7 @@ export function ChatPanel({
             </div>
           </div>
 
-          <div ref={composerRef} className="sticky bottom-0 z-10 shrink-0 bg-background px-4 py-3">
+          <div ref={composerRef} className="sticky bottom-0 z-10 shrink-0 touch-manipulation bg-background px-4 py-3" style={{ touchAction: "manipulation" }}>
             {/* Messages fade out into the top of the composer — content vanishes
                 partway down rather than hitting a hard line or bleeding past. */}
             <div className="pointer-events-none absolute inset-x-0 -top-10 h-16 bg-gradient-to-b from-transparent via-background/60 to-background" aria-hidden="true" />
