@@ -26,6 +26,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createRun, subscribeToRun, endRun, type AgentRun } from "@/lib/chat/run-registry";
 import { driveRunInBackground } from "@/lib/chat/background-run";
 import { fetchRepoBundle, parseRepoSlug } from "@/lib/github/client";
+import { resolveGitHubAuth } from "@/lib/github/app-client";
 import { formatRepoForContext } from "@/lib/github/format";
 import {
   createAgentTools,
@@ -197,13 +198,12 @@ export async function POST(req: Request) {
 
   const userText = lastUserText(messages);
 
-  // ── Look up GitHub token + OpenAI tokens (used by context fetch + agent tools) ──
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("github_token")
-    .eq("id", userId)
-    .maybeSingle();
-  const githubToken: string | undefined = profile?.github_token ?? undefined;
+  // ── Resolve the GitHub token for this turn ─────────────────────────
+  // GitHub App installations take priority (per-repo, 1-hour tokens);
+  // the legacy OAuth token in profiles.github_token remains as fallback
+  // until the Phase 3 cutover. Null → read-only public repo access.
+  const ghAuth = await resolveGitHubAuth(userId, repoSlug ?? undefined);
+  const githubToken: string | undefined = ghAuth.token ?? undefined;
 
   // ── Pre-flight: daily credit check ───────────────────────────────────
   // Read-only and purely for UX: a fast 402 before any expensive work.
