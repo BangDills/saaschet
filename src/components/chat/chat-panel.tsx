@@ -916,16 +916,16 @@ export function ChatPanel({
                   they should read like a whispered "you could…" under the
                   reply, not compete with the message itself. */}
               {showFollowUps && (
-                <div className="mt-2 flex flex-col items-start pl-10 sm:pl-12" aria-label="Saran lanjutan">
+                <div className="mt-2 flex flex-col items-start pl-2 sm:pl-12" aria-label="Saran lanjutan">
                   {followUpActions.map((action) => (
                     <button
                       key={action.id}
                       type="button"
                       onClick={() => fillComposer(action.label)}
-                      className="group flex max-w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="group flex max-w-full items-start gap-2 rounded-md px-1.5 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      <CornerDownRight className="size-3.5 shrink-0 opacity-50 transition-opacity group-hover:opacity-100" />
-                      <span className="truncate">{action.label}</span>
+                      <CornerDownRight className="mt-0.5 size-3.5 shrink-0 opacity-50 transition-opacity group-hover:opacity-100" />
+                      <span className="whitespace-normal break-words leading-snug">{action.label}</span>
                     </button>
                   ))}
                 </div>
