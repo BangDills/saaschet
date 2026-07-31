@@ -280,17 +280,30 @@ details[open] > .faq-answer {
   outline-offset: 3px;
 }
 
+/* Scrollbar: quiet by default. The thumb is a soft translucent tint of the
+   foreground (not the full-strength muted-foreground), rounded, and inset
+   from the track so it reads as a subtle position hint rather than a dark
+   stripe — especially against the light sidebar on mobile. */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--muted-foreground);
+  background: color-mix(in srgb, var(--foreground) 22%, transparent);
+  border-radius: 999px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--background);
+  background: transparent;
+}
+
+/* On touch devices the scrollbar only needs to appear while scrolling;
+   keeping it at the same soft tint (no always-on stripe) declutters the
+   mobile sidebar. Firefox equivalent via scrollbar-width/scrollbar-color. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--foreground) 22%, transparent) transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
