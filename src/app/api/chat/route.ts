@@ -1045,9 +1045,11 @@ ${recoveryInstruction}`;
             userText,
             totalToolCount,
           );
-          // Quick Actions that echo the reply's own "langkah selanjutnya"
-          // beat any canned registry label — extract them from the final text.
-          if (pendingAgentState) {
+          // Follow-up priority: (1) planner's report_state.suggestedActions,
+          // already set inside deriveAgentState; (2) text extraction from the
+          // reply's closing offer. Only run extraction when the planner gave
+          // nothing — never overwrite the planner's own structured offers.
+          if (pendingAgentState && !pendingAgentState.suggestedActions?.length) {
             const suggested = extractSuggestedActions(finalText);
             if (suggested.length > 0) {
               pendingAgentState.suggestedActions = suggested;

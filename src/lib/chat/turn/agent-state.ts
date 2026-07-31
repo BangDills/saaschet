@@ -159,6 +159,7 @@ export function deriveAgentState(
         taskType?: string;
         objective?: string;
         summary?: string;
+        suggestedActions?: string[];
       };
     };
     const allResults = steps.flatMap(
@@ -212,12 +213,22 @@ export function deriveAgentState(
       if (!nextCapabilities.includes("merge")) nextCapabilities.push("merge");
     }
 
+    // Planner-provided next steps (from report_state.suggestedActions) are
+    // the highest-quality follow-ups — they mirror what the agent actually
+    // offered. resolveActions prioritizes these above text extraction.
+    const suggestedActions =
+      Array.isArray(reportOut?.suggestedActions) &&
+      reportOut!.suggestedActions!.length > 0
+        ? reportOut!.suggestedActions!.slice(0, 3)
+        : undefined;
+
     return {
       taskType,
       objective: reportOut?.objective ?? userText.slice(0, 120),
       summary: reportOut?.summary ?? "",
       status,
       nextCapabilities,
+      suggestedActions,
       requiresUserDecision: status === "failed" && anyFatal,
       metadata: {
         finishReason,

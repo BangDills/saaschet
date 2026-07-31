@@ -894,6 +894,7 @@ export function createAgentTools(ctx: AgentContext) {
         taskType: string;
         objective: string;
         summary: string;
+        suggestedActions?: string[];
       }>({
         type: "object",
         properties: {
@@ -912,6 +913,16 @@ export function createAgentTools(ctx: AgentContext) {
             type: "string",
             description: "What you did / found this turn (1-2 sentences, factual).",
           },
+          suggestedActions: {
+            type: "array",
+            description:
+              "The 1-3 concrete next steps you offered the user in your reply, " +
+              "as short actionable Indonesian labels (e.g. 'Implementasikan trend time-series', " +
+              "'Koreksi bagian audit yang terlewat'). Mirror what you actually offered — " +
+              "these become the tappable follow-up buttons.",
+            items: { type: "string" },
+            maxItems: 3,
+          },
         },
         required: ["taskType", "objective", "summary"],
         additionalProperties: false,
@@ -920,10 +931,12 @@ export function createAgentTools(ctx: AgentContext) {
         taskType,
         objective,
         summary,
+        suggestedActions,
       }: {
         taskType: string;
         objective: string;
         summary: string;
+        suggestedActions?: string[];
       }) => {
         // LLM provides only semantic context. The orchestrator (chat route
         // onFinish) reads this tool result, merges execution-derived status
@@ -936,6 +949,7 @@ export function createAgentTools(ctx: AgentContext) {
           taskType,
           objective,
           summary,
+          suggestedActions,
         };
       },
     }),
