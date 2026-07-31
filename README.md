@@ -7,7 +7,7 @@ Platform AI coding agent dengan integrasi GitHub, live sandbox execution, multi-
 ### AI Chat & Agent Mode
 - **Multi model** — GLM 5.2, Kimi 2.7 Code, DeepSeek V4 Pro, DeepSeek V4 Flash, Qwen 3.7 Plus, MiniMax M3
 - **Agent Mode otomatis** — model dengan tool-calling auto-enable agent tools saat repo dihubungkan
-- **Integrasi GitHub** — read, write, edit, search code, create branches & PRs (scope `workflow` untuk push CI/CD files)
+- **Integrasi GitHub** — read, write, edit, search code, create branches & PRs via GitHub App (per-repo install, granular permissions, aksi muncul sebagai bot)
 - **Live sandbox** — ephemeral sandbox service (4 vCPU, 8GB RAM, 10GB disk) untuk eksekusi kode
 - **Activity Timeline** — timeline terstruktur per kategori (Explore, Read, Search, Commands, Code, Created, Updated, Deleted) dengan summary card
 - **Quick Actions** — tombol aksi context-aware berbasis AgentState (task type + status dari orchestrator)
@@ -104,9 +104,10 @@ Copy `.env.example` to `.env.local` and fill in your keys:
 | `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Supabase service role key (server-side only) |
-| `GITHUB_TOKEN` | ✅ | GitHub PAT for agent mode repo access |
-| `GITHUB_APP_CLIENT_ID` | ✅ | GitHub OAuth App client ID (connect repo flow) |
-| `GITHUB_APP_CLIENT_SECRET` | ✅ | GitHub OAuth App client secret |
+| `GITHUB_APP_ID` | ✅ | GitHub App ID (agent mode repo access) |
+| `GITHUB_APP_SLUG` | ✅ | GitHub App slug (install URL) |
+| `GITHUB_APP_PRIVATE_KEY` | ✅ | GitHub App private key (mints 1-hour installation tokens) |
+| `GITHUB_APP_WEBHOOK_SECRET` | ✅ | Verifies installation webhook deliveries |
 | `TAVILY_API_KEY` | Optional | Tavily API key for web search ([tavily.com](https://tavily.com)) |
 | `CONTEXT7_API_KEY` | Optional | Context7 API key for library docs ([context7.com](https://context7.com)) |
 | `JINA_API_KEY` | Optional | Jina AI key for vector embeddings (memory search) |
