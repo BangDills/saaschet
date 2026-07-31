@@ -300,7 +300,7 @@ export function ChatInput({
               </button>
 
               {attachOpen && (
-                <div className="absolute bottom-full left-0 z-50 mb-2 w-56 overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
+                <div className="absolute bottom-full left-0 z-50 mb-2 w-56 overflow-hidden rounded-xl border border-border bg-card p-1.5 text-card-foreground shadow-xl">
                   <button
                     type="button"
                     onClick={handleImagePick}
