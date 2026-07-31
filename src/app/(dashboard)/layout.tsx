@@ -33,10 +33,6 @@ export default async function DashboardLayout({
   const initials = getInitials(displayName);
 
   return (
-    {/* Use dynamic viewport height (dvh) so the layout tracks the mobile
-        browser chrome (URL bar) collapsing/expanding instead of jumping —
-        this is what keeps the sticky composer rock-steady on swipe, like
-        Hyperagent, instead of being pushed up when the URL bar hides. */}
     <div className="flex h-dvh overflow-hidden bg-background">
       <Sidebar
         displayName={displayName}
