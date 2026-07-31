@@ -965,7 +965,12 @@ export function ChatPanel({
             </div>
           </div>
 
-          <div ref={composerRef} className="sticky bottom-0 z-10 shrink-0 touch-manipulation bg-background px-4 py-3" style={{ touchAction: "manipulation" }}>
+          {/* touchAction: none — a swipe that starts ON the composer must not
+              scroll the page. Scrolling the page is what collapses the mobile
+              Chrome URL bar, which in turn shoves the sticky composer up. The
+              textarea inside still scrolls its own text (its own touch action),
+              so typing/long drafts keep working. */}
+          <div ref={composerRef} className="sticky bottom-0 z-10 shrink-0 bg-background px-4 py-3" style={{ touchAction: "none" }}>
             {/* Messages fade out into the top of the composer — content vanishes
                 partway down rather than hitting a hard line or bleeding past. */}
             <div className="pointer-events-none absolute inset-x-0 -top-10 h-16 bg-gradient-to-b from-transparent via-background/60 to-background" aria-hidden="true" />
