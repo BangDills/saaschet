@@ -7,6 +7,7 @@ import {
   Loader2,
   Lock,
   Search,
+  Settings2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -294,15 +295,15 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
                   className="h-11 w-full rounded-xl border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
                 />
               </div>
+              </div>
 
               <a
                 href="/api/github/install"
-                className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-border px-3 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                className="mb-3 flex h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-border text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               >
-                <GitHubMark className="size-3.5" />
-                Add or remove repos — manage access on GitHub
+                <Settings2 className="size-4" />
+                Edit access
               </a>
-              </div>
 
               <div className="max-h-80 overflow-y-auto rounded-xl border border-border">
                 {filteredRepos.length === 0 ? (
