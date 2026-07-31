@@ -418,9 +418,45 @@ export default async function LandingPage() {
       </section>
 
       <footer className="border-t border-background/20 bg-foreground text-background">
-        <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
-          <Brand />
-          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-background/70">© 2026 Celiuz AI. Buat yang suka bikin sesuatu.</p>
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+          <div className="grid gap-10 md:grid-cols-[1.2fr_repeat(3,1fr)]">
+            <div>
+              <Brand />
+              <p className="mt-4 max-w-xs text-sm leading-relaxed text-background/70">
+                Satu workspace untuk chat AI, agent coding, dan pembuatan PRD. Dari konsep ke kode, dari ide jadi kreasi.
+              </p>
+            </div>
+            <nav aria-label="Produk">
+              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-background/50">Produk</p>
+              <ul className="mt-4 flex flex-col gap-2.5 text-sm">
+                <li><a href="#features" className="text-background/80 transition-colors hover:text-background">Fitur</a></li>
+                <li><a href="#models" className="text-background/80 transition-colors hover:text-background">Model</a></li>
+                <li><a href="#pricing" className="text-background/80 transition-colors hover:text-background">Harga</a></li>
+                <li><a href="#faqs" className="text-background/80 transition-colors hover:text-background">FAQ</a></li>
+              </ul>
+            </nav>
+            <nav aria-label="Perusahaan">
+              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-background/50">Perusahaan</p>
+              <ul className="mt-4 flex flex-col gap-2.5 text-sm">
+                <li><a href="#faqs" className="text-background/80 transition-colors hover:text-background">Tentang</a></li>
+                <li><a href="mailto:support@celiuz.my.id" className="text-background/80 transition-colors hover:text-background">Kontak</a></li>
+              </ul>
+            </nav>
+            <nav aria-label="Legal">
+              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-background/50">Legal</p>
+              <ul className="mt-4 flex flex-col gap-2.5 text-sm">
+                <li><Link href="/privacy" className="text-background/80 transition-colors hover:text-background">Privacy Policy</Link></li>
+                <li><Link href="/terms" className="text-background/80 transition-colors hover:text-background">Terms of Service</Link></li>
+              </ul>
+            </nav>
+          </div>
+          <div className="mt-10 flex flex-col gap-3 border-t border-background/15 pt-6 sm:flex-row sm:items-center sm:justify-between">
+            <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-background/60">© 2026 Celiuz AI. Buat yang suka bikin sesuatu.</p>
+            <div className="flex gap-5 font-mono text-[10px] uppercase tracking-[0.15em] text-background/60">
+              <Link href="/privacy" className="transition-colors hover:text-background">Privasi</Link>
+              <Link href="/terms" className="transition-colors hover:text-background">Ketentuan</Link>
+            </div>
+          </div>
         </div>
       </footer>
     </main>
