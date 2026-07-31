@@ -64,7 +64,11 @@ export function ThreadsBrowser({
   const router = useRouter();
   const pathname = usePathname();
   const [query, setQuery] = React.useState("");
-  const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>({});
+  // Projects start COLLAPSED on landing — the user opens each manually,
+  // so a long library doesn't greet them fully expanded.
+  const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>(
+    () => Object.fromEntries(groups.map((g) => [g.id, true])),
+  );
 
   function openChat(id: string) {
     try {
