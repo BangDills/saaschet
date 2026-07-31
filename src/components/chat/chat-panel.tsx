@@ -1019,13 +1019,13 @@ export function ChatPanel({
                 unless you already knew the little Repo control existed. */}
             {!repo && githubAccessMode === "read_only" && (
               <a
-                href="/api/github/oauth"
+                href="/api/github/install"
                 className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <GitBranch className="size-3.5 shrink-0" />
                 <span>
                   <span className="font-semibold text-foreground">Mode Agent:</span>{" "}
-                  hubungkan GitHub agar AI bisa membaca &amp; menulis kode di repo Anda →
+                  install GitHub App agar AI bisa membaca &amp; menulis kode di repo Anda →
                 </span>
               </a>
             )}
