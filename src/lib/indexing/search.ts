@@ -46,7 +46,26 @@ export async function searchCodebase(opts: {
     return [];
   }
 
-  return (data ?? []) as CodebaseHit[];
+  // Content is stored base64-encoded to keep raw repo text (which often
+  // contains SQL-like strings) from tripping the Cloudflare WAF on insert.
+  // Decode back to UTF-8 here so callers get readable snippets. Entries
+  // that fail to decode (legacy plaintext rows) pass through unchanged.
+  const hits = ((data ?? []) as CodebaseHit[]).map((h) => {
+    try {
+      const decoded = Buffer.from(h.content, "base64").toString("utf-8");
+      // Round-trip check: only accept the decode if it re-encodes cleanly,
+      // otherwise the row was legacy plaintext.
+      if (Buffer.from(decoded, "utf-8").toString("base64").replace(/=+$/, "") ===
+          h.content.replace(/=+$/, "")) {
+        return { ...h, content: decoded };
+      }
+    } catch {
+      // fall through — treat as plaintext
+    }
+    return h;
+  });
+
+  return hits;
 }
 
 /** Compact, token-frugal formatting for the model. */

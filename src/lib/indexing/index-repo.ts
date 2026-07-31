@@ -195,13 +195,17 @@ export async function indexRepo(opts: {
             .eq("path", u.path);
         }
 
+        // Content is base64-encoded before insert: raw repo text routinely
+        // contains SQL-like strings (our own migrations!) that trip the
+        // Cloudflare WAF in front of Supabase with a "SQL injection" block.
+        // search.ts decodes after retrieval, so consumers never see this.
         const rows = flat.map((f, idx) => ({
           index_id: indexRow.id,
           path: f.path,
           chunk_index: f.chunkIndex,
           start_line: f.startLine,
           end_line: f.endLine,
-          content: f.content,
+          content: Buffer.from(f.content, "utf-8").toString("base64"),
           embedding: embeddings[idx],
         }));
 
