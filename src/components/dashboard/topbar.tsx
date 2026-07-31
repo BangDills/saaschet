@@ -8,6 +8,7 @@ import { Menu, X } from "lucide-react";
 import { navItems, profileMenuItems, getNavItems, type UserRole } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { CeliuzLogo } from "@/components/celiuz-logo";
 import { ProjectsList } from "./projects-list";
 import { RecentChats } from "./recent-chats";
 import { MobileUserPanel } from "./mobile-user-panel";
@@ -109,9 +110,11 @@ export function Topbar({
             <div className="flex items-center justify-between px-4 py-3">
               <Link
                 href="/ai-chat"
-                className="text-base font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80"
+                className="flex items-center gap-2.5 text-base font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80"
+                aria-label="Celiuz AI"
               >
-                Celiuz AI
+                <CeliuzLogo className="size-6" />
+                <span>Celiuz AI</span>
               </Link>
               <Button
                 variant="ghost"
