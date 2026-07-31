@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { MessageSquare } from "lucide-react";
+import { ArrowRight, MessageSquare } from "lucide-react";
 
 const LS_KEY = "celiuz:lastConversationId";
 /** Fired by the credits meter flow after every finished turn — a reliable
@@ -11,7 +12,7 @@ const CREDITS_REFRESH_EVENT = "celiuz:credits:refresh";
 /** Tells an already-mounted ai-chat page to open a conversation in place. */
 export const OPEN_CONVERSATION_EVENT = "celiuz:open-conversation";
 
-const MAX_ITEMS = 6;
+const MAX_ITEMS = 3;
 
 type ConversationLite = {
   id: string;
@@ -99,6 +100,13 @@ export function RecentChats() {
           </button>
         ))}
       </div>
+      <Link
+        href="/history"
+        className="mt-1 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-sidebar-foreground"
+      >
+        Semua
+        <ArrowRight className="size-3.5" />
+      </Link>
     </div>
   );
 }
