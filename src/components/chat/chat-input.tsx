@@ -348,7 +348,7 @@ export function ChatInput({
             value={modelId}
             onChange={(nextModelId) => {
               const nextModel = models.find((model) => model.id === nextModelId);
-              if (!nextModel?.multimodal) clearImage();
+              if (!nextModel?.multimodal) clearFile();
               onModelChange(nextModelId);
             }}
             agentMode={agentMode}
