@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import {
   ArrowLeft,
-  Check,
   ChevronRight,
   CreditCard,
   LogOut,
@@ -14,6 +13,7 @@ import {
   Sun,
   User,
 } from "lucide-react";
+import { CreditsMeter } from "./credits-meter";
 import { signOut } from "@/app/(auth)/login/actions";
 import { cn } from "@/lib/utils";
 
@@ -91,6 +91,12 @@ export function MobileUserPanel({
               {email && (
                 <p className="truncate text-sm text-muted-foreground">{email}</p>
               )}
+            </div>
+
+            {/* Credits/quota — lives here with the account, like Hyperagent's
+                "Pay As You Go" block, not as a separate drawer card. */}
+            <div className="px-3 pb-2">
+              <CreditsMeter />
             </div>
 
             <nav className="flex flex-col gap-0.5 px-3 py-2">
@@ -195,10 +201,7 @@ function ThemeButton({
           : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
-      <span className="flex items-center gap-1">
-        {active && <Check className="size-3" />}
-        {icon}
-      </span>
+      {icon}
       {label}
     </button>
   );

@@ -4,13 +4,10 @@ import * as React from "react";
 import { Suspense } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, LogOut } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { navItems, profileMenuItems, getNavItems, type UserRole } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "./theme-toggle";
-import { signOut } from "@/app/(auth)/login/actions";
-import { CreditsMeter } from "./credits-meter";
 import { ProjectsList } from "./projects-list";
 import { RecentChats } from "./recent-chats";
 import { MobileUserPanel } from "./mobile-user-panel";
@@ -45,16 +42,12 @@ export function Topbar({
   const pathname = usePathname();
   const isChatPage = pathname.startsWith("/ai-chat");
   const [open, setOpen] = React.useState(false);
-  const [profileOpen, setProfileOpen] = React.useState(false);
-  const profileRef = React.useRef<HTMLDivElement>(null);
   
   const items = getNavItems(role);
 
   // Close menus on route change — legitimate sync with router state.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   React.useEffect(() => setOpen(false), [pathname]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  React.useEffect(() => setProfileOpen(false), [pathname]);
 
   React.useEffect(() => {
     function openMobileMenu() {
@@ -64,18 +57,6 @@ export function Topbar({
     window.addEventListener("celiuz:open-mobile-menu", openMobileMenu);
     return () => window.removeEventListener("celiuz:open-mobile-menu", openMobileMenu);
   }, []);
-
-  // Close profile dropdown on outside click
-  React.useEffect(() => {
-    if (!profileOpen) return;
-    function onClick(e: MouseEvent) {
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
-        setProfileOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [profileOpen]);
 
   return (
     <header className="sticky top-0 z-30 bg-background lg:bg-background">
@@ -112,63 +93,8 @@ export function Topbar({
             isChatPage && "pointer-events-auto",
           )}
         >
-          <div className={cn(isChatPage && "hidden lg:block")}>
-            <ThemeToggle />
-          </div>
-
-          {/* Profile avatar dropdown */}
-          <div
-            ref={profileRef}
-            className="relative"
-            onMouseEnter={() => setProfileOpen(true)}
-            onMouseLeave={() => setProfileOpen(false)}
-          >
-            <button
-              onClick={() => setProfileOpen((p) => !p)}
-              className="flex size-9 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-80 sm:size-8"
-              aria-label="Profile menu"
-            >
-              {initials || "U"}
-            </button>
-
-            {profileOpen && (
-              <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-border bg-card shadow-lg">
-                <div className="p-1.5">
-                  {profileMenuItems.map((item) => {
-                    const active = pathname.startsWith(item.href);
-                    const Icon = item.icon;
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={cn(
-                          "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                          active
-                            ? "bg-accent text-accent-foreground"
-                            : "text-foreground hover:bg-muted",
-                        )}
-                      >
-                        <Icon className="size-4" />
-                        {item.label}
-                      </Link>
-                    );
-                  })}
-
-                  <div className="my-1 border-t border-border" />
-
-                  <form action={signOut}>
-                    <button
-                      type="submit"
-                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
-                    >
-                      <LogOut className="size-4" />
-                      Keluar
-                    </button>
-                  </form>
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Theme toggle + avatar moved into the mobile drawer's Account
+              panel — the topbar right side stays clean. */}
         </div>
       </div>
 
@@ -229,11 +155,9 @@ export function Topbar({
                 <ProjectsList />
               </Suspense>
             </div>
-            <div className="border-t border-sidebar-border p-3">
-              <CreditsMeter />
-            </div>
             {/* Account control at the very bottom — profile row that opens
-                the slide-in Account panel (Hyperagent pattern). */}
+                the slide-in Account panel (Hyperagent pattern). The credit
+                meter lives inside that panel, not as a separate drawer card. */}
             <MobileUserPanel
               displayName={displayName}
               initials={initials}
