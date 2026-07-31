@@ -2,32 +2,21 @@ import { cn } from "@/lib/utils";
 
 type CeliuzLogoProps = {
   className?: string;
-  letterClassName?: string;
   decorative?: boolean;
 };
 
-export function CeliuzLogo({
-  className,
-  letterClassName,
-  decorative = true,
-}: CeliuzLogoProps) {
+/**
+ * The Celiuz monogram (concentric "CC"). Served from /logo.png — swap that
+ * one file to rebrand everywhere this component is used.
+ */
+export function CeliuzLogo({ className, decorative = true }: CeliuzLogoProps) {
   return (
-    <span
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/logo.png"
+      alt={decorative ? "" : "Celiuz AI"}
       aria-hidden={decorative || undefined}
-      aria-label={decorative ? undefined : "Celiuz"}
-      className={cn(
-        "inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-logo text-logo-foreground",
-        className,
-      )}
-    >
-      <span
-        className={cn(
-          "font-sans text-xl font-extrabold leading-none tracking-[-0.08em]",
-          letterClassName,
-        )}
-      >
-        C
-      </span>
-    </span>
+      className={cn("inline-block size-9 shrink-0 object-contain", className)}
+    />
   );
 }
