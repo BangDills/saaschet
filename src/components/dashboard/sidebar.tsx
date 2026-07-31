@@ -36,10 +36,10 @@ export function Sidebar({
         <Link
           href="/ai-chat"
           className="group flex items-center gap-3 text-base font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80"
-          aria-label="Celiuz AI Studio"
+          aria-label="Celiuz AI"
         >
           <CeliuzLogo />
-          <span>Celiuz AI Studio</span>
+          <span>Celiuz AI</span>
         </Link>
       </div>
 

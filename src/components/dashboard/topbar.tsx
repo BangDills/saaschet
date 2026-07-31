@@ -22,7 +22,7 @@ function useCurrentTitle() {
   const match = [...navItems, ...profileMenuItems].find((i) =>
     i.href === "/" ? pathname === "/" : pathname.startsWith(i.href),
   );
-  return match?.label ?? "Celiuz AI Studio";
+  return match?.label ?? "Celiuz AI";
 }
 
 export type TopbarProps = {
@@ -175,7 +175,7 @@ export function Topbar({ initials, role = "user" }: TopbarProps) {
                 href="/ai-chat"
                 className="text-base font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80"
               >
-                Celiuz AI Studio
+                Celiuz AI
               </Link>
               <Button
                 variant="ghost"

@@ -16,7 +16,7 @@ const googleSansCode = Google_Sans_Code({
 });
 
 export const metadata: Metadata = {
-  title: "Celiuz AI Studio — Create, Build, and Ship with AI",
+  title: "Celiuz AI — Create, Build, and Ship with AI",
   description:
     "One focused AI workspace for chat, code, product documents, images, copy, and natural speech.",
 };

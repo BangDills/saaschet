@@ -13,7 +13,7 @@ export default function AuthLayout({
             href="/"
             className="text-base font-semibold tracking-tight text-foreground hover:text-primary transition-colors"
           >
-            Celiuz AI Studio
+            Celiuz AI
           </Link>
         </div>
       </header>
