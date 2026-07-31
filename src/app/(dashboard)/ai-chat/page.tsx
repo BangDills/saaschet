@@ -633,7 +633,7 @@ export default function AIChatPage() {
           }}
         />
 
-        <button type="button" aria-label="Start new chat" onClick={startNewChat} className="flex size-9 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-1.5">
+        <button type="button" aria-label="Start new chat" onClick={startNewChat} className="ml-auto flex size-9 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-1.5">
           <Plus className="size-4" />
           <span className="hidden sm:inline">Chat baru</span>
         </button>
