@@ -1,6 +1,7 @@
 import type { Sandbox } from "@daytona/sdk";
 import { getDaytonaClient } from "./client";
 import { createLogger } from "@/lib/logger";
+import { envNumber } from "@/lib/env";
 
 /**
  * Sandbox provisioning, extracted so it can be called twice.
@@ -34,9 +35,9 @@ export type ProvisionedSandbox = {
  */
 export function sandboxResourceHints(): { cpu: number; memory: number; disk: number } {
   return {
-    cpu: Number(process.env.DAYTONA_SANDBOX_CPU) || 1,
-    memory: Number(process.env.DAYTONA_SANDBOX_MEMORY) || 2,
-    disk: Number(process.env.DAYTONA_SANDBOX_DISK) || 5,
+    cpu: envNumber("DAYTONA_SANDBOX_CPU", 1, { min: 1, max: 16, integer: true }),
+    memory: envNumber("DAYTONA_SANDBOX_MEMORY", 2, { min: 1, max: 64, integer: true }),
+    disk: envNumber("DAYTONA_SANDBOX_DISK", 5, { min: 1, max: 100, integer: true }),
   };
 }
 
@@ -73,7 +74,15 @@ export async function provisionSandbox(conversationId: string): Promise<Provisio
   // after that returned 404. Self-healing now survives that, but 15 minutes
   // stops provoking it. Raising this holds quota longer for genuine orphans,
   // so it is env-tunable without a deploy.
-  const autoStopInterval = Number(process.env.DAYTONA_SANDBOX_AUTOSTOP_MINUTES) || 15;
+  //
+  // min 0 on purpose: Daytona reads 0 as "never auto-stop", and the previous
+  // `|| 15` made that unreachable — 0 is falsy, so asking to disable the
+  // reaper quietly re-enabled it at the default.
+  const autoStopInterval = envNumber("DAYTONA_SANDBOX_AUTOSTOP_MINUTES", 15, {
+    min: 0,
+    max: 1440,
+    integer: true,
+  });
   const autoDeleteInterval = 0;
 
   let sandbox: Sandbox;

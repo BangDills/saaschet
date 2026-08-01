@@ -1,4 +1,5 @@
 import { APICallError, RetryError } from "ai";
+import { envNumber } from "@/lib/env";
 
 /**
  * Inference failure handling: reading a provider error well enough to decide
@@ -30,19 +31,13 @@ export function chatMaxRetries(): number {
   return Math.min(parsed, MAX_ALLOWED_RETRIES);
 }
 
-export function envInteger(
-  key: string,
-  fallback: number,
-  min: number,
-  max: number,
-): number {
-  const raw = process.env[key];
-  if (!raw) return fallback;
-
-  const parsed = Number(raw);
-  if (!Number.isInteger(parsed)) return fallback;
-
-  return Math.min(Math.max(parsed, min), max);
+/**
+ * Positional wrapper over the shared reader, kept because the retry and
+ * backoff settings below read better as (key, fallback, min, max) than as an
+ * options object. The parsing lives in one place so the two cannot drift.
+ */
+export function envInteger(key: string, fallback: number, min: number, max: number): number {
+  return envNumber(key, fallback, { min, max, integer: true });
 }
 
 export function limitRecoveryDelayMs(): number {

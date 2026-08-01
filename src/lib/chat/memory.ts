@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getEmbedding } from "./jina-embeddings";
+import { envNumber } from "@/lib/env";
 
 /**
  * Search the user's memories semantically using Supabase pgvector cosine similarity.
@@ -57,7 +58,10 @@ export async function saveMemory(userId: string, content: string): Promise<boole
     // env-tunable because it is a recall/precision judgement with no obviously
     // right value: too high and paraphrases of the same fact pile up, too low
     // and genuinely distinct facts get swallowed.
-    const threshold = Number(process.env.MEMORY_DEDUPE_THRESHOLD) || 0.85;
+    // Not an integer, and min 0 is meaningful: 0 treats everything as a
+    // duplicate, which is a legitimate (if drastic) way to stop storing
+    // memories. `|| 0.85` made that unreachable.
+    const threshold = envNumber("MEMORY_DEDUPE_THRESHOLD", 0.85, { min: 0, max: 1 });
     const existing = await searchMemories(userId, cleanContent, 1, threshold);
     if (existing.length > 0) {
       console.log(`[memory] similar memory already exists, skipping: "${existing[0]}" vs "${cleanContent}"`);
