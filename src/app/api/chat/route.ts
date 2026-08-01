@@ -80,6 +80,59 @@ export const maxDuration = 300;
 const log = createLogger("chat");
 const sandboxLog = createLogger("sandbox");
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * Stale-sandbox guards
+ *
+ * Daytona's label lookup is eventually consistent: a sandbox this server
+ * deleted moments ago is still returned by `list()` reporting state
+ * "started". Observed in production — one was deleted at :33.244 and adopted
+ * as "reusing sandbox" at :33.355, 111ms later. Every command against it then
+ * failed with 404 "not found (it has been deleted)", the repo presence check
+ * and clone both failed, and the turn died without recovering.
+ *
+ * Two guards, deliberately layered. The tombstone is free and catches the
+ * common case (same process, same container). The liveness probe costs one
+ * round trip but also covers what the tombstone cannot: orphans left by a
+ * crashed run, a restarted server, or another instance.
+ * ────────────────────────────────────────────────────────────────────── */
+
+/** Sandbox ids this process deleted recently, with the time of deletion. */
+const deletedSandboxIds = new Map<string, number>();
+const DELETED_TOMBSTONE_MS = 5 * 60_000;
+
+function markSandboxDeleted(id: string): void {
+  const now = Date.now();
+  deletedSandboxIds.set(id, now);
+  // Opportunistic sweep — this map only ever holds ids from live conversations.
+  for (const [key, deletedAt] of deletedSandboxIds) {
+    if (now - deletedAt > DELETED_TOMBSTONE_MS) deletedSandboxIds.delete(key);
+  }
+}
+
+function isRecentlyDeleted(id: string): boolean {
+  const deletedAt = deletedSandboxIds.get(id);
+  if (deletedAt === undefined) return false;
+  if (Date.now() - deletedAt > DELETED_TOMBSTONE_MS) {
+    deletedSandboxIds.delete(id);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Cheapest possible proof that a listed sandbox actually still exists.
+ * `state` cannot be trusted here, so ask the sandbox to do something trivial.
+ */
+async function isSandboxAlive(candidate: Sandbox): Promise<boolean> {
+  try {
+    await candidate.process.executeCommand("true", undefined, undefined, 10);
+    return true;
+  } catch (err) {
+    sandboxLog.debug("liveness probe failed", { sandboxId: candidate.id, err });
+    return false;
+  }
+}
+
 /**
  * Schedule non-critical follow-up work (memory extraction) without blocking.
  *
@@ -513,11 +566,26 @@ This repository is semantically indexed. Prefer \`search_codebase\` FIRST for ex
       const sandboxLabels = { "celiuz-conversation": conversationId };
       try {
         for await (const candidate of daytona.list({ labels: sandboxLabels })) {
-          if (candidate.state === "started") {
-            sandbox = candidate;
-            sandboxLog.info("reusing sandbox", { sandboxId: candidate.id });
-            break;
+          if (candidate.state !== "started") continue;
+
+          // `state` is not evidence. See the stale-sandbox guards above: a
+          // sandbox deleted milliseconds ago still lists as "started", and
+          // adopting it poisons the whole turn.
+          if (isRecentlyDeleted(candidate.id)) {
+            sandboxLog.info("ignoring sandbox we just deleted", { sandboxId: candidate.id });
+            continue;
           }
+          if (!(await isSandboxAlive(candidate))) {
+            sandboxLog.warn("ignoring stale sandbox from label lookup", {
+              sandboxId: candidate.id,
+            });
+            markSandboxDeleted(candidate.id);
+            continue;
+          }
+
+          sandbox = candidate;
+          sandboxLog.info("reusing sandbox", { sandboxId: candidate.id });
+          break;
         }
       } catch (lookupErr) {
         sandboxLog.warn("label lookup failed — creating fresh", { err: lookupErr });
@@ -861,6 +929,14 @@ When the user asks about library APIs, setup, migrations, or version-specific be
     async function cleanupSandbox(reason: string) {
       if (!sandbox || sandboxCleaned) return;
       sandboxCleaned = true;
+
+      // Tombstone before the call, not after: the id must be unadoptable from
+      // the instant we commit to destroying it. A concurrent request can reach
+      // the label lookup while delete() is still in flight, which is how a
+      // 111ms-old corpse got reused in production. Marking a sandbox whose
+      // delete then fails is the safe direction — the next turn simply creates
+      // a fresh one instead of gambling on a half-dead slot.
+      markSandboxDeleted(sandbox.id);
 
       try {
         await sandbox.delete();
