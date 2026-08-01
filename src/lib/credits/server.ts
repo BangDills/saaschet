@@ -139,7 +139,26 @@ export async function getCreditSnapshot(
 export function estimatePreflightCost(
   kind: "chat" | "agent",
 ): number {
-  return kind === "chat" ? COST_CHAT_BASE : COST_AGENT_BASE;
+  if (kind === "chat") return COST_CHAT_BASE;
+
+  // Reserving only the base is why used_today can read past the cap — 54/50
+  // was observed in production. That overshoot is deliberate and documented
+  // here, in settle_reserved_credits, and by over_limit being returned as
+  // informational: the tool calls already ran, so the user is charged for
+  // them even if it crosses the line. The bound is COST_AGENT_TOOL_CAP.
+  //
+  // The alternative is to hold the worst case up front and let settle refund
+  // the difference — settle_reserved_credits applies
+  // (p_final_cost - p_reserved), so a negative delta already gives credits
+  // back. That guarantees the cap is never crossed, at the price of refusing
+  // an agent turn whenever fewer than 13 credits remain, even though most
+  // turns cost far less.
+  //
+  // Neither is a bug, so the documented behaviour stays the default and the
+  // strict policy is opt-in.
+  return process.env.CREDITS_STRICT_PREFLIGHT === "1"
+    ? COST_AGENT_BASE + COST_AGENT_TOOL_CAP * COST_AGENT_PER_TOOL
+    : COST_AGENT_BASE;
 }
 
 /**
