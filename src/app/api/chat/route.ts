@@ -36,7 +36,8 @@ import {
 import { type AgentCompletionState } from "@/lib/agent/action-registry";
 import { generateFollowUps } from "@/lib/chat/turn/follow-ups";
 import { getDaytonaClient } from "@/lib/daytona/client";
-import { createSandboxTools } from "@/lib/daytona/sandbox-tools";
+import { provisionSandbox, sandboxResourceHints } from "@/lib/daytona/provision";
+import { createSandboxTools, type SandboxContext } from "@/lib/daytona/sandbox-tools";
 import { createContext7Tools } from "@/lib/context7/tools";
 import type { Sandbox } from "@daytona/sdk";
 import {
@@ -545,19 +546,10 @@ This repository is semantically indexed. Prefer \`search_codebase\` FIRST for ex
     try {
       const daytona = getDaytonaClient();
 
-      // Sandbox creation priority:
-      //  1. Snapshot (DAYTONA_SANDBOX_SNAPSHOT) — a pre-provisioned snapshot
-      //     you created in the sandbox dashboard. Fast (cached), and the snapshot already
-      //     carries its own resources (e.g. 4 vCPU / 8 GiB), so heavy builds
-      //     like `next build` won't OOM. No image pull, no resource param.
-      //  2. Image (DAYTONA_SANDBOX_IMAGE) — custom image + resource env.
-      //     Only use a real, pullable image; the SDK accepts resources here.
-      //  3. Fast language path — cached default container, small resources.
-      const snapshotName = process.env.DAYTONA_SANDBOX_SNAPSHOT;
-      const sandboxImage = process.env.DAYTONA_SANDBOX_IMAGE;
-      const cpu = Number(process.env.DAYTONA_SANDBOX_CPU) || 1;
-      const memory = Number(process.env.DAYTONA_SANDBOX_MEMORY) || 2;
-      const disk = Number(process.env.DAYTONA_SANDBOX_DISK) || 5;
+      // Creation itself lives in lib/daytona/provision.ts — the tools need to
+      // call it too when a sandbox vanishes mid-turn, and two copies of that
+      // snapshot/image/language branching would drift.
+      const { cpu, memory } = sandboxResourceHints();
 
       // One live sandbox per conversation: turns reuse it via this label
       // instead of paying a cold start + re-clone each time — and, just as
@@ -591,55 +583,34 @@ This repository is semantically indexed. Prefer \`search_codebase\` FIRST for ex
         sandboxLog.warn("label lookup failed — creating fresh", { err: lookupErr });
       }
 
-      if (!sandbox && snapshotName) {
-        sandbox = await daytona.create(
-          {
-            snapshot: snapshotName,
-            language: "typescript",
-            envVars: { NODE_ENV: "development" },
-            labels: sandboxLabels,
-            autoStopInterval: 5,
-            autoDeleteInterval: 0,
-          },
-          { timeout: 120 },
-        );
-        sandboxLog.info("created", { sandboxId: sandbox.id, source: "snapshot", snapshot: snapshotName });
-      } else if (!sandbox && sandboxImage) {
-        sandbox = await daytona.create(
-          {
-            image: sandboxImage,
-            language: "typescript",
-            resources: { cpu, memory, disk },
-            envVars: { NODE_ENV: "development" },
-            labels: sandboxLabels,
-            autoStopInterval: 5,
-            autoDeleteInterval: 0,
-          },
-          // Image-based sandboxes pull the image first — allow up to 5 min.
-          { timeout: 300 },
-        );
-        sandboxLog.info("created", { sandboxId: sandbox.id, source: "image", image: sandboxImage, cpu, memoryGb: memory, diskGb: disk });
-      } else if (!sandbox) {
-        // Fast, language-based instantiation using cached sandbox container
-        sandbox = await daytona.create(
-          {
-            language: "typescript",
-            envVars: { NODE_ENV: "development" },
-            labels: sandboxLabels,
-            autoStopInterval: 5,
-            autoDeleteInterval: 0,
-          },
-          { timeout: 90 },
-        );
-        sandboxLog.info("created", { sandboxId: sandbox.id, source: "language-default" });
+      if (!sandbox) {
+        sandbox = (await provisionSandbox(conversationId)).sandbox;
       }
+      // Pin the narrowed value: `sandbox` is reassigned from inside
+      // onSandboxReplaced below, and a let that a closure writes to is shaky
+      // ground for control-flow narrowing.
+      const activeSandbox = sandbox;
 
-      sandboxTools = createSandboxTools({
-        sandbox,
+      // The context object is shared by reference with the tools, which replace
+      // `sandbox` on it when one vanishes mid-turn. onSandboxReplaced keeps this
+      // scope in step: without it cleanupSandbox would delete the dead id and
+      // LEAK the replacement, leaving it to hold quota until Daytona reaps it.
+      const sandboxCtx: SandboxContext = {
+        sandbox: activeSandbox,
         repoSlug: repoSlug!,
         githubToken: githubToken || process.env.GITHUB_TOKEN || "",
         repoCloned: false,
-      });
+        provisionSandbox: async () => (await provisionSandbox(conversationId)).sandbox,
+        onSandboxReplaced: (next, deadId) => {
+          markSandboxDeleted(deadId);
+          sandbox = next;
+          sandboxLog.info("sandbox replaced mid-turn", {
+            deadSandboxId: deadId,
+            sandboxId: next.id,
+          });
+        },
+      };
+      sandboxTools = createSandboxTools(sandboxCtx);
 
       // Append sandbox info to system prompt
       system += `\n\n## Sandbox (Code Execution)

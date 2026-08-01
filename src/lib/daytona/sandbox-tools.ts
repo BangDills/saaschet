@@ -1,9 +1,16 @@
 import { tool, jsonSchema } from "ai";
 import type { Sandbox } from "@daytona/sdk";
+import { createLogger } from "@/lib/logger";
+
+const sandboxLog = createLogger("sandbox");
 
 /**
  * Context for sandbox tools — the sandbox instance is created in the
  * chat route and shared across the agent's multi-step loop.
+ *
+ * Mutable on purpose: `sandbox` is replaced in place when a lost sandbox is
+ * healed, and the chat route holds this same object by reference so its cleanup
+ * deletes whichever sandbox is current rather than a dead id.
  */
 export type SandboxContext = {
   sandbox: Sandbox;
@@ -15,7 +22,107 @@ export type SandboxContext = {
   repoCloned: boolean;
   /** Mutex: in-flight clone promise to prevent concurrent clones */
   _clonePromise?: Promise<void>;
+  /**
+   * Create a replacement sandbox. Supplied by the chat route; when absent,
+   * a lost sandbox simply fails the turn as it did before.
+   */
+  provisionSandbox?: () => Promise<Sandbox>;
+  /**
+   * Told the id of the sandbox that died and the one that replaced it, so the
+   * route can retarget its cleanup and tombstone the corpse.
+   */
+  onSandboxReplaced?: (next: Sandbox, deadId: string) => void;
+  /** Mutex: in-flight heal, so parallel tool calls recreate once, not N times. */
+  _healing?: Promise<void>;
+  /** A sandbox has already been replaced this turn; never heal twice. */
+  _healed?: boolean;
 };
+
+/**
+ * Did this error mean the sandbox itself is gone?
+ *
+ * Deliberately narrow. A clean 404 means the request never reached a container,
+ * so the command did not run and replaying it is safe. A sandbox that dies
+ * mid-command surfaces as a connection reset or timeout instead — replaying
+ * that could execute side effects twice (a push, a migration), so it is left
+ * to fail.
+ */
+function isSandboxGone(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { statusCode?: number; errorCode?: string; message?: string };
+  if (e.statusCode === 404 || e.errorCode === "NOT_FOUND") return true;
+  const message = typeof e.message === "string" ? e.message.toLowerCase() : "";
+  return message.includes("sandbox") && message.includes("not found");
+}
+
+/**
+ * Swap in a replacement sandbox — at most once per turn.
+ *
+ * Provisioning ONLY. Re-cloning deliberately happens outside this mutex,
+ * because the clone issues its own commands through execCommand: cloning in
+ * here would mean a caller that fails mid-clone re-enters healSandbox, finds
+ * the in-flight `_healing` promise, and awaits the very promise it is already
+ * running inside — a deadlock. A short mutex also lets concurrent tool calls
+ * wait only for the provision and then share one clone via ensureCloned.
+ */
+async function healSandbox(ctx: SandboxContext): Promise<void> {
+  if (ctx._healing) {
+    await ctx._healing;
+    return;
+  }
+  if (!ctx.provisionSandbox) {
+    throw new Error("sandbox is gone and no provisioner was supplied");
+  }
+  if (ctx._healed) {
+    throw new Error("sandbox was lost twice in one turn — not retrying again");
+  }
+
+  const deadId = ctx.sandbox.id;
+  ctx._healing = (async () => {
+    sandboxLog.warn("sandbox vanished — provisioning a replacement", { deadSandboxId: deadId });
+    const next = await ctx.provisionSandbox!();
+    ctx.sandbox = next;
+    // A fresh sandbox is empty, so the repo has to be cloned into it again.
+    ctx.repoCloned = false;
+    ctx._clonePromise = undefined;
+    ctx._healed = true;
+    ctx.onSandboxReplaced?.(next, deadId);
+    sandboxLog.info("sandbox replaced", { deadSandboxId: deadId, sandboxId: next.id });
+  })().finally(() => {
+    ctx._healing = undefined;
+  });
+
+  await ctx._healing;
+}
+
+/**
+ * Single choke point for every command this module runs in the sandbox.
+ *
+ * Routing all 18 call sites through here is what makes healing possible at all:
+ * the sandbox reference lives on ctx, so a replacement is picked up by whatever
+ * runs next without threading a new handle through every tool.
+ */
+async function execCommand(
+  ctx: SandboxContext,
+  command: string,
+  cwd?: string,
+  env?: Record<string, string>,
+  timeoutSec?: number,
+) {
+  try {
+    return await ctx.sandbox.process.executeCommand(command, cwd, env, timeoutSec);
+  } catch (err) {
+    if (!isSandboxGone(err)) throw err;
+
+    await healSandbox(ctx);
+    // Re-clone here rather than inside healSandbox — see the deadlock note
+    // there. By this point `_healing` has settled, so a clone that loses the
+    // sandbox again reaches the `_healed` guard and throws instead of looping.
+    await ensureCloned(ctx);
+
+    return await ctx.sandbox.process.executeCommand(command, cwd, env, timeoutSec);
+  }
+}
 
 function schema<T>(s: object) {
   return jsonSchema<T>(s as never);
@@ -68,7 +175,8 @@ async function runStructured(
   // stdout so we can parse it. The wrapped command runs in a subshell.
   const wrapped = `(${command}) 1>${outFile} 2>${errFile}; echo "__EXIT__:$?"`;
   try {
-    const resp = await ctx.sandbox.process.executeCommand(
+    const resp = await execCommand(
+      ctx,
       wrapped,
       cwd || "workspace/repo",
       undefined,
@@ -83,13 +191,13 @@ async function runStructured(
     let stdout = "";
     let stderr = "";
     try {
-      const o = await ctx.sandbox.process.executeCommand(`cat ${outFile} 2>/dev/null; rm -f ${outFile} ${errFile}`);
+      const o = await execCommand(ctx, `cat ${outFile} 2>/dev/null; rm -f ${outFile} ${errFile}`);
       stdout = o.result || "";
     } catch {
       /* best-effort cleanup */
     }
     try {
-      const e = await ctx.sandbox.process.executeCommand(`cat ${errFile} 2>/dev/null`);
+      const e = await execCommand(ctx, `cat ${errFile} 2>/dev/null`);
       stderr = e.result || "";
     } catch {
       /* ignore */
@@ -255,7 +363,8 @@ export function createSandboxTools(ctx: SandboxContext) {
         await ensureCloned(ctx);
         const startedAt = Date.now();
         try {
-          const response = await ctx.sandbox.process.executeCommand(
+          const response = await execCommand(
+      ctx,
             `cat "workspace/repo/${path}"`,
           );
           if (response.exitCode !== 0) {
@@ -316,7 +425,7 @@ export function createSandboxTools(ctx: SandboxContext) {
           const fullPath = `workspace/repo/${path}`;
           const dir = fullPath.substring(0, fullPath.lastIndexOf("/"));
           if (dir) {
-            const mkdirRes = await ctx.sandbox.process.executeCommand(`mkdir -p "${dir}"`);
+            const mkdirRes = await execCommand(ctx, `mkdir -p "${dir}"`);
             if (mkdirRes.exitCode !== 0) {
               return {
                 success: false,
@@ -330,7 +439,8 @@ export function createSandboxTools(ctx: SandboxContext) {
           }
           // Use base64 to safely transfer content with special chars
           const b64 = Buffer.from(content).toString("base64");
-          const writeRes = await ctx.sandbox.process.executeCommand(
+          const writeRes = await execCommand(
+      ctx,
             `echo "${b64}" | base64 -d > "${fullPath}"`,
           );
           if (writeRes.exitCode !== 0) {
@@ -412,10 +522,11 @@ export function createSandboxTools(ctx: SandboxContext) {
               const fullPath = `workspace/repo/${path}`;
               const dir = fullPath.substring(0, fullPath.lastIndexOf("/"));
               if (dir) {
-                await ctx.sandbox.process.executeCommand(`mkdir -p "${dir}"`);
+                await execCommand(ctx, `mkdir -p "${dir}"`);
               }
               const b64 = Buffer.from(content).toString("base64");
-              await ctx.sandbox.process.executeCommand(
+              await execCommand(
+      ctx,
                 `echo "${b64}" | base64 -d > "${fullPath}"`,
               );
               results.push({ path, success: true });
@@ -459,7 +570,8 @@ export function createSandboxTools(ctx: SandboxContext) {
           const dir = path
             ? `workspace/repo/${path}`
             : "workspace/repo";
-          const response = await ctx.sandbox.process.executeCommand(
+          const response = await execCommand(
+      ctx,
             `find "${dir}" -maxdepth 2 -not -path '*/node_modules/*' -not -path '*/.git/*' | head -100`,
           );
           return { files: response.result || "" };
@@ -571,14 +683,16 @@ async function cloneRepo(ctx: SandboxContext): Promise<void> {
   // A reused sandbox (same conversation, later turn) already has the repo —
   // cloning into a non-empty directory would fail, so refresh it instead.
   try {
-    const existing = await ctx.sandbox.process.executeCommand(
+    const existing = await execCommand(
+      ctx,
       "test -d workspace/repo/.git && echo EXISTS || echo MISSING",
       undefined,
       undefined,
       10,
     );
     if ((existing.result || "").includes("EXISTS")) {
-      await ctx.sandbox.process.executeCommand(
+      await execCommand(
+      ctx,
         "cd workspace/repo && git fetch --all --prune && git pull --ff-only || true",
         undefined,
         undefined,
@@ -595,7 +709,8 @@ async function cloneRepo(ctx: SandboxContext): Promise<void> {
 
   try {
     // 1. Create workspace directory
-    await ctx.sandbox.process.executeCommand(
+    await execCommand(
+      ctx,
       "mkdir -p workspace",
       undefined,
       undefined,
@@ -606,11 +721,12 @@ async function cloneRepo(ctx: SandboxContext): Promise<void> {
     // This stops the sandbox from trying to use the sandbox's custom bearer auth which causes the
     // "unauthorized: authentication failed: Bearer token is invalid" error.
     console.log(`[sandbox] Unsetting global git credential helper in sandbox`);
-    await ctx.sandbox.process.executeCommand("git config --global --unset credential.helper");
+    await execCommand(ctx, "git config --global --unset credential.helper");
 
     console.log(`[sandbox] Attempting manual shell git clone for ${ctx.repoSlug} (Auth: ${hasValidToken ? "yes" : "no"})`);
 
-    let cloneResponse = await ctx.sandbox.process.executeCommand(
+    let cloneResponse = await execCommand(
+      ctx,
       `git clone --depth 50 "${primaryCloneUrl}" workspace/repo`,
       undefined,
       undefined,
@@ -622,9 +738,10 @@ async function cloneRepo(ctx: SandboxContext): Promise<void> {
       console.log(`[sandbox] Authenticated clone failed. Retrying with public clone URL as fallback.`);
 
       // Clean up failed clone folder before retrying
-      await ctx.sandbox.process.executeCommand("rm -rf workspace/repo");
+      await execCommand(ctx, "rm -rf workspace/repo");
 
-      cloneResponse = await ctx.sandbox.process.executeCommand(
+      cloneResponse = await execCommand(
+      ctx,
         `git clone --depth 50 "${publicCloneUrl}" workspace/repo`,
         undefined,
         undefined,
@@ -658,10 +775,12 @@ async function cloneRepo(ctx: SandboxContext): Promise<void> {
     const gitUser = process.env.SANDBOX_GIT_USER_NAME || "Celiuz Agent";
     const gitEmail = process.env.SANDBOX_GIT_USER_EMAIL || "agent@celiuz.ai";
     try {
-      await ctx.sandbox.process.executeCommand(
+      await execCommand(
+      ctx,
         `git -C workspace/repo config user.name "${gitUser.replace(/"/g, '\\"')}"`,
       );
-      await ctx.sandbox.process.executeCommand(
+      await execCommand(
+      ctx,
         `git -C workspace/repo config user.email "${gitEmail.replace(/"/g, '\\"')}"`,
       );
       console.log(`[sandbox] git identity set (${gitUser} <${gitEmail}>)`);
