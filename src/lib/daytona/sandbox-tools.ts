@@ -16,7 +16,18 @@ const sandboxLog = createLogger("sandbox");
  * deletes whichever sandbox is current rather than a dead id.
  */
 export type SandboxContext = {
-  sandbox: Sandbox;
+  /**
+   * The live sandbox, or null until something actually needs one.
+   *
+   * Provisioning used to happen up front for every agent turn. Measured in
+   * production, a code review of a 4-file repo held a 2 vCPU / 4 GB box for
+   * 219.7s and never issued a single command against it: the reply was built
+   * entirely from the GitHub read tools, and the absence of any clone line in
+   * the logs proved no sandbox tool ran. Turns that only read — review,
+   * explain, audit — are a large share of agent usage and none of them need a
+   * machine. So the box is now started on first use; see ensureSandbox.
+   */
+  sandbox: Sandbox | null;
   /** "owner/repo" for git clone */
   repoSlug: string;
   /** GitHub token for private repo cloning */
@@ -35,6 +46,17 @@ export type SandboxContext = {
    * route can retarget its cleanup and tombstone the corpse.
    */
   onSandboxReplaced?: (next: Sandbox, deadId: string) => void;
+  /**
+   * Told about the sandbox created on first use.
+   *
+   * Not optional in practice: the route deletes whatever id it is holding, so
+   * a sandbox it never learned about is never cleaned up and simply bills
+   * until Daytona reaps it. That exact bug already happened once here with
+   * onSandboxReplaced — a leak is silent, nothing fails, nothing logs red.
+   */
+  onSandboxCreated?: (sandbox: Sandbox) => void;
+  /** Mutex: in-flight first provision, so parallel tool calls start one box. */
+  _provisioning?: Promise<void>;
   /** Mutex: in-flight heal, so parallel tool calls recreate once, not N times. */
   _healing?: Promise<void>;
   /** A sandbox has already been replaced this turn; never heal twice. */
@@ -80,6 +102,13 @@ export async function healSandbox(ctx: SandboxContext): Promise<void> {
     throw new Error("sandbox was lost twice in one turn — not retrying again");
   }
 
+  // Unreachable in practice — a command can only report 404 against a sandbox
+  // that existed a moment ago — but the field is nullable now, and silently
+  // treating "never started" as "died" would hide a real ordering bug.
+  if (!ctx.sandbox) {
+    throw new Error("cannot heal a sandbox that was never provisioned");
+  }
+
   const deadId = ctx.sandbox.id;
   ctx._healing = (async () => {
     sandboxLog.warn("sandbox vanished — provisioning a replacement", { deadSandboxId: deadId });
@@ -105,6 +134,49 @@ export async function healSandbox(ctx: SandboxContext): Promise<void> {
  * the sandbox reference lives on ctx, so a replacement is picked up by whatever
  * runs next without threading a new handle through every tool.
  */
+/**
+ * Start the sandbox if this turn has not needed one until now.
+ *
+ * Provisioning ONLY, and deliberately never cloning — the same split
+ * healSandbox uses, for the same reason. cloneRepo issues its commands through
+ * execCommand, which calls this function, so cloning inside the mutex would
+ * have the clone await the very promise it is running inside.
+ *
+ * The mutex matters because tool calls can arrive in parallel: without it two
+ * callers both see null, both provision, and one machine is orphaned with
+ * nothing holding its id.
+ */
+export async function ensureSandbox(ctx: SandboxContext): Promise<Sandbox> {
+  if (ctx.sandbox) return ctx.sandbox;
+
+  if (ctx._provisioning) {
+    await ctx._provisioning;
+    if (!ctx.sandbox) throw new Error("sandbox provisioning failed");
+    return ctx.sandbox;
+  }
+
+  if (!ctx.provisionSandbox) {
+    throw new Error("no sandbox and no provisioner was supplied");
+  }
+
+  ctx._provisioning = (async () => {
+    sandboxLog.info("first sandbox tool call — starting a sandbox");
+    const next = await ctx.provisionSandbox!();
+    ctx.sandbox = next;
+    // Tell the route before anything can throw. It deletes the id it holds, so
+    // a sandbox it never heard about would run until Daytona reaps it.
+    ctx.onSandboxCreated?.(next);
+  })().finally(() => {
+    // Cleared either way: a failed provision must be retryable rather than
+    // leaving every later caller awaiting a rejected promise.
+    ctx._provisioning = undefined;
+  });
+
+  await ctx._provisioning;
+  if (!ctx.sandbox) throw new Error("sandbox provisioning failed");
+  return ctx.sandbox;
+}
+
 export async function execCommand(
   ctx: SandboxContext,
   command: string,
@@ -112,8 +184,10 @@ export async function execCommand(
   env?: Record<string, string>,
   timeoutSec?: number,
 ) {
+  const sandbox = await ensureSandbox(ctx);
+
   try {
-    return await ctx.sandbox.process.executeCommand(command, cwd, env, timeoutSec);
+    return await sandbox.process.executeCommand(command, cwd, env, timeoutSec);
   } catch (err) {
     if (!isSandboxGone(err)) throw err;
 
@@ -123,7 +197,9 @@ export async function execCommand(
     // sandbox again reaches the `_healed` guard and throws instead of looping.
     await ensureCloned(ctx);
 
-    return await ctx.sandbox.process.executeCommand(command, cwd, env, timeoutSec);
+    // Deliberately re-read from ctx: healSandbox swapped in a different box,
+    // so the local `sandbox` above is the corpse.
+    return await ctx.sandbox!.process.executeCommand(command, cwd, env, timeoutSec);
   }
 }
 
@@ -316,7 +392,13 @@ export function createSandboxTools(ctx: SandboxContext) {
       }) => {
         const startedAt = Date.now();
         try {
-          const response = await ctx.sandbox.process.codeRun(
+          // codeRun bypasses execCommand, so this is the one call site that has
+          // to reach for the sandbox itself. It was already outside the healing
+          // path for the same reason; a null sandbox would now fault here too.
+          // No ensureCloned: running a snippet never needed the repo, and that
+          // stays true.
+          const sandbox = await ensureSandbox(ctx);
+          const response = await sandbox.process.codeRun(
             code,
             undefined,
             timeout || 15,

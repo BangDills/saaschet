@@ -554,56 +554,69 @@ This repository is semantically indexed. Prefer \`search_codebase\` FIRST for ex
       // snapshot/image/language branching would drift.
       const { cpu, memory } = sandboxResourceHints();
 
-      // One live sandbox per conversation: turns reuse it via this label
-      // instead of paying a cold start + re-clone each time — and, just as
-      // important, instead of stacking N concurrent sandboxes against the
-      // org's total-memory quota. autoStopInterval below is the reaper.
+      // One live sandbox per conversation, adopted via this label rather than
+      // stacking N boxes against the org's total-memory quota. In practice the
+      // happy path never adopts anything — cleanupSandbox deletes and
+      // tombstones at the end of every successful turn — so this really only
+      // rescues orphans left by a crash or a restart. autoStopInterval is the
+      // backstop for the ones nobody adopts.
       const sandboxLabels = { "celiuz-conversation": conversationId };
-      try {
-        for await (const candidate of daytona.list({ labels: sandboxLabels })) {
-          if (candidate.state !== "started") continue;
 
-          // `state` is not evidence. See the stale-sandbox guards above: a
-          // sandbox deleted milliseconds ago still lists as "started", and
-          // adopting it poisons the whole turn.
-          if (isRecentlyDeleted(candidate.id)) {
-            sandboxLog.info("ignoring sandbox we just deleted", { sandboxId: candidate.id });
-            continue;
-          }
-          if (!(await isSandboxAlive(candidate))) {
-            sandboxLog.warn("ignoring stale sandbox from label lookup", {
-              sandboxId: candidate.id,
-            });
-            markSandboxDeleted(candidate.id);
-            continue;
-          }
+      /**
+       * Get a usable sandbox: adopt a live orphan for this conversation, or
+       * start a fresh one.
+       *
+       * This used to run inline during request setup, which meant every agent
+       * turn paid for a machine whether or not it ever issued a command. A
+       * review of a 4-file repo held one for 219.7s and never touched it. Now
+       * it is only called from ensureSandbox, on the first sandbox tool call,
+       * so read-only turns never start anything at all.
+       */
+      const acquireSandbox = async (): Promise<Sandbox> => {
+        try {
+          for await (const candidate of daytona.list({ labels: sandboxLabels })) {
+            if (candidate.state !== "started") continue;
 
-          sandbox = candidate;
-          sandboxLog.info("reusing sandbox", { sandboxId: candidate.id });
-          break;
+            // `state` is not evidence. See the stale-sandbox guards above: a
+            // sandbox deleted milliseconds ago still lists as "started", and
+            // adopting it poisons the whole turn.
+            if (isRecentlyDeleted(candidate.id)) {
+              sandboxLog.info("ignoring sandbox we just deleted", { sandboxId: candidate.id });
+              continue;
+            }
+            if (!(await isSandboxAlive(candidate))) {
+              sandboxLog.warn("ignoring stale sandbox from label lookup", {
+                sandboxId: candidate.id,
+              });
+              markSandboxDeleted(candidate.id);
+              continue;
+            }
+
+            sandboxLog.info("reusing sandbox", { sandboxId: candidate.id });
+            return candidate;
+          }
+        } catch (lookupErr) {
+          sandboxLog.warn("label lookup failed — creating fresh", { err: lookupErr });
         }
-      } catch (lookupErr) {
-        sandboxLog.warn("label lookup failed — creating fresh", { err: lookupErr });
-      }
 
-      if (!sandbox) {
-        sandbox = (await provisionSandbox(conversationId)).sandbox;
-      }
-      // Pin the narrowed value: `sandbox` is reassigned from inside
-      // onSandboxReplaced below, and a let that a closure writes to is shaky
-      // ground for control-flow narrowing.
-      const activeSandbox = sandbox;
+        return (await provisionSandbox(conversationId)).sandbox;
+      };
 
-      // The context object is shared by reference with the tools, which replace
-      // `sandbox` on it when one vanishes mid-turn. onSandboxReplaced keeps this
-      // scope in step: without it cleanupSandbox would delete the dead id and
-      // LEAK the replacement, leaving it to hold quota until Daytona reaps it.
+      // Shared by reference with the tools, which fill in `sandbox` on first
+      // use and swap it when one vanishes mid-turn. Both callbacks keep this
+      // scope in step: cleanupSandbox deletes the id held HERE, so a sandbox
+      // this scope never learned about is never deleted and quietly bills
+      // until Daytona reaps it. That is not hypothetical — it is the bug that
+      // onSandboxReplaced was added to fix.
       const sandboxCtx: SandboxContext = {
-        sandbox: activeSandbox,
+        sandbox: null,
         repoSlug: repoSlug!,
         githubToken: githubToken || process.env.GITHUB_TOKEN || "",
         repoCloned: false,
-        provisionSandbox: async () => (await provisionSandbox(conversationId)).sandbox,
+        provisionSandbox: acquireSandbox,
+        onSandboxCreated: (next) => {
+          sandbox = next;
+        },
         onSandboxReplaced: (next, deadId) => {
           markSandboxDeleted(deadId);
           sandbox = next;
@@ -617,7 +630,7 @@ This repository is semantically indexed. Prefer \`search_codebase\` FIRST for ex
 
       // Append sandbox info to system prompt
       system += `\n\n## Sandbox (Code Execution)
-You have a live sandbox environment (${cpu} CPU cores, ${memory}GB RAM).
+A sandbox (${cpu} CPU cores, ${memory}GB RAM) is available on demand. It starts the first time you call a sandbox tool, so don't reach for one just to look at code — the repository read tools answer questions about the codebase without it.
 Available tools:
 - **run_command**: Execute any shell command (npm install, npm test, git, etc.)
 - **execute_code**: Run TypeScript/JavaScript code snippets
@@ -632,9 +645,11 @@ Available tools:
 3. **Minimize tool calls**: Combine related operations. Fewer calls = faster execution.
 
 The user's repo is automatically cloned when you first use a sandbox tool.
-Workflow: read code → create files (batch) → install deps → test → commit via GitHub.`;
+Workflow: read code → create files (batch) → install deps → test → commit via GitHub.
+
+Use the sandbox when you need to RUN something — install, build, test, execute. To read or review code, use the repository tools instead; they are faster and start nothing.`;
     } catch (err) {
-      sandboxLog.warn("creation failed — continuing without sandbox", { err });
+      sandboxLog.warn("setup failed — continuing without sandbox tools", { err });
       const errorMsg = err instanceof Error ? err.message : String(err);
       system += `\n\n## Sandbox Initialization Error\nSandbox failed to initialize: "${errorMsg}". If the user asks to run a command or execute code, explain to them that the sandbox failed to initialize with this reason.`;
     }

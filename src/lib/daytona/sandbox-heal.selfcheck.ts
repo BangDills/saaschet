@@ -52,7 +52,7 @@ function fakeSandbox(id: string, behaviour: Behaviour): Sandbox {
 
 type TestContext = SandboxContext & { provisionCount: number; clonedInto: string[] };
 
-function makeContext(first: Sandbox, replacements: Sandbox[]): TestContext {
+function makeContext(first: Sandbox | null, replacements: Sandbox[]): TestContext {
   let next = 0;
   const ctx: TestContext = {
     sandbox: first,
@@ -130,7 +130,7 @@ async function main(): Promise<void> {
 
     const response = await withHangDetector("heal and retry", execCommand(ctx, "cat file"));
     check(response?.result === "ok", "retry runs against the replacement");
-    check(ctx.sandbox.id === "fresh", "ctx.sandbox is swapped in place");
+    check(ctx.sandbox?.id === "fresh", "ctx.sandbox is swapped in place");
     check(ctx.provisionCount === 1, "provisioned exactly once");
     check(ctx.repoCloned === true, "repo is cloned into the replacement");
   }
@@ -192,12 +192,100 @@ async function main(): Promise<void> {
     const ctx = makeContext(first, [second, fakeSandbox("third", () => "ok")]);
 
     await withHangDetector("first heal", execCommand(ctx, "one"));
-    check(ctx.sandbox.id === "second", "healed onto the replacement");
+    check(ctx.sandbox?.id === "second", "healed onto the replacement");
 
     healthy = false;
     const err = await expectThrow("second loss", execCommand(ctx, "two"));
     check(/lost twice/.test(err.message), "a turn heals at most once");
     check(ctx.provisionCount === 1, "still only one provision for the whole turn");
+  }
+
+  /* ── Lazy provisioning: nothing starts until something runs ───────────── */
+
+  // The whole point: a turn that never issues a command must never start a
+  // machine. A review of a 4-file repo used to hold a 2 vCPU / 4 GB box for
+  // 219.7s without sending it a single command.
+  {
+    const ctx = makeContext(null, [fakeSandbox("lazy", () => "ok")]);
+    check(ctx.sandbox === null, "no sandbox before the first command");
+    check(ctx.provisionCount === 0, "nothing provisioned on a read-only turn");
+  }
+
+  // The first command starts exactly one, and the route is told its id.
+  {
+    const created: string[] = [];
+    const ctx = makeContext(null, [fakeSandbox("lazy", () => "ok")]);
+    ctx.onSandboxCreated = (s) => created.push(s.id);
+
+    const response = await withHangDetector("lazy first call", execCommand(ctx, "ls"));
+    check(response?.result === "ok", "command runs against the lazily started box");
+    check(ctx.provisionCount === 1, "provisioned exactly once");
+    check(ctx.sandbox?.id === "lazy", "ctx.sandbox is filled in");
+    // A sandbox the route never hears about is never deleted — it just bills.
+    check(created.join() === "lazy", "the route is told what was created");
+  }
+
+  // Parallel first calls must share one provision, or a machine is orphaned
+  // with nothing holding its id.
+  {
+    const created: string[] = [];
+    const ctx = makeContext(null, [
+      fakeSandbox("one", () => "ok"),
+      fakeSandbox("two", () => "ok"),
+      fakeSandbox("three", () => "ok"),
+    ]);
+    ctx.onSandboxCreated = (s) => created.push(s.id);
+
+    await withHangDetector(
+      "parallel lazy start",
+      Promise.all([execCommand(ctx, "a"), execCommand(ctx, "b"), execCommand(ctx, "c")]),
+    );
+    check(ctx.provisionCount === 1, "three parallel calls start ONE sandbox");
+    check(created.length === 1, "and announce it once");
+  }
+
+  // A lazily started sandbox still heals if it dies, and still heals only once.
+  {
+    const ctx = makeContext(null, [
+      fakeSandbox("lazy-dead", () => goneError()),
+      fakeSandbox("lazy-fresh", () => "ok"),
+    ]);
+    const response = await withHangDetector("lazy then heal", execCommand(ctx, "ls"));
+    check(response?.result === "ok", "healing still works after a lazy start");
+    check(ctx.provisionCount === 2, "one lazy start plus one heal");
+    check(ctx.sandbox?.id === "lazy-fresh", "swapped onto the replacement");
+  }
+
+  // A failed first provision must be retryable, not poison every later call
+  // with a rejected promise parked in the mutex.
+  {
+    let failFirst = true;
+    const ctx = makeContext(null, [fakeSandbox("eventually", () => "ok")]);
+    const inner = ctx.provisionSandbox!;
+    ctx.provisionSandbox = async () => {
+      if (failFirst) {
+        failFirst = false;
+        throw new Error("daytona quota exceeded");
+      }
+      return inner();
+    };
+
+    const err = await expectThrow("first provision fails", execCommand(ctx, "ls"));
+    check(/quota/.test(err.message), "the provisioning failure surfaces");
+    check(ctx.sandbox === null, "no half-built sandbox left behind");
+    check(ctx._provisioning === undefined, "the mutex is released after a failure");
+
+    const retry = await withHangDetector("retry after failure", execCommand(ctx, "ls"));
+    check(retry?.result === "ok", "a later call can still start one");
+  }
+
+  // Without a provisioner there is nothing to start — fail clearly rather than
+  // dereferencing null somewhere deeper.
+  {
+    const ctx = makeContext(null, []);
+    ctx.provisionSandbox = undefined;
+    const err = await expectThrow("no provisioner", execCommand(ctx, "ls"));
+    check(/no provisioner/.test(err.message), "missing provisioner is explicit");
   }
 
   console.log(`PASS: ${checks} sandbox self-healing checks`);
