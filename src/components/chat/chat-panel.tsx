@@ -14,7 +14,8 @@ import { StreamingPill } from "./streaming-pill";
 import { ProcessingIndicator } from "./processing-indicator";
 import { fireCreditsRefresh } from "@/components/dashboard/credits-meter";
 import { resolveActions, type AgentCompletionState } from "@/lib/agent/action-registry";
-import { AlertCircle, ArrowDown, Clock3, CornerDownRight, Gauge, GitBranch, RefreshCcw, WifiOff } from "lucide-react";
+import { AlertCircle, ArrowDown, ArrowUpRight, Clock3, CornerDownRight, Gauge, GitBranch, RefreshCcw, WifiOff } from "lucide-react";
+import Link from "next/link";
 import useSWR from "swr";
 
 type FeedbackResponse = {
@@ -33,11 +34,14 @@ type RecoveryError = {
   description: string;
   /** Omitted when retrying cannot possibly help, e.g. an exhausted quota. */
   action?: string;
+  /** When set, the action navigates here instead of retrying the turn. */
+  actionHref?: string;
   kind: "network" | "rate-limit" | "provider" | "credits" | "generic";
 };
 
 /** The credit snapshot the API attaches to a 402. */
 type CreditsPayload = {
+  tier?: "free" | "pro";
   usedToday?: number;
   dailyLimit?: number;
   remaining?: number;
@@ -94,10 +98,20 @@ function getRecoveryError(error: Error): RecoveryError {
   if (code === "out_of_credits" || message.includes("credit limit")) {
     const used = credits?.usedToday;
     const limit = credits?.dailyLimit;
+    // Usage can read past the cap (e.g. 54/50): a turn reserves its base cost
+    // up front and settles the real one — base + tool calls — afterwards, and
+    // the tool count is unknowable before the turn runs.
     const usage = typeof used === "number" && typeof limit === "number" ? ` (${used}/${limit})` : "";
+    const isPro = credits?.tier === "pro";
+    const tierName = isPro ? "Pro" : "Free";
+    const resetAt = formatResetTime(credits?.resetsAt);
     return {
       title: "Kredit harian habis",
-      description: `Kuota kredit harian Anda sudah terpakai semua${usage}. Kuota diperbarui otomatis pukul ${formatResetTime(credits?.resetsAt)}. Menunggu sebentar tidak membantu — pesan Anda tetap tersimpan.`,
+      description: isPro
+        ? `Kuota kredit ${tierName} harian Anda telah mencapai batas${usage}. Kuota diperbarui pukul ${resetAt}.`
+        : `Kuota kredit ${tierName} harian Anda telah mencapai batas${usage}. Kuota diperbarui pukul ${resetAt}, atau upgrade ke Pro untuk melanjutkan sekarang.`,
+      action: isPro ? "Kelola langganan" : "Upgrade ke Pro",
+      actionHref: "/subscription",
       kind: "credits",
     };
   }
@@ -1029,10 +1043,18 @@ export function ChatPanel({
                     <p className="mt-0.5 text-pretty leading-5 text-muted-foreground">
                       {recoveryError.description}
                     </p>
-                    {/* No button when retrying cannot help — offering "Coba
-                        lagi" against an exhausted quota just invites the user
-                        to fail again. */}
-                    {recoveryError.action && (
+                    {/* An exhausted quota cannot be retried, so that case sends
+                        the user somewhere that can actually resolve it instead
+                        of inviting the same failure again. */}
+                    {recoveryError.action && recoveryError.actionHref ? (
+                      <Link
+                        href={recoveryError.actionHref}
+                        className="mt-2 inline-flex h-8 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {recoveryError.action}
+                        <ArrowUpRight className="size-3.5" aria-hidden="true" />
+                      </Link>
+                    ) : recoveryError.action ? (
                       <button
                         type="button"
                         onClick={retryFailedTurn}
@@ -1042,7 +1064,7 @@ export function ChatPanel({
                         <RefreshCcw className="size-3.5" aria-hidden="true" />
                         {recoveryError.action}
                       </button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               )}
