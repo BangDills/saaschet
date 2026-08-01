@@ -819,7 +819,16 @@ When the user asks about library APIs, setup, migrations, or version-specific be
     // e.g. Qwen 3.7 Plus is capped at 4k. DeepSeek V4 Pro/Flash and GLM 5.2
     // also use reasoning tokens that eat into the budget.
     const maxOutputTokens = tools ? 32768 : 8192;
-    let sandboxCleaned = false;
+    /**
+     * The in-flight (or finished) sandbox deletion, memoised.
+     *
+     * This used to be a `sandboxCleaned` boolean, which was fine while the only
+     * caller ran at the very end of the turn. The sandbox is now released early
+     * — before follow-up generation — on turns that used tools, so a second
+     * caller has to be able to AWAIT that delete instead of stepping over a
+     * half-finished one and letting the request end mid-flight.
+     */
+    let sandboxCleanup: Promise<void> | null = null;
     let finishedSuccessfully = false;
     let totalToolCount = 0;
     let lastAttemptToolCount = 0;
@@ -904,9 +913,16 @@ When the user asks about library APIs, setup, migrations, or version-specific be
     // reaching cleanup (crash, server restart) leaves an orphan, and the
     // NEXT turn adopts it instead of stacking a second sandbox. Orphans
     // nobody adopts are reaped by Daytona (autoStop 5 min → autoDelete 0).
-    async function cleanupSandbox(reason: string) {
-      if (!sandbox || sandboxCleaned) return;
-      sandboxCleaned = true;
+    function cleanupSandbox(reason: string): Promise<void> {
+      if (!sandbox) return Promise.resolve();
+      // Every caller awaits the same delete rather than the first one winning
+      // and the rest returning immediately — see sandboxCleanup above.
+      if (sandboxCleanup) return sandboxCleanup;
+
+      // Pin the target. `sandbox` is reassigned by onSandboxReplaced, and this
+      // function no longer runs to completion synchronously with its own call,
+      // so reading the field again later could delete the wrong one.
+      const doomed = sandbox;
 
       // Tombstone before the call, not after: the id must be unadoptable from
       // the instant we commit to destroying it. A concurrent request can reach
@@ -914,14 +930,17 @@ When the user asks about library APIs, setup, migrations, or version-specific be
       // 111ms-old corpse got reused in production. Marking a sandbox whose
       // delete then fails is the safe direction — the next turn simply creates
       // a fresh one instead of gambling on a half-dead slot.
-      markSandboxDeleted(sandbox.id);
+      markSandboxDeleted(doomed.id);
 
-      try {
-        await sandbox.delete();
-        sandboxLog.info("deleted", { sandboxId: sandbox.id, reason });
-      } catch (err) {
-        sandboxLog.warn("cleanup failed", { sandboxId: sandbox?.id, err });
-      }
+      sandboxCleanup = (async () => {
+        try {
+          await doomed.delete();
+          sandboxLog.info("deleted", { sandboxId: doomed.id, reason });
+        } catch (err) {
+          sandboxLog.warn("cleanup failed", { sandboxId: doomed.id, err });
+        }
+      })();
+      return sandboxCleanup;
     }
 
     async function finalizeSuccessfulTurn() {
@@ -1104,6 +1123,39 @@ ${recoveryInstruction}`;
             userText,
             totalToolCount,
           );
+          // Release the sandbox before generating chips, not after.
+          //
+          // Follow-up generation takes ~9s and needs nothing but text, yet the
+          // only cleanupSandbox call used to sit in finalizeSuccessfulTurn,
+          // downstream of it. Measured in production: chips finished at
+          // :07.990 and the sandbox was not deleted until :09.833 — a 2 vCPU /
+          // 4 GB box held roughly nine seconds past its last use, every agent
+          // turn.
+          //
+          // Gated on this attempt having called at least one tool, which is
+          // exactly the condition that makes early release safe. A "completed"
+          // attempt can still be re-run by shouldRecoverStalledAgentAttempt(),
+          // and that retry would need the sandbox — but it bails out at
+          // `lastAttemptToolCount > 0`, so a turn that used tools is never
+          // retried. Turns that used none keep the old timing; they never
+          // touched the sandbox anyway.
+          //
+          // Counted from the awaited `steps` rather than lastAttemptToolCount:
+          // that mutable is written by streamText's onFinish, which races the
+          // reader's done signal (see the note where it is assigned). The
+          // awaited value is the one that is guaranteed final here.
+          //
+          // Deliberately not awaited. Waiting on delete() would just move the
+          // ~1.8s it costs in front of the chips instead of behind them;
+          // finalizeSuccessfulTurn awaits the same memoised promise later.
+          const attemptToolCount = (steps ?? []).reduce(
+            (sum, step) => sum + (step.toolCalls?.length ?? 0),
+            0,
+          );
+          if (attemptToolCount > 0) {
+            void cleanupSandbox("after tool use — released before follow-ups");
+          }
+
           // Follow-up priority: (1) planner's report_state.suggestedActions,
           // already set inside deriveAgentState; (2) a small structured call
           // over the finished turn. Only generate when the planner gave nothing
