@@ -14,7 +14,7 @@ import { StreamingPill } from "./streaming-pill";
 import { ProcessingIndicator } from "./processing-indicator";
 import { fireCreditsRefresh } from "@/components/dashboard/credits-meter";
 import { resolveActions, type AgentCompletionState } from "@/lib/agent/action-registry";
-import { AlertCircle, ArrowDown, ArrowUpRight, Clock3, CornerDownRight, Gauge, GitBranch, RefreshCcw, WifiOff } from "lucide-react";
+import { AlertCircle, ArrowDown, Clock3, CornerDownRight, Gauge, GitBranch, RefreshCcw, WifiOff } from "lucide-react";
 import Link from "next/link";
 import useSWR from "swr";
 
@@ -34,8 +34,13 @@ type RecoveryError = {
   description: string;
   /** Omitted when retrying cannot possibly help, e.g. an exhausted quota. */
   action?: string;
-  /** When set, the action navigates here instead of retrying the turn. */
+  /**
+   * When set, the action renders as a link inside the description sentence
+   * rather than as a retry button underneath it.
+   */
   actionHref?: string;
+  /** Text that closes the sentence after the inline link. */
+  actionSuffix?: string;
   kind: "network" | "rate-limit" | "provider" | "credits" | "generic";
 };
 
@@ -45,7 +50,6 @@ type CreditsPayload = {
   usedToday?: number;
   dailyLimit?: number;
   remaining?: number;
-  resetsAt?: number;
 };
 
 /**
@@ -71,20 +75,6 @@ function parseErrorPayload(message: string): { code?: string; credits?: CreditsP
   }
 }
 
-function formatResetTime(resetsAt?: number): string {
-  if (!resetsAt || !Number.isFinite(resetsAt)) return "tengah malam UTC";
-  try {
-    // The user's own clock, not UTC — "midnight UTC" means 07.00 in Jakarta and
-    // something else again elsewhere.
-    return new Date(resetsAt).toLocaleTimeString("id-ID", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return "tengah malam UTC";
-  }
-}
-
 function getRecoveryError(error: Error): RecoveryError {
   const message = error.message.toLowerCase();
   const { code, credits } = parseErrorPayload(error.message);
@@ -104,14 +94,17 @@ function getRecoveryError(error: Error): RecoveryError {
     const usage = typeof used === "number" && typeof limit === "number" ? ` (${used}/${limit})` : "";
     const isPro = credits?.tier === "pro";
     const tierName = isPro ? "Pro" : "Free";
-    const resetAt = formatResetTime(credits?.resetsAt);
     return {
       title: "Kredit harian habis",
-      description: isPro
-        ? `Kuota kredit ${tierName} harian Anda telah mencapai batas${usage}. Kuota diperbarui pukul ${resetAt}.`
-        : `Kuota kredit ${tierName} harian Anda telah mencapai batas${usage}. Kuota diperbarui pukul ${resetAt}, atau upgrade ke Pro untuk melanjutkan sekarang.`,
-      action: isPro ? "Kelola langganan" : "Upgrade ke Pro",
-      actionHref: "/subscription",
+      description: `Kuota kredit ${tierName} harian Anda telah mencapai batas${usage}.`,
+      // A Pro user is already on the top plan, so the sentence ends there.
+      ...(isPro
+        ? {}
+        : {
+            action: "Upgrade Pro",
+            actionHref: "/subscription",
+            actionSuffix: " untuk melanjutkan.",
+          }),
       kind: "credits",
     };
   }
@@ -1040,21 +1033,25 @@ export function ChatPanel({
                     <p className="font-semibold text-foreground">
                       {recoveryError.title}
                     </p>
+                    {/* An exhausted quota cannot be retried, so its action is a
+                        link woven into the sentence rather than a retry button
+                        that would only invite the same failure again. */}
                     <p className="mt-0.5 text-pretty leading-5 text-muted-foreground">
                       {recoveryError.description}
+                      {recoveryError.actionHref && recoveryError.action && (
+                        <>
+                          {" "}
+                          <Link
+                            href={recoveryError.actionHref}
+                            className="font-semibold text-foreground underline underline-offset-2 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            {recoveryError.action}
+                          </Link>
+                          {recoveryError.actionSuffix}
+                        </>
+                      )}
                     </p>
-                    {/* An exhausted quota cannot be retried, so that case sends
-                        the user somewhere that can actually resolve it instead
-                        of inviting the same failure again. */}
-                    {recoveryError.action && recoveryError.actionHref ? (
-                      <Link
-                        href={recoveryError.actionHref}
-                        className="mt-2 inline-flex h-8 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        {recoveryError.action}
-                        <ArrowUpRight className="size-3.5" aria-hidden="true" />
-                      </Link>
-                    ) : recoveryError.action ? (
+                    {!recoveryError.actionHref && recoveryError.action ? (
                       <button
                         type="button"
                         onClick={retryFailedTurn}
