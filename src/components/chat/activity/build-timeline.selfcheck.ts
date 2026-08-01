@@ -1,5 +1,6 @@
 import { buildTimeline } from "./build-timeline";
 import { interpretCommand, classifyOutcome } from "./semantic-events";
+import { computeSummaryStats } from "./summary-stats";
 import type { ToolCallPart } from "../tool-call";
 
 let checks = 0;
@@ -56,6 +57,55 @@ assert(batchRead.groups.length === 1, "batch read: 1 group");
 assert(batchRead.groups[0].id === "analyzing", "batch read: analyzing");
 assert(batchRead.groups[0].count === 1, "batch read: one step, not three");
 assert(batchRead.groups[0].items[0].title === "Reviewing 3 files", "batch read: action title");
+
+// 2c. Summary counts FILES for file categories, not tool calls. A batch read
+// of three files plus one single read is 2 calls but 4 files, and the summary
+// line must say 4 — it previously said 2, contradicting the detail view.
+{
+  const timeline = buildTimeline([
+    mkPart("read_files", "output-available", {
+      input: { paths: ["a.ts", "b.ts", "c.ts"] },
+      output: { success: true },
+    }),
+    mkPart("read_file", "output-available", {
+      input: { path: "d.ts" },
+      output: { success: true },
+    }),
+  ]);
+  const stats = computeSummaryStats(timeline.groups, 1000);
+  assert(stats.lines.includes("4 files analyzed"), "summary counts files, not calls");
+
+  // write_files had the same undercount before read_files existed.
+  const writes = buildTimeline([
+    mkPart("write_files", "output-available", {
+      input: { files: [{ path: "a.ts" }, { path: "b.ts" }] },
+      output: { success: true },
+    }),
+  ]);
+  const writeStats = computeSummaryStats(writes.groups, 1000);
+  assert(writeStats.lines.includes("2 files created"), "batch write counts files too");
+
+  // Non-file categories keep counting calls.
+  const plans = buildTimeline([
+    mkPart("report_state", "output-available", { input: {}, output: { success: true } }),
+  ]);
+  assert(
+    computeSummaryStats(plans.groups, 1000).lines.includes("1 execution plan"),
+    "non-file categories still count calls",
+  );
+
+  // Singular vs plural still agrees with the number shown.
+  const one = buildTimeline([
+    mkPart("read_files", "output-available", {
+      input: { paths: ["only.ts"] },
+      output: { success: true },
+    }),
+  ]);
+  assert(
+    computeSummaryStats(one.groups, 1000).lines.includes("1 file analyzed"),
+    "one file reads as singular",
+  );
+}
 
 // 3. Mixed: passing test + failing lint → validating with needs-attention
 const mixed = buildTimeline([

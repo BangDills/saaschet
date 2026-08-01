@@ -22,6 +22,27 @@ export function formatElapsed(ms: number): string {
   return `${min}m ${sec}s`;
 }
 
+/**
+ * Categories whose verb counts FILES, not tool calls.
+ *
+ * `group.count` is the number of tool calls, which used to be the same thing:
+ * one read_file was one file. Batch tools break that — one read_files covering
+ * three files still counts as one call, so the summary read "2 files analyzed"
+ * for a turn that had just listed three filenames in the detail view. The same
+ * undercount already applied to write_files; read_files only made it visible.
+ */
+const COUNTS_FILES = new Set(["analyzing", "updating", "creating", "deleting"]);
+
+/** Files touched by a single tool call — batch tools touch several. */
+function itemFileCount(input: unknown): number {
+  if (!input || typeof input !== "object") return 1;
+  const fields = input as Record<string, unknown>;
+  // read_files takes paths[]; write_files / sandbox_write_files take files[].
+  if (Array.isArray(fields.paths)) return Math.max(1, fields.paths.length);
+  if (Array.isArray(fields.files)) return Math.max(1, fields.files.length);
+  return 1;
+}
+
 export function computeSummaryStats(
   groups: ActivityGroupData[],
   elapsedMs: number | null,
@@ -30,7 +51,12 @@ export function computeSummaryStats(
   let needsAttention = 0;
   for (const g of groups) {
     const verb = CATEGORY_VERBS[g.id];
-    if (verb) lines.push(verb(g.count));
+    if (verb) {
+      const n = COUNTS_FILES.has(g.id)
+        ? g.items.reduce((sum, item) => sum + itemFileCount(item.input), 0)
+        : g.count;
+      lines.push(verb(n));
+    }
     needsAttention += g.needsAttentionCount;
   }
   return {
