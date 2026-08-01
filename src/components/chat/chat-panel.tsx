@@ -14,7 +14,7 @@ import { StreamingPill } from "./streaming-pill";
 import { ProcessingIndicator } from "./processing-indicator";
 import { fireCreditsRefresh } from "@/components/dashboard/credits-meter";
 import { resolveActions, type AgentCompletionState } from "@/lib/agent/action-registry";
-import { AlertCircle, ArrowDown, Clock3, CornerDownRight, GitBranch, RefreshCcw, WifiOff } from "lucide-react";
+import { AlertCircle, ArrowDown, Clock3, CornerDownRight, Gauge, GitBranch, RefreshCcw, WifiOff } from "lucide-react";
 import useSWR from "swr";
 
 type FeedbackResponse = {
@@ -31,12 +31,77 @@ async function fetchJson<T>(url: string): Promise<T> {
 type RecoveryError = {
   title: string;
   description: string;
-  action: string;
-  kind: "network" | "rate-limit" | "provider" | "generic";
+  /** Omitted when retrying cannot possibly help, e.g. an exhausted quota. */
+  action?: string;
+  kind: "network" | "rate-limit" | "provider" | "credits" | "generic";
 };
+
+/** The credit snapshot the API attaches to a 402. */
+type CreditsPayload = {
+  usedToday?: number;
+  dailyLimit?: number;
+  remaining?: number;
+  resetsAt?: number;
+};
+
+/**
+ * Pull the structured payload out of an API error.
+ *
+ * The chat route answers an exhausted quota with 402 and
+ * `{ code: "out_of_credits", credits: {...} }`, but the transport hands us only
+ * an Error, so the body arrives as text if at all. Read the real fields when
+ * they survive; the caller still recognises the case without them.
+ */
+function parseErrorPayload(message: string): { code?: string; credits?: CreditsPayload } {
+  const start = message.indexOf("{");
+  const end = message.lastIndexOf("}");
+  if (start < 0 || end <= start) return {};
+  try {
+    const parsed = JSON.parse(message.slice(start, end + 1)) as {
+      code?: string;
+      credits?: CreditsPayload;
+    };
+    return { code: parsed.code, credits: parsed.credits };
+  } catch {
+    return {};
+  }
+}
+
+function formatResetTime(resetsAt?: number): string {
+  if (!resetsAt || !Number.isFinite(resetsAt)) return "tengah malam UTC";
+  try {
+    // The user's own clock, not UTC — "midnight UTC" means 07.00 in Jakarta and
+    // something else again elsewhere.
+    return new Date(resetsAt).toLocaleTimeString("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "tengah malam UTC";
+  }
+}
 
 function getRecoveryError(error: Error): RecoveryError {
   const message = error.message.toLowerCase();
+  const { code, credits } = parseErrorPayload(error.message);
+
+  // Credits FIRST, and before the rate-limit branch on purpose. The server
+  // message is "Daily credit limit reached (50/50). Resets at midnight UTC.",
+  // which contains "limit reached" — so it used to land in the rate-limit case
+  // and tell the user a provider was throttling them and to wait a moment.
+  // Both halves were wrong: nothing was throttled, and waiting never helps
+  // because the quota resets on a schedule.
+  if (code === "out_of_credits" || message.includes("credit limit")) {
+    const used = credits?.usedToday;
+    const limit = credits?.dailyLimit;
+    const usage = typeof used === "number" && typeof limit === "number" ? ` (${used}/${limit})` : "";
+    return {
+      title: "Kredit harian habis",
+      description: `Kuota kredit harian Anda sudah terpakai semua${usage}. Kuota diperbarui otomatis pukul ${formatResetTime(credits?.resetsAt)}. Menunggu sebentar tidak membantu — pesan Anda tetap tersimpan.`,
+      kind: "credits",
+    };
+  }
+
   if (
     message.includes("failed to fetch") ||
     message.includes("network") ||
@@ -50,11 +115,14 @@ function getRecoveryError(error: Error): RecoveryError {
       kind: "network",
     };
   }
+  // "limit reached" used to be in this list and was the whole bug: it matches
+  // far more than provider throttling. The route's own rate-limit error says
+  // "Model provider rate limit reached…", so "rate limit" already covers it.
   if (
     message.includes("429") ||
     message.includes("rate limit") ||
-    message.includes("quota") ||
-    message.includes("limit reached")
+    message.includes("rate-limit") ||
+    message.includes("too many requests")
   ) {
     return {
       title: "Batas model tercapai",
@@ -808,7 +876,9 @@ export function ChatPanel({
       ? WifiOff
       : recoveryError?.kind === "rate-limit"
         ? Clock3
-        : AlertCircle;
+        : recoveryError?.kind === "credits"
+          ? Gauge
+          : AlertCircle;
 
   const retryFailedTurn = React.useCallback(() => {
     if (isStreaming) return;
@@ -959,15 +1029,20 @@ export function ChatPanel({
                     <p className="mt-0.5 text-pretty leading-5 text-muted-foreground">
                       {recoveryError.description}
                     </p>
-                    <button
-                      type="button"
-                      onClick={retryFailedTurn}
-                      disabled={isStreaming}
-                      className="mt-2 inline-flex h-8 items-center gap-2 rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-                    >
-                      <RefreshCcw className="size-3.5" aria-hidden="true" />
-                      {recoveryError.action}
-                    </button>
+                    {/* No button when retrying cannot help — offering "Coba
+                        lagi" against an exhausted quota just invites the user
+                        to fail again. */}
+                    {recoveryError.action && (
+                      <button
+                        type="button"
+                        onClick={retryFailedTurn}
+                        disabled={isStreaming}
+                        className="mt-2 inline-flex h-8 items-center gap-2 rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                      >
+                        <RefreshCcw className="size-3.5" aria-hidden="true" />
+                        {recoveryError.action}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
