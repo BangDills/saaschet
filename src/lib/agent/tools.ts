@@ -304,9 +304,10 @@ export function createAgentTools(ctx: AgentContext) {
         "Read several files from the connected repository in ONE call. " +
         "STRONGLY PREFERRED over repeated read_file calls whenever you need 2+ files — " +
         "each separate read costs a full model round trip, so batching is dramatically faster. " +
-        "Use list_files first to discover paths. Files are fetched in parallel. " +
-        "A shared character budget is spread across the files; anything that does not fit comes " +
-        "back with skipped or truncated set, and can then be read individually with read_file.",
+        "Use list_files first to discover paths. Files are fetched in parallel and share a " +
+        "character budget allocated by need, so small files never waste room and a file is only " +
+        "cut when the batch genuinely cannot fit. Anything cut comes back with truncated set and " +
+        "is named in truncated_note; re-read only those with read_file at offset=next_offset.",
       inputSchema: schema<{ paths: string[]; limit_per_file?: number }>({
         type: "object",
         properties: {
@@ -342,44 +343,83 @@ export function createAgentTools(ctx: AgentContext) {
         // what was asked for.
         const unique = [...new Set(paths)].slice(0, MAX_BATCH_READ_FILES);
 
-        // Spread the shared budget evenly rather than first-come: one large
-        // file at the head of the list should not starve the rest, which would
-        // push the model straight back into one-at-a-time reads.
-        const perFile = Math.max(
-          1,
-          Math.min(limit_per_file, Math.floor(BATCH_READ_TOTAL_BUDGET / unique.length)),
-        );
-
-        // In parallel. Sequential fetches would reintroduce, at the network
-        // layer, exactly the serialisation this tool exists to remove.
-        const files = await Promise.all(
+        // Fetch first, allocate after.
+        //
+        // fetchFileContent downloads the whole blob and slices locally, so
+        // asking for the full budget here costs nothing extra on the wire —
+        // and knowing the real sizes is precisely what lets the budget be
+        // shared by need rather than split blindly.
+        //
+        // In parallel: sequential fetches would reintroduce, at the network
+        // layer, the serialisation this tool exists to remove.
+        const fetched = await Promise.all(
           unique.map(async (path) => {
             try {
               const file = await fetchFileContent(owner, name, path, branch, ctx.githubToken, {
                 offset: 0,
-                limit: perFile,
+                limit: BATCH_READ_TOTAL_BUDGET,
               });
-              return {
-                path,
-                truncated: file.truncated,
-                next_offset: file.nextOffset,
-                length: file.content.length,
-                total_length: file.totalLength,
-                content: file.content,
-              };
+              return { path, file, error: null as string | null };
             } catch (err) {
               // One bad path must not fail the batch, or the model learns that
               // batching is risky and goes back to reading one at a time.
               return {
                 path,
+                file: null,
                 error: err instanceof Error ? err.message : String(err),
-                content: null,
               };
             }
           }),
         );
 
+        /*
+         * Share the budget by need, smallest first.
+         *
+         * An even split looked fair and was not. Measured on a real review:
+         * README 2,921 · index.html 9,767 · style.css 17,517 · app.js 18,796.
+         * Four files, 15,000 each — so README wasted 12,079 of its share while
+         * the two largest were cut, and the model had to spend two more round
+         * trips re-reading exactly those two. Their combined size is 49,001,
+         * comfortably inside the 60,000 budget: nothing needed truncating at
+         * all.
+         *
+         * Smallest-first means every file takes only what it needs and leaves
+         * the remainder to widen the share of those still waiting. A file is
+         * only ever cut when the batch genuinely cannot fit.
+         */
+        const ceiling = Math.min(limit_per_file, BATCH_READ_TOTAL_BUDGET);
+        const readable = fetched.filter(
+          (entry): entry is { path: string; file: NonNullable<typeof entry.file>; error: null } =>
+            entry.file !== null,
+        );
+        const allowance = new Map<string, number>();
+        let remaining = BATCH_READ_TOTAL_BUDGET;
+        [...readable]
+          .sort((a, b) => a.file.content.length - b.file.content.length)
+          .forEach((entry, index, sorted) => {
+            const fairShare = Math.floor(remaining / (sorted.length - index));
+            const take = Math.min(entry.file.content.length, fairShare, ceiling);
+            allowance.set(entry.path, take);
+            remaining -= take;
+          });
+
+        const files = fetched.map(({ path, file, error }) => {
+          if (!file) return { path, error, content: null };
+          const content = file.content.slice(0, allowance.get(path) ?? 0);
+          const truncated = content.length < file.totalLength;
+          return {
+            path,
+            truncated,
+            // Where read_file should resume if the model wants the rest.
+            next_offset: truncated ? content.length : undefined,
+            length: content.length,
+            total_length: file.totalLength,
+            content,
+          };
+        });
+
         const skipped = paths.length - unique.length;
+        const cut = files.filter((f) => f.truncated).map((f) => f.path);
         return {
           branch,
           requested: paths.length,
@@ -390,7 +430,12 @@ export function createAgentTools(ctx: AgentContext) {
                 note: `${skipped} path(s) were duplicates or beyond the ${MAX_BATCH_READ_FILES}-file limit. Call read_files again for the rest.`,
               }
             : {}),
-          limit_per_file: perFile,
+          ...(cut.length > 0
+            ? {
+                truncated_note: `Did not fit the shared budget and were cut: ${cut.join(", ")}. Use read_file with offset=next_offset for the rest of those, and only those — every other file here is complete.`,
+              }
+            : {}),
+          budget_remaining: remaining,
           files,
         };
       },
