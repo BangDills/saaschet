@@ -100,11 +100,20 @@ export async function extractAndSaveMemories(
 
     log.info("extracted memories", { userId, count: facts.length });
 
-    // Save each memory using our vector helper
+    // Drop duplicates the model emitted within this one batch before paying
+    // for an embedding each. saveMemory still catches near-duplicates against
+    // history; this only removes the exact repeats, which are free to detect.
+    const seen = new Set<string>();
     for (const fact of facts) {
-      if (typeof fact === "string" && fact.trim().length > 5) {
-        await saveMemory(userId, fact);
-      }
+      if (typeof fact !== "string") continue;
+      const normalized = fact.replace(/\s+/g, " ").trim();
+      if (normalized.length <= 5) continue;
+
+      const key = normalized.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      await saveMemory(userId, normalized);
     }
   } catch (err) {
     log.error("extraction failed", { err });

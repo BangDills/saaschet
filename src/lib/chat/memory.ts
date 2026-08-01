@@ -46,12 +46,19 @@ export async function searchMemories(
  * Before saving, it checks if a similar memory already exists to avoid clutter.
  */
 export async function saveMemory(userId: string, content: string): Promise<boolean> {
-  const cleanContent = content.trim();
+  // Collapse internal whitespace, not just the ends. The extractor works from
+  // model output that sometimes wraps mid-sentence, which stored memories like
+  // "...does not include Groq or scrape\n features".
+  const cleanContent = content.replace(/\s+/g, " ").trim();
   if (!cleanContent) return false;
 
   try {
-    // Check if we already have a highly similar memory
-    const existing = await searchMemories(userId, cleanContent, 1, 0.85);
+    // Check if we already have a highly similar memory. The threshold is
+    // env-tunable because it is a recall/precision judgement with no obviously
+    // right value: too high and paraphrases of the same fact pile up, too low
+    // and genuinely distinct facts get swallowed.
+    const threshold = Number(process.env.MEMORY_DEDUPE_THRESHOLD) || 0.85;
+    const existing = await searchMemories(userId, cleanContent, 1, threshold);
     if (existing.length > 0) {
       console.log(`[memory] similar memory already exists, skipping: "${existing[0]}" vs "${cleanContent}"`);
       return false;
