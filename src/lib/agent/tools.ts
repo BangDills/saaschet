@@ -18,6 +18,18 @@ import { searchCodebase, formatHitsForModel } from "@/lib/indexing/search";
 import { createContext7Tools } from "@/lib/context7/tools";
 import { createSerenaTools } from "@/lib/serena/tools";
 
+/** Most files one read_files call will fetch; the rest come back as skipped. */
+const MAX_BATCH_READ_FILES = 12;
+/**
+ * Shared character ceiling for a batch read, matching read_file's single-file
+ * default. A batch must not be able to flood the context with an order of
+ * magnitude more text than a normal read — some models in the catalogue have
+ * small windows, and a blown context fails the whole turn rather than one call.
+ */
+const BATCH_READ_TOTAL_BUDGET = 60_000;
+/** Per-file default, sized so a typical source file arrives whole. */
+const DEFAULT_BATCH_READ_PER_FILE = 15_000;
+
 /**
  * Agent context — injected at construction time, not at tool-call time.
  *
@@ -216,7 +228,8 @@ export function createAgentTools(ctx: AgentContext) {
       description:
         "Read the contents of a single text file from the connected repository. " +
         "Returns up to 60,000 characters by default. Use list_files first to discover paths. " +
-        "For large files, use offset and limit to page through the file; if truncated is true, call again with offset=next_offset.",
+        "For large files, use offset and limit to page through the file; if truncated is true, call again with offset=next_offset. " +
+        "When you already know you need 2+ files, call read_files once instead — each separate call costs a full model round trip.",
       inputSchema: schema<{ path: string; offset?: number; limit?: number }>({
         type: "object",
         properties: {
@@ -268,6 +281,117 @@ export function createAgentTools(ctx: AgentContext) {
           length: file.content.length,
           total_length: file.totalLength,
           content: file.content,
+        };
+      },
+    }),
+
+    /**
+     * Batch read — the counterpart to write_files.
+     *
+     * Reading N files as N separate read_file calls costs N model round trips,
+     * and the round trip is the expensive part: measured on a review of a
+     * 4-file repo, the whole turn took 234s of which ~216s was the model
+     * thinking across 8 sequential turns (~27s each) while the file fetches
+     * themselves totalled well under a second. Four of those turns existed
+     * only to ask for the next file.
+     *
+     * write_files already exists for exactly this reason and the agent prompt
+     * says so ("each call adds latency"). Reading never got the same
+     * treatment, so this closes that gap.
+     */
+    read_files: tool({
+      description:
+        "Read several files from the connected repository in ONE call. " +
+        "STRONGLY PREFERRED over repeated read_file calls whenever you need 2+ files — " +
+        "each separate read costs a full model round trip, so batching is dramatically faster. " +
+        "Use list_files first to discover paths. Files are fetched in parallel. " +
+        "A shared character budget is spread across the files; anything that does not fit comes " +
+        "back with skipped or truncated set, and can then be read individually with read_file.",
+      inputSchema: schema<{ paths: string[]; limit_per_file?: number }>({
+        type: "object",
+        properties: {
+          paths: {
+            type: "array",
+            description:
+              'File paths relative to repo root, e.g. ["README.md", "src/app/page.tsx"].',
+            items: { type: "string" },
+            minItems: 1,
+            maxItems: MAX_BATCH_READ_FILES,
+          },
+          limit_per_file: {
+            type: "integer",
+            description: `Maximum characters per file. Defaults to ${DEFAULT_BATCH_READ_PER_FILE}. The combined total is capped at ${BATCH_READ_TOTAL_BUDGET}.`,
+            minimum: 1,
+            maximum: BATCH_READ_TOTAL_BUDGET,
+          },
+        },
+        required: ["paths"],
+        additionalProperties: false,
+      }),
+      execute: async ({
+        paths,
+        limit_per_file = DEFAULT_BATCH_READ_PER_FILE,
+      }: {
+        paths: string[];
+        limit_per_file?: number;
+      }) => {
+        const branch = await getDefaultBranch();
+
+        // Duplicates in one call are pure waste — the model sometimes repeats a
+        // path it already listed. Order is preserved so the reply lines up with
+        // what was asked for.
+        const unique = [...new Set(paths)].slice(0, MAX_BATCH_READ_FILES);
+
+        // Spread the shared budget evenly rather than first-come: one large
+        // file at the head of the list should not starve the rest, which would
+        // push the model straight back into one-at-a-time reads.
+        const perFile = Math.max(
+          1,
+          Math.min(limit_per_file, Math.floor(BATCH_READ_TOTAL_BUDGET / unique.length)),
+        );
+
+        // In parallel. Sequential fetches would reintroduce, at the network
+        // layer, exactly the serialisation this tool exists to remove.
+        const files = await Promise.all(
+          unique.map(async (path) => {
+            try {
+              const file = await fetchFileContent(owner, name, path, branch, ctx.githubToken, {
+                offset: 0,
+                limit: perFile,
+              });
+              return {
+                path,
+                truncated: file.truncated,
+                next_offset: file.nextOffset,
+                length: file.content.length,
+                total_length: file.totalLength,
+                content: file.content,
+              };
+            } catch (err) {
+              // One bad path must not fail the batch, or the model learns that
+              // batching is risky and goes back to reading one at a time.
+              return {
+                path,
+                error: err instanceof Error ? err.message : String(err),
+                content: null,
+              };
+            }
+          }),
+        );
+
+        const skipped = paths.length - unique.length;
+        return {
+          branch,
+          requested: paths.length,
+          returned: files.length,
+          ...(skipped > 0
+            ? {
+                skipped,
+                note: `${skipped} path(s) were duplicates or beyond the ${MAX_BATCH_READ_FILES}-file limit. Call read_files again for the rest.`,
+              }
+            : {}),
+          limit_per_file: perFile,
+          files,
         };
       },
     }),

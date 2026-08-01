@@ -356,6 +356,12 @@ const EVENT_BY_TOOL: Record<string, (input: Record<string, unknown>) => Semantic
     description: "Reading the file to understand the current implementation",
     technicalDetails: typeof i.path === "string" ? i.path : undefined,
   }),
+  read_files: (i) => ({
+    category: "analyzing",
+    title: `Reviewing ${countFiles(i.paths)} files`,
+    description: "Reading several files at once to understand the project",
+    technicalDetails: Array.isArray(i.paths) ? i.paths.join(", ") : undefined,
+  }),
   sandbox_read_file: (i) => ({
     category: "analyzing",
     title: shortPath(i.path) ? `Reviewing ${shortPath(i.path)}` : "Reviewing workspace files",

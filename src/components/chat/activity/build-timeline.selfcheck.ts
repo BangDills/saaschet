@@ -2,11 +2,13 @@ import { buildTimeline } from "./build-timeline";
 import { interpretCommand, classifyOutcome } from "./semantic-events";
 import type { ToolCallPart } from "../tool-call";
 
+let checks = 0;
 function assert(cond: unknown, msg: string): void {
   if (!cond) {
     console.error("FAIL:", msg);
     process.exit(1);
   }
+  checks++;
 }
 
 function mkPart(
@@ -40,6 +42,20 @@ assert(singleRead.groups[0].id === "analyzing", "single read: analyzing");
 assert(singleRead.groups[0].count === 1, "single read: count 1");
 assert(singleRead.groups[0].status === "completed", "single read: completed");
 assert(singleRead.groups[0].items[0].title === "Reviewing app.ts", "single read: action title");
+
+// 2b. Batch read_files → one analyzing entry, not one per file. The whole
+// point of the tool is that N files cost one round trip, so the timeline must
+// not make it look like N separate steps.
+const batchRead = buildTimeline([
+  mkPart("read_files", "output-available", {
+    input: { paths: ["README.md", "src/app.ts", "src/style.css"] },
+    output: { success: true, returned: 3, files: [] },
+  }),
+]);
+assert(batchRead.groups.length === 1, "batch read: 1 group");
+assert(batchRead.groups[0].id === "analyzing", "batch read: analyzing");
+assert(batchRead.groups[0].count === 1, "batch read: one step, not three");
+assert(batchRead.groups[0].items[0].title === "Reviewing 3 files", "batch read: action title");
 
 // 3. Mixed: passing test + failing lint → validating with needs-attention
 const mixed = buildTimeline([
@@ -224,4 +240,4 @@ const pr = buildTimeline([
 ]);
 assert(pr.groups.find((g) => g.id === "applying"), "pr: applying group");
 
-console.log("PASS: 17/17 build-timeline selfcheck cases (semantic events)");
+console.log(`PASS: ${checks} build-timeline selfcheck assertions (semantic events)`);
