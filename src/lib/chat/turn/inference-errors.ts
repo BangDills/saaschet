@@ -15,6 +15,10 @@ const DEFAULT_LIMIT_RECOVERY_DELAY_MS = 20_000;
 const MAX_LIMIT_RECOVERY_DELAY_MS = 60_000;
 const DEFAULT_LIMIT_RECOVERY_RETRIES = 1;
 const MAX_LIMIT_RECOVERY_RETRIES = 2;
+const DEFAULT_TRANSIENT_RETRIES = 2;
+const MAX_TRANSIENT_RETRIES = 4;
+const DEFAULT_TRANSIENT_DELAY_MS = 2_000;
+const MAX_TRANSIENT_DELAY_MS = 15_000;
 
 export function chatMaxRetries(): number {
   const raw = process.env.AI_CHAT_MAX_RETRIES;
@@ -168,6 +172,50 @@ export function formatInferenceError(err: unknown): { message: string; status: n
 
 export function isRateLimitFailure(err: unknown): boolean {
   return formatInferenceError(err).code === "provider_rate_limited";
+}
+
+export function transientRetries(): number {
+  return envInteger("AI_TRANSIENT_RETRIES", DEFAULT_TRANSIENT_RETRIES, 0, MAX_TRANSIENT_RETRIES);
+}
+
+export function transientRetryDelayMs(): number {
+  return envInteger(
+    "AI_TRANSIENT_RETRY_DELAY_MS",
+    DEFAULT_TRANSIENT_DELAY_MS,
+    0,
+    MAX_TRANSIENT_DELAY_MS,
+  );
+}
+
+/**
+ * A connection that failed rather than a model that refused.
+ *
+ * Observed in production: `AI_APICallError: Cannot connect to API` with
+ * `ETIMEDOUT` reaching Fireworks, carrying `isRetryable: true` — and nothing
+ * retried it, so a passing network blip became "Maaf, ada gangguan pas
+ * memproses." on screen.
+ *
+ * Rate limits are excluded because they have their own recovery path with
+ * model fallback and a much longer wait; retrying one after two seconds would
+ * just burn the quota faster.
+ */
+export function isTransientFailure(err: unknown): boolean {
+  if (isRateLimitFailure(err)) return false;
+
+  const apiErr = findApiCallError(err);
+  // The SDK's own verdict, which also covers 5xx.
+  if (apiErr?.isRetryable) return true;
+
+  const lower = err instanceof Error ? err.message.toLowerCase() : "";
+  return (
+    lower.includes("cannot connect to api") ||
+    lower.includes("fetch failed") ||
+    lower.includes("etimedout") ||
+    lower.includes("econnreset") ||
+    lower.includes("econnrefused") ||
+    lower.includes("socket hang up") ||
+    lower.includes("network error")
+  );
 }
 
 export function isRateLimitMessage(message: string): boolean {

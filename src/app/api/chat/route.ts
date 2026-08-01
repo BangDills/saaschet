@@ -62,6 +62,9 @@ import {
   formatInferenceError,
   isRateLimitFailure,
   isRateLimitMessage,
+  isTransientFailure,
+  transientRetries,
+  transientRetryDelayMs,
 } from "@/lib/chat/turn/inference-errors";
 import {
   lastUserText,
@@ -677,20 +680,24 @@ When the user asks about library APIs, setup, migrations, or version-specific be
     return !!process.env[envKey];
   }
 
-  function agentAttemptModelIds(): string[] {
-    if (!tools) return [modelId];
-
-    // All agent-capable models are fallback candidates when the primary
-    // hits a rate limit. The current model goes first, then the rest of
-    // the catalog in order.
+  /**
+   * Fallback candidates when the primary model cannot continue. The current
+   * model goes first, then the rest of the catalog in order.
+   *
+   * Chat turns used to get no chain at all — `[modelId]` — so one provider hiccup
+   * meant a 20 second wait, one retry, then an error, while an agent turn in the
+   * same situation quietly moved to the next model. Only the agent-capable
+   * filter is actually mode-specific: a chat turn calls no tools, so any model
+   * with a configured key can take over.
+   */
+  function attemptModelIds(): string[] {
     const candidates = [
       modelId,
       ...defaultModels.map((m) => m.id).filter((id) => id !== modelId),
     ];
 
-    return Array.from(new Set(candidates)).filter(
-      (candidate) => isAgentCapable(candidate) && canUseModel(candidate),
-    );
+    const usable = Array.from(new Set(candidates)).filter(canUseModel);
+    return tools ? usable.filter(isAgentCapable) : usable;
   }
 
   function createProviderForModel(candidateModelId: string) {
@@ -1040,7 +1047,7 @@ ${recoveryInstruction}`;
       writer: { write: (part: UIMessageChunk) => void },
       candidateModelId: string,
       attemptIndex: number,
-    ): Promise<"completed" | "rate_limited"> {
+    ): Promise<"completed" | "rate_limited" | "transient"> {
       const result = startAttempt(candidateModelId, attemptIndex);
       const stream = result.toUIMessageStream({
         onError: (error) => formatInferenceError(error).message,
@@ -1053,6 +1060,11 @@ ${recoveryInstruction}`;
       const reader = stream.getReader();
       let completed = false;
 
+      // Whether the user has already seen output from this attempt. A restart
+      // after that point would replay text on top of what is on screen, so a
+      // transient failure mid-answer is surfaced rather than silently retried.
+      let wroteAnyChunk = false;
+
       try {
         while (true) {
           const { done, value } = await reader.read();
@@ -1063,9 +1075,11 @@ ${recoveryInstruction}`;
           }
 
           writer.write(value);
+          wroteAnyChunk = true;
         }
       } catch (err) {
         if (isRateLimitFailure(err)) return "rate_limited";
+        if (isTransientFailure(err) && !wroteAnyChunk) return "transient";
         throw err;
       } finally {
         reader.releaseLock();
@@ -1142,9 +1156,10 @@ ${recoveryInstruction}`;
 
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
-        const attempts = agentAttemptModelIds();
+        const attempts = attemptModelIds();
         let lastRateLimit = false;
         let recoveryRetriesUsed = 0;
+        let transientRetriesUsed = 0;
         let stallRecoveriesUsed = 0;
         let i = 0;
         let totalAttempts = 0;
@@ -1181,6 +1196,42 @@ ${recoveryInstruction}`;
             // (single source of truth) right after the stream reader is done and
             // result.steps/result.finishReason are final. No duplicate emit here.
             return;
+          }
+
+          // A connection that died before producing any output. The model
+          // never answered, so nothing is on screen to duplicate — quietly try
+          // again instead of turning a passing blip into a visible failure.
+          if (result === "transient") {
+            if (transientRetriesUsed < transientRetries()) {
+              transientRetriesUsed++;
+              const waitMs = transientRetryDelayMs();
+              log.warn("transient provider failure — retrying", {
+                conversationId,
+                modelId: attemptModelId,
+                attempt: transientRetriesUsed,
+                waitMs,
+              });
+              await sleep(waitMs);
+              continue;
+            }
+
+            const nextAfterTransient = attempts[i + 1];
+            if (nextAfterTransient) {
+              log.warn("transient failures exhausted — switching model", {
+                conversationId,
+                from: attemptModelId,
+                to: nextAfterTransient,
+              });
+              transientRetriesUsed = 0;
+              i++;
+              continue;
+            }
+
+            await markConversationIdle();
+            await cleanupSandbox("after transient failures");
+            throw new Error(
+              "Koneksi ke provider model terputus dan percobaan ulang tidak berhasil. Coba lagi sebentar lagi.",
+            );
           }
 
           lastRateLimit = true;
