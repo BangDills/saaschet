@@ -38,8 +38,19 @@ const MESSAGE_MAX = 400;
  * matches what the memory extractors already prove is enough here.
  */
 const MAX_OUTPUT_TOKENS = 2000;
-/** Never hold the stream open for a slow side-call; no chips beats a hang. */
-const TIMEOUT_MS = 12000;
+/**
+ * Never hold the stream open for a slow side-call; no chips beats a hang.
+ *
+ * Raised 12s → 20s after production sampling: the call ranges 4.1s–10.0s
+ * (mean ~6.8s), so 12s left barely 2s of headroom and a longer-than-usual
+ * reply would silently lose its chips — visible only as a
+ * `follow-up generation timed out` line. The 2.4× spread tracks reply length,
+ * not network latency, so the ceiling is what needed room.
+ *
+ * Raising this is cheap because the generator runs after the reply has fully
+ * streamed: the only thing a longer wait delays is the chips, never the text.
+ */
+const TIMEOUT_MS = 20000;
 
 const SYSTEM = `You write the follow-up suggestions that appear under an assistant's reply in a chat product.
 
@@ -161,10 +172,35 @@ export function parseOptionsPayload(text: string | null | undefined): unknown {
 /**
  * Strip code blocks and cap length. A turn that wrote three files would
  * otherwise ship its whole diff into this prompt.
+ *
+ * `maxLen` is required on purpose: this cap is the main lever on how much the
+ * model has to read, and therefore on latency. An invisible default made the
+ * assistant-reply budget easy to miss.
  */
-function cleanAndTruncate(text: string, maxLen = 2500): string {
+function cleanAndTruncate(text: string, maxLen: number): string {
   const cleaned = text.replace(/```[\s\S]*?```/g, "[code block]").trim();
   return cleaned.length > maxLen ? `${cleaned.slice(0, maxLen)}… [truncated]` : cleaned;
+}
+
+const MIDDLE_MARKER = "\n\n[… middle of reply omitted …]\n\n";
+
+/**
+ * Same cleaning, but spends the budget on the opening AND the closing of the
+ * text instead of the opening alone.
+ *
+ * Use this for the assistant's reply: its last paragraph is where the offer to
+ * do something next lives, and that offer is what good chips are built from.
+ * Exported so the head/tail split is assertable without a network call.
+ */
+export function truncateMiddle(text: string, maxLen: number): string {
+  const cleaned = text.replace(/```[\s\S]*?```/g, "[code block]").trim();
+  if (cleaned.length <= maxLen) return cleaned;
+
+  // Weighted toward the tail: the ending carries the offer, the opening only
+  // needs to establish the subject.
+  const tailLen = Math.floor(maxLen * 0.6);
+  const headLen = maxLen - tailLen;
+  return `${cleaned.slice(0, headLen).trimEnd()}${MIDDLE_MARKER}${cleaned.slice(-tailLen).trimStart()}`;
 }
 
 /** Trim a label to LABEL_MAX without cutting mid-word. */
@@ -220,16 +256,33 @@ export function normalizeFollowUps(raw: unknown): FollowUp[] {
   return out;
 }
 
+/** Characters of each side of the turn the generator gets to read. */
+const USER_TEXT_MAX = 1200;
+/**
+ * The assistant's reply was capped at 2500, which is more than this job needs:
+ * naming next moves only takes the gist plus whatever the reply left open.
+ * Halving it attacks the actual cause of the latency — how much text the model
+ * has to reason over — rather than the symptom, the timeout.
+ *
+ * Note this budget is spent from BOTH ends (see truncateMiddle). Cutting only
+ * the head, as a plain slice would, discards the close of the reply — which is
+ * exactly where an assistant states its offer ("want me to do X next?"), the
+ * highest-signal input this generator has. At 2500 most replies fit whole and
+ * the flaw stayed hidden; at 1200 it would have started dropping the ending on
+ * ordinary long replies and quietly degraded the chips.
+ */
+const ASSISTANT_TEXT_MAX = 1200;
+
 function buildPrompt(userText: string, assistantText: string, taskType?: string): string {
   const context = taskType ? `Task category: ${taskType}\n\n` : "";
   return `${context}User's request:
 """
-${cleanAndTruncate(userText, 1200)}
+${cleanAndTruncate(userText, USER_TEXT_MAX)}
 """
 
 Assistant's final reply:
 """
-${cleanAndTruncate(assistantText)}
+${truncateMiddle(assistantText, ASSISTANT_TEXT_MAX)}
 """`;
 }
 
@@ -255,15 +308,12 @@ async function requestOptions(
       system: SYSTEM,
       prompt,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
-      // Reading one reply and naming a few next steps does not need deep
-      // deliberation, and the reasoning block is what makes this call slow:
-      // measured 4.2s, 5.6s, 5.8s, then 7.4s against a 12s timeout, so the
-      // margin was shrinking turn by turn.
-      //
-      // Deliberately set here and NOT on the streamText fallback below. If a
-      // provider rejects the option, generateObject fails and the fallback —
-      // which never sends it — still produces chips.
-      providerOptions: { openai: { reasoningEffort: "low" } },
+      // No `reasoningEffort: "low"` here. It was tried and removed: this
+      // provider/model accepts the field and ignores it. Measured over four
+      // samples either side, the mean went 5.75s → 6.82s and the peak 7.35s →
+      // 10.03s — too few samples to claim it hurts, but conclusive that it does
+      // not help. The lever that does work on this call is how much text it has
+      // to read; see ASSISTANT_TEXT_MAX.
     });
     return { raw: object, via: "generateObject" };
   } catch (err) {

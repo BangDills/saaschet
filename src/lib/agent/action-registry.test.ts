@@ -2,7 +2,11 @@ import {
   resolveActions,
   type AgentCompletionState,
 } from "./action-registry";
-import { normalizeFollowUps, parseOptionsPayload } from "../chat/turn/follow-ups";
+import {
+  normalizeFollowUps,
+  parseOptionsPayload,
+  truncateMiddle,
+} from "../chat/turn/follow-ups";
 
 function assert(cond: unknown, msg: string): void {
   if (!cond) {
@@ -264,4 +268,41 @@ check(
   "generated message survives the full path",
 );
 
-console.log(`PASS: ${checks} follow-up resolver, normalizer, and parser checks`);
+/* ── truncateMiddle: keep the offer, which lives at the end ──────────────── */
+
+// Under the cap, nothing is touched.
+check(truncateMiddle("Singkat saja.", 100) === "Singkat saja.", "short text passes through");
+
+// Code blocks are collapsed the same way the head-only truncator does it, so a
+// turn that wrote three files does not ship its diff into the prompt.
+check(
+  truncateMiddle("Ini patch-nya:\n```ts\nconst a = 1;\n```\nSudah.", 100) ===
+    "Ini patch-nya:\n[code block]\nSudah.",
+  "code block collapsed",
+);
+
+// The point of this function: over the cap, BOTH ends survive. A plain
+// slice(0, maxLen) would keep only "AWAL" and drop the closing offer, which is
+// the highest-signal input the follow-up generator has.
+const long = `AWAL objektifnya${"x".repeat(4000)}Mau saya lanjutkan ke AKHIR?`;
+const cut = truncateMiddle(long, 1200);
+check(cut.startsWith("AWAL objektifnya"), "opening survives truncation");
+check(cut.endsWith("Mau saya lanjutkan ke AKHIR?"), "closing offer survives truncation");
+check(cut.includes("omitted"), "truncation is marked");
+
+// The cap is a real budget: the text kept never exceeds it (the marker is
+// bookkeeping on top, not payload).
+check(cut.length <= 1200 + 40, "kept text stays within the budget");
+
+// Weighted toward the tail, because the ending matters more here.
+const [headPart, tailPart] = cut.split("[… middle of reply omitted …]");
+check(
+  tailPart.trim().length > headPart.trim().length,
+  "tail gets more budget than head",
+);
+
+// A reply exactly at the cap is not truncated — off-by-one guard.
+const exact = "y".repeat(1200);
+check(truncateMiddle(exact, 1200) === exact, "text exactly at the cap is untouched");
+
+console.log(`PASS: ${checks} follow-up resolver, normalizer, parser, and truncation checks`);
