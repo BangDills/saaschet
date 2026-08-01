@@ -1,6 +1,9 @@
 import { tool, jsonSchema } from "ai";
 import type { Sandbox } from "@daytona/sdk";
-import { createLogger } from "@/lib/logger";
+// Relative, not "@/...": sandbox-heal.selfcheck.ts imports this module and
+// `npm test` runs selfchecks through tsx, where no existing selfcheck exercises
+// the tsconfig path alias.
+import { createLogger } from "../logger";
 
 const sandboxLog = createLogger("sandbox");
 
@@ -47,7 +50,7 @@ export type SandboxContext = {
  * that could execute side effects twice (a push, a migration), so it is left
  * to fail.
  */
-function isSandboxGone(err: unknown): boolean {
+export function isSandboxGone(err: unknown): boolean {
   if (!err || typeof err !== "object") return false;
   const e = err as { statusCode?: number; errorCode?: string; message?: string };
   if (e.statusCode === 404 || e.errorCode === "NOT_FOUND") return true;
@@ -65,7 +68,7 @@ function isSandboxGone(err: unknown): boolean {
  * running inside — a deadlock. A short mutex also lets concurrent tool calls
  * wait only for the provision and then share one clone via ensureCloned.
  */
-async function healSandbox(ctx: SandboxContext): Promise<void> {
+export async function healSandbox(ctx: SandboxContext): Promise<void> {
   if (ctx._healing) {
     await ctx._healing;
     return;
@@ -102,7 +105,7 @@ async function healSandbox(ctx: SandboxContext): Promise<void> {
  * the sandbox reference lives on ctx, so a replacement is picked up by whatever
  * runs next without threading a new handle through every tool.
  */
-async function execCommand(
+export async function execCommand(
   ctx: SandboxContext,
   command: string,
   cwd?: string,

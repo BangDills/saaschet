@@ -63,7 +63,17 @@ export async function provisionSandbox(conversationId: string): Promise<Provisio
   // adopt an orphan left by a crashed run instead of stacking a second sandbox
   // against the org's total-memory quota.
   const labels = { "celiuz-conversation": conversationId };
-  const autoStopInterval = 5;
+  // Minutes of idleness before Daytona stops a sandbox; autoDelete 0 then
+  // removes it immediately. This is the orphan reaper — a turn deletes its own
+  // sandbox when it ends, so anything this catches was abandoned by a crashed
+  // run.
+  //
+  // Was 5, which also killed sandboxes belonging to LIVE turns: one created at
+  // 00:03 was gone by 00:11 while its turn was still stalled, and every command
+  // after that returned 404. Self-healing now survives that, but 15 minutes
+  // stops provoking it. Raising this holds quota longer for genuine orphans,
+  // so it is env-tunable without a deploy.
+  const autoStopInterval = Number(process.env.DAYTONA_SANDBOX_AUTOSTOP_MINUTES) || 15;
   const autoDeleteInterval = 0;
 
   let sandbox: Sandbox;

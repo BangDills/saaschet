@@ -255,6 +255,15 @@ async function requestOptions(
       system: SYSTEM,
       prompt,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
+      // Reading one reply and naming a few next steps does not need deep
+      // deliberation, and the reasoning block is what makes this call slow:
+      // measured 4.2s, 5.6s, 5.8s, then 7.4s against a 12s timeout, so the
+      // margin was shrinking turn by turn.
+      //
+      // Deliberately set here and NOT on the streamText fallback below. If a
+      // provider rejects the option, generateObject fails and the fallback —
+      // which never sends it — still produces chips.
+      providerOptions: { openai: { reasoningEffort: "low" } },
     });
     return { raw: object, via: "generateObject" };
   } catch (err) {
