@@ -10,6 +10,11 @@ RUN npm ci
 
 COPY . .
 # Build the standalone server (next.config: output: 'standalone').
+# Give the build a real heap: against a tight builder cgroup limit an
+# unbounded V8 heap gets the build OOM-killed with no stack trace (the log
+# just stops after "Creating an optimized production build ..."). Worker fan-
+# out is capped separately via experimental.cpus in next.config.ts.
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npm run build
 
 # ── runtime ───────────────────────────────────────────────────────────────────

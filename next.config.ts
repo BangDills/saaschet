@@ -33,6 +33,14 @@ const nextConfig: NextConfig = {
   // Build a self-contained server (.next/standalone) for Docker/Coolify deploys
   // — bundles only runtime deps so the image stays small and starts fast.
   output: "standalone",
+  // Cap build workers. Default is one per CPU core; on a small builder
+  // container that fans out into many memory-hungry workers and the build gets
+  // OOM-killed with no stack trace (the log just stops after "Creating an
+  // optimized production build ..."). Two workers keeps peak memory inside a
+  // modest builder; NODE_OPTIONS in the Dockerfile caps the heap too.
+  experimental: {
+    cpus: 2,
+  },
   async headers() {
     return [
       {
