@@ -396,13 +396,36 @@ export default function AIChatPage() {
     return () => { cancelled = true; };
   }, []);
 
-  function startNewChat() {
+  /**
+   * Open a blank chat, forgetting everything tied to the previous conversation.
+   *
+   * Every path that blanks the panel goes through here. They used to duplicate
+   * these resets and had already drifted: the new-chat button cleared the
+   * project but not the repo, and deleting the open conversation cleared
+   * neither. A new chat therefore inherited the previous session's repository.
+   *
+   * That is not cosmetic. `repo` is what flips a turn into agent mode
+   * (isAgentCapable(modelId) && !!repoSlug), which costs 3 credits base instead
+   * of 1 plus one per tool call — and the inherited repo is written onto the
+   * conversation on first send, so the wrong association then persists every
+   * time that chat is reopened. All of it invisible: the composer shows no
+   * repo indicator, so the only way to notice is to open the import sheet.
+   *
+   * Anything added later that belongs to a conversation rather than the user
+   * belongs in this function.
+   */
+  function blankChat() {
     setActive(freshPanel());
+    setRepo(null);
     setActiveConvProjectId(null);
+    try { localStorage.removeItem(LS_KEY); } catch {}
+  }
+
+  function startNewChat() {
+    blankChat();
     setNewChatProjectId(activeProjectId);
     setHistoryOpen(false);
     setMenuId(null);
-    try { localStorage.removeItem(LS_KEY); } catch {}
   }
 
 
@@ -472,9 +495,11 @@ export default function AIChatPage() {
       const response = await fetch(`/api/conversations/${target.id}`, { method: "DELETE" });
       if (!response.ok) throw new Error(await readApiError(response, "Failed to delete conversation"));
       setConversations((items) => items.filter((item) => item.id !== target.id));
+      // Deleting the conversation you are looking at drops you into a blank
+      // chat, which must forget its repo and project exactly like the new-chat
+      // button does — see blankChat.
       if (active.conversationId === target.id) {
-        setActive(freshPanel());
-        try { localStorage.removeItem(LS_KEY); } catch {}
+        blankChat();
       }
       setDeleteTarget(null);
       setMenuId(null);
