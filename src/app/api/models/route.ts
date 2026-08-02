@@ -81,8 +81,10 @@ export async function GET() {
   const ALLOWED_FIREWORKS_MODELS = new Set([
     "accounts/fireworks/models/glm-5p2",
     "accounts/fireworks/models/kimi-k2p7-code",
+    "accounts/fireworks/models/kimi-k3",
     "accounts/fireworks/models/minimax-m3",
     "accounts/fireworks/models/deepseek-v4-flash",
+    "accounts/fireworks/models/deepseek-v4-flash-0731",
     "accounts/fireworks/models/deepseek-v4-pro",
     "accounts/fireworks/models/qwen3p7-plus",
   ]);

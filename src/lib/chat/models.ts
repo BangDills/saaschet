@@ -49,8 +49,10 @@ export const agentCapableModels = new Set([
   // Fireworks AI — all support function-calling per Fireworks docs (verified)
   "accounts/fireworks/models/glm-5p2",
   "accounts/fireworks/models/kimi-k2p7-code",
+  "accounts/fireworks/models/kimi-k3",
   "accounts/fireworks/models/minimax-m3",
   "accounts/fireworks/models/deepseek-v4-flash",
+  "accounts/fireworks/models/deepseek-v4-flash-0731",
   "accounts/fireworks/models/deepseek-v4-pro",
   "accounts/fireworks/models/qwen3p7-plus",
 ]);
@@ -176,6 +178,14 @@ export const defaultModels: ModelInfo[] = [
   {
     id: "accounts/fireworks/models/deepseek-v4-flash",
     label: "DeepSeek V4 Flash",
+    vendor: "DeepSeek",
+    tag: "Fast",
+    agentCapable: true,
+    provider: "fireworks",
+  },
+  {
+    id: "accounts/fireworks/models/deepseek-v4-flash-0731",
+    label: "DeepSeek V4 Flash 0731",
     vendor: "DeepSeek",
     tag: "Fast",
     agentCapable: true,
