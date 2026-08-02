@@ -69,6 +69,7 @@ export const multimodalModels = new Set([
   "accounts/fireworks/models/qwen3p7-plus",
   "accounts/fireworks/models/minimax-m3",
   "accounts/fireworks/models/kimi-k2p7-code",
+  "accounts/fireworks/models/kimi-k3",
 ]);
 
 /** Check if a model supports vision/multimodal input. */
@@ -117,8 +118,10 @@ export const PROVIDER_BASE_URLS: Record<ProviderName, string> = {
 export const MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
   "accounts/fireworks/models/glm-5p2": 131072,
   "accounts/fireworks/models/deepseek-v4-flash": 131072,
+  "accounts/fireworks/models/deepseek-v4-flash-0731": 131072,
   "accounts/fireworks/models/deepseek-v4-pro": 131072,
   "accounts/fireworks/models/kimi-k2p7-code": 32768,
+  "accounts/fireworks/models/kimi-k3": 131072,
   "accounts/fireworks/models/minimax-m3": 64000,
   "accounts/fireworks/models/qwen3p7-plus": 4000,
 };
@@ -160,6 +163,15 @@ export const defaultModels: ModelInfo[] = [
   {
     id: "accounts/fireworks/models/kimi-k2p7-code",
     label: "Kimi 2.7 Code",
+    vendor: "Kimi",
+    tag: "Strong Coder",
+    agentCapable: true,
+    multimodal: true,
+    provider: "fireworks",
+  },
+  {
+    id: "accounts/fireworks/models/kimi-k3",
+    label: "Kimi K3",
     vendor: "Kimi",
     tag: "Strong Coder",
     agentCapable: true,
