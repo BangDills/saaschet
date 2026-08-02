@@ -414,26 +414,27 @@ export async function POST(req: Request) {
     }
   }
 
-  // ── Build memory context from recent conversations ──────────────────
-  let memoryContext = "";
-  try {
-    const { data: recentConvs } = await supabase
-      .from("conversations")
-      .select("id, title, updated_at")
-      .eq("user_id", userId)
-      .neq("id", conversationId)
-      .order("updated_at", { ascending: false })
-      .limit(10);
-
-    if (recentConvs && recentConvs.length > 0) {
-      const summaries = recentConvs
-        .map((c) => `- "${c.title}" (${new Date(c.updated_at).toLocaleDateString()})`)
-        .join("\n");
-      memoryContext = `\n\n## Recent Conversation Memory\nThe user has had these recent conversations with you. Use this context to provide continuity and personalized responses:\n${summaries}`;
-    }
-  } catch (err) {
-    log.warn("memory context fetch failed", { err });
-  }
+  /*
+   * The ten most recent conversation titles used to be injected here, under
+   * "Use this context to provide continuity and personalized responses".
+   *
+   * Removed, because titles are derived from the user's own prompts and
+   * therefore carry whatever they were working on — including repository
+   * names. Observed: a brand new chat with no repository connected was asked
+   * "are you connected to a repo right now?" and answered correctly, then
+   * volunteered "BangDills/Celiuz-Vault" and "BangDills/prompt-extractor" out
+   * of nowhere. It was doing as instructed: the names were in its prompt and
+   * it had been told to use them for continuity.
+   *
+   * This was the only one of the three context sources with no relevance gate
+   * at all — the vector memories are top-5 above a similarity threshold, and
+   * the structured profile is a small curated object. Both remain, and both
+   * cover continuity better than an unfiltered list of headlines.
+   *
+   * If this is ever wanted back, scope it: titles from the SAME project, not
+   * every recent conversation. A global list is what leaks across projects.
+   */
+  const memoryContext = "";
 
   // ── Retrieve long-term vector memories ───────────────────────────────
   let vectorMemoryContext = "";
@@ -457,10 +458,25 @@ export async function POST(req: Request) {
     log.warn("structured memory fetch failed", { err });
   }
 
+  /*
+   * Tell the model the difference between "no repository selected" and "this
+   * product cannot read code".
+   *
+   * Without this it conflates them. Asked whether it was connected to a repo,
+   * it answered correctly and then added "I have no direct access to
+   * GitHub/Git repositories" — literally true of its current tool set (with no
+   * repo, tools is just Context7) but read by a user as a missing capability
+   * rather than an unset option.
+   */
+  const repoStateContext = repoSlug
+    ? `\n\n## Connected Repository\nThis conversation is connected to **${repoSlug}**. Your repository tools act on that repo and no other.`
+    : `\n\n## Connected Repository\nNo repository is connected to this conversation, so you cannot read or change any code right now — say exactly that if asked, and do not guess at which project the user means.\n\nThis is a setting, not a limitation: connecting a repository from the composer's + menu gives you tools to read, search, edit and open pull requests against it. Describe it that way rather than as something you are unable to do.`;
+
   // ── Build system prompt ──────────────────────────────────────────────
   let system =
     (body.system?.trim() || (wantsAgent ? AGENT_SYSTEM : DEFAULT_SYSTEM)) +
     memoryContext +
+    repoStateContext +
     vectorMemoryContext +
     structuredMemoryContext;
 
