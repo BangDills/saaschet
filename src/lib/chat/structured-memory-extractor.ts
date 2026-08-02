@@ -12,11 +12,12 @@ You will be given:
 2. The latest message exchange (User message & Assistant response).
 
 Your goal:
-- Extract persistent, absolute facts about the user (e.g. languages they prefer, frameworks, timezone, project name they are building, OS, package manager, styling habits).
+- Extract persistent, absolute facts about the USER (e.g. languages they prefer, frameworks they reach for, timezone, OS, package manager, styling habits).
 - Update the CURRENT JSON profile by modifying keys, adding new key-value pairs, or removing items that have become obsolete or corrected by the user.
-- Keep keys short, lowercase, and snake_case (e.g., "preferred_language", "package_manager", "current_project_name").
+- Keep keys short, lowercase, and snake_case (e.g., "preferred_language", "package_manager", "styling_library").
 - Keep values simple (strings, numbers, or arrays of strings).
-- Do NOT include temporary states (like "current_error" or "current_task"). Only include long-term profile data.
+- NEVER record which project or repository the user is working on. No "current_project_name", "project_repo", "github_repository", "default_branch" or anything like them. This profile is read on EVERY message, and the user switches between projects constantly, so such a key is wrong within hours and then contradicts the repository actually connected to the conversation — which the system already knows for certain. Facts about the user survive a project change; the name of a project does not.
+- Do NOT include temporary states (like "current_error" or "current_task"). Only long-term facts about the person.
 - Output ONLY the updated JSON profile object. Do not include markdown codeblocks, explanations, or wrappers. Output must be raw parseable JSON.
 
 Example Output:

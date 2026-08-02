@@ -54,20 +54,6 @@ export async function saveStructuredMemory(
   }
 }
 
-/**
- * Format the structured memory object into a readable markdown bulleted list for system prompt injection.
- */
-export function formatStructuredMemory(memory: Record<string, unknown>): string {
-  const keys = Object.keys(memory);
-  if (keys.length === 0) return "";
-
-  const lines = keys
-    .map((key) => {
-      const val = memory[key];
-      const stringifiedVal = typeof val === "object" ? JSON.stringify(val) : String(val);
-      return `- ${key}: ${stringifiedVal}`;
-    })
-    .join("\n");
-
-  return `\n\n## User Profile & Structured Preferences\n${lines}`;
-}
+// Re-exported so existing importers (the chat route) keep one import site,
+// while the logic lives in a module the selfcheck can actually load.
+export { formatStructuredMemory, isVolatileProfileKey } from "./structured-memory-format";
