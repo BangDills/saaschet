@@ -8,6 +8,7 @@ import {
   Lock,
   Search,
   Settings2,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -218,17 +219,49 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
   }
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative flex items-center">
+      {/* When a repo is connected the control reads as a filled chip in the
+          theme accent instead of a muted ghost button: the repo name is the
+          single highest-signal piece of composer state, yet it used to share
+          the exact "nothing connected" styling — and on mobile it was hidden
+          entirely (`hidden sm:inline`), which is how inherited-repo bugs
+          (ce47a7e) stayed invisible. The chip stays visible at every
+          breakpoint and gains a quick-detach ✕. */}
       <button
         type="button"
         onClick={() => setOpen((s) => !s)}
         title={value ? `Connected to ${value}` : "Select a GitHub repository"}
-        className="inline-flex h-8 min-w-8 items-center justify-center gap-1 rounded-lg px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+        className={cn(
+          "inline-flex h-8 min-w-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-medium transition-colors",
+          value
+            ? "border border-primary/25 bg-primary/10 text-primary hover:bg-primary/15"
+            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+        )}
       >
         <GitBranch className="size-4 shrink-0" />
-        <span className="hidden max-w-24 truncate sm:inline">{value ? value : "Repo"}</span>
+        {value ? (
+          <span className="max-w-28 truncate font-semibold sm:max-w-36">
+            {value}
+          </span>
+        ) : (
+          <span className="hidden sm:inline">Repo</span>
+        )}
         <ChevronDown className="hidden size-3 opacity-70 sm:block" />
       </button>
+      {value && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onChange(null);
+          }}
+          title={`Detach ${value}`}
+          aria-label={`Detach ${value}`}
+          className="-ml-1 inline-flex size-6 items-center justify-center rounded-md text-primary/70 transition-colors hover:bg-primary/15 hover:text-primary"
+        >
+          <X className="size-3.5" />
+        </button>
+      )}
 
       {open && (
         <div
