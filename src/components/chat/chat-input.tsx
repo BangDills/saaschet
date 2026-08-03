@@ -12,7 +12,9 @@ import {
 } from "lucide-react";
 import { ModelSelector } from "./model-selector";
 import { RepoSelector } from "./repo-selector";
+import { ModeSelector } from "./mode-selector";
 import type { ModelInfo } from "@/lib/chat/types";
+import type { TurnMode } from "@/lib/chat/mode";
 import { cn } from "@/lib/utils";
 
 export type ChatInputProps = {
@@ -40,6 +42,9 @@ export type ChatInputProps = {
   onDraftChange: (value: string) => void;
   /** Increment to move focus back to the composer. */
   focusRequestKey?: number;
+  /** Turn execution mode — Plan vs Execute, and Execute's auto vs ask-first. */
+  turnMode: TurnMode;
+  onTurnModeChange: (next: TurnMode) => void;
 };
 
 /**
@@ -70,6 +75,8 @@ export function ChatInput({
   draft,
   onDraftChange,
   focusRequestKey = 0,
+  turnMode,
+  onTurnModeChange,
 }: ChatInputProps) {
   const [selectedFile, setSelectedFile] = React.useState<{
     url: string;
@@ -343,6 +350,11 @@ export function ChatInput({
             <RepoSelector value={repo} onChange={onRepoChange} />
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
+            <ModeSelector
+              turnMode={turnMode}
+              onChange={onTurnModeChange}
+              agentMode={agentMode}
+            />
             <ModelSelector
               models={models}
               value={modelId}

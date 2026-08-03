@@ -38,6 +38,7 @@ import { generateFollowUps } from "@/lib/chat/turn/follow-ups";
 import { getDaytonaClient } from "@/lib/daytona/client";
 import { provisionSandbox, sandboxResourceHints } from "@/lib/daytona/provision";
 import { createSandboxTools, type SandboxContext } from "@/lib/daytona/sandbox-tools";
+import { parseTurnMode, gateWriteToolsForApproval } from "@/lib/chat/mode";
 import { createContext7Tools } from "@/lib/context7/tools";
 import type { Sandbox } from "@daytona/sdk";
 import {
@@ -175,6 +176,9 @@ type ChatRequestBody = {
   projectId?: string | null;
   /** Optional system prompt override. */
   system?: string;
+  /** Turn execution mode — see src/lib/chat/mode.ts. Plan restricts the agent
+   *  to read tools; Execute/ask marks write tools as needing approval. */
+  mode?: { phase?: string; exec?: string };
 };
 
 export async function POST(req: Request) {
@@ -227,6 +231,10 @@ export async function POST(req: Request) {
   // available in this mode through the agent's web_search tool.
   const wantsAgent = isAgentCapable(modelId) && !!repoSlug;
   const wantsWebSearch = body.webSearch === true || wantsAgent;
+  // Turn mode — Plan vs Execute, and Execute's auto vs ask-first. Plan is a
+  // hard server gate (read tools only), not a prompt promise; ask-first marks
+  // write tools needsApproval so the SDK never runs them without a UI approve.
+  const turnMode = parseTurnMode(body.mode);
 
   if (!conversationId) {
     return NextResponse.json(
@@ -523,6 +531,7 @@ export async function POST(req: Request) {
     ? (findExistingWorkBranch(messages) || generateWorkBranchName())
     : null;
 
+  const isPlanMode = wantsAgent && turnMode.phase === "plan";
   const githubTools = wantsAgent
     ? createAgentTools({
         repoSlug: repoSlug!,
@@ -533,6 +542,7 @@ export async function POST(req: Request) {
         context7Key: process.env.CONTEXT7_API_KEY ?? null,
         serenaUrl: process.env.SERENA_MCP_URL ?? null,
         serenaAuthToken: process.env.SERENA_MCP_TOKEN ?? null,
+        readOnly: isPlanMode,
         serenaAllowWriteTools:
           process.env.SERENA_ALLOW_WRITE_TOOLS === "true",
         workBranch: workBranch!,
@@ -556,11 +566,12 @@ If a model attempt is interrupted by provider rate limits, the next attempt must
 This repository is semantically indexed. Prefer \`search_codebase\` FIRST for exploratory questions about the codebase — it is faster and cheaper than crawling directories. Follow up with read_file on the reported paths when you need full file context.`;
   }
 
-  // Optionally add sandbox tools (code execution, terminal)
+  // Optionally add sandbox tools (code execution, terminal). Skipped entirely
+  // in Plan mode — the agent only reads, so no machine ever starts.
   let sandboxTools: ReturnType<typeof createSandboxTools> | undefined;
   const daytonaKey = process.env.DAYTONA_API_KEY;
 
-  if (wantsAgent && githubToken && daytonaKey) {
+  if (wantsAgent && githubToken && daytonaKey && !isPlanMode) {
     try {
       const daytona = getDaytonaClient();
 
@@ -685,9 +696,23 @@ When the user asks about library APIs, setup, migrations, or version-specific be
 
   // Merge all tools. Agent Mode includes GitHub tools, Context7, and optional
   // sandbox tools. Chat mode can still use Context7 without a connected repo.
-  const tools = githubTools
+  const mergedTools = githubTools
     ? { ...githubTools, ...(sandboxTools || {}) }
     : context7Tools;
+
+  // Ask-first gate (Execute/ask): wrap write tools with needsApproval so the
+  // SDK emits an approval request and never runs their execute until the user
+  // approves. Plan mode already removed write tools entirely, so this only
+  // ever applies to execute turns.
+  const tools =
+    wantsAgent && mergedTools
+      ? gateWriteToolsForApproval(mergedTools, turnMode.exec)
+      : mergedTools;
+
+  if (isPlanMode) {
+    system += `\n\n## Plan Mode (READ-ONLY)
+You are in PLAN mode. You only have read tools — no write, edit, delete, sandbox, or pull-request tools are available this turn. Do NOT attempt to modify anything. Instead: explore the repository with the read tools, then produce a clear, concrete implementation plan (files to change, what to change, in what order, and why) for the user to review. When the user approves the plan, they will switch to Execute mode to carry it out.`;
+  }
 
   // ── Stream the model response ────────────────────────────────────────
   // Route to the correct provider based on model id.

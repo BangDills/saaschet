@@ -41,6 +41,8 @@ export type ToolCallPart = {
   input?: unknown;
   output?: unknown;
   errorText?: string;
+  /** Present when state is "approval-requested" (ask-first mode). */
+  approval?: { id: string; isAutomatic?: boolean; reason?: string };
 };
 
 /** Tool display metadata: rich labels for each state. */

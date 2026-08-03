@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, type UIMessage } from "ai";
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses, type UIMessage } from "ai";
 import type { ChatMessage, ModelInfo } from "@/lib/chat/types";
+import type { TurnMode } from "@/lib/chat/mode";
 import {
   MessageBubble,
   type AnyPart,
@@ -222,6 +223,11 @@ export type ChatPanelProps = {
   onProjectIdChange: (next: string | null) => void;
   agentMode: boolean;
   onAssistantFinish?: () => void;
+  /** Turn execution mode — Plan vs Execute, and Execute's auto vs ask-first.
+   *  Forwarded to /api/chat as body.mode. Owned by the parent page so it
+   *  persists per conversation. */
+  turnMode: TurnMode;
+  onTurnModeChange: (next: TurnMode) => void;
 };
 
 export function ChatPanel({
@@ -239,6 +245,8 @@ export function ChatPanel({
   // the header, not the composer), so it's intentionally not destructured here.
   agentMode,
   onAssistantFinish,
+  turnMode,
+  onTurnModeChange,
 }: ChatPanelProps) {
   // Refs for the transport body callback.
   const modelIdRef = React.useRef(modelId);
@@ -246,6 +254,7 @@ export function ChatPanel({
   const conversationIdRef = React.useRef(conversationId);
   const repoRef = React.useRef(repo);
   const projectIdRef = React.useRef(projectId);
+  const turnModeRef = React.useRef(turnMode);
   // Mirror of the latest `messages` from useChat, read inside onFinish where
   // the closure would otherwise be stale. Used to persist the assistant
   // message (with full parts) to the server after the stream finishes.
@@ -273,6 +282,9 @@ export function ChatPanel({
   React.useEffect(() => {
     projectIdRef.current = projectId;
   }, [projectId]);
+  React.useEffect(() => {
+    turnModeRef.current = turnMode;
+  }, [turnMode]);
 
 
   // The body callback is invoked at send-time (deferred), NOT during
@@ -287,6 +299,7 @@ export function ChatPanel({
           webSearch: webSearchRef.current,
           repo: repoRef.current,
           projectId: projectIdRef.current,
+          mode: turnModeRef.current,
         }),
       }),
     [],
@@ -321,6 +334,7 @@ export function ChatPanel({
     messages,
     setMessages,
     sendMessage,
+    addToolApprovalResponse,
     regenerate,
     clearError,
     status,
@@ -343,6 +357,9 @@ export function ChatPanel({
     // In chat mode the streaming text is hidden behind a pill so we can
     // throttle aggressively. Pick the rate at construction time.
     experimental_throttle: agentMode ? 80 : 250,
+    // Ask-first mode: after the user answers every approval in the last
+    // assistant step, automatically send the turn so the approved tool runs.
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
   });
 
   // Keep the messages mirror ref in sync every render.
@@ -927,6 +944,8 @@ export function ChatPanel({
     draft,
     onDraftChange: setDraft,
     focusRequestKey,
+    turnMode,
+    onTurnModeChange,
   } as const;
 
   return (
@@ -955,6 +974,9 @@ export function ChatPanel({
                       }
                       taskType={meta?.agentState?.taskType}
                       onToolActionPrompt={handleToolActionPrompt}
+                      onToolApproval={(approvalId, approved) =>
+                        addToolApprovalResponse({ id: approvalId, approved })
+                      }
                       feedback={feedbackByMessage[m.id] ?? null}
                       feedbackPending={pendingFeedbackIds.has(m.id)}
                       feedbackError={feedbackErrors[m.id] ?? null}

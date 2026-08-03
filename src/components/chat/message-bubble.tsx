@@ -60,6 +60,8 @@ export type MessageBubbleProps = {
   taskType?: string;
   /** Callback to submit a tool action prompt. */
   onToolActionPrompt?: (text: string) => void;
+  /** Ask-first mode: approve/deny a write tool waiting for confirmation. */
+  onToolApproval?: (approvalId: string, approved: boolean) => void;
   /** Retry the preceding user request. */
   onRetry?: () => void;
   /** Persisted feedback for this assistant message. */
@@ -82,12 +84,15 @@ function AssistantParts({
   durationMs,
   taskType,
   onToolActionPrompt,
+  onToolApproval,
 }: {
   parts: AnyPart[];
   streaming?: boolean;
   durationMs?: number;
   taskType?: string;
   onToolActionPrompt?: (text: string) => void;
+  /** Ask-first mode: approve/deny a write tool waiting for confirmation. */
+  onToolApproval?: (approvalId: string, approved: boolean) => void;
 }) {
   const toolParts = parts.filter(isToolPart);
   const allTextParts = parts.filter(
@@ -122,6 +127,35 @@ function AssistantParts({
           onActionPrompt={onToolActionPrompt}
         />
       )}
+      {/* Ask-first gate: any write tool waiting for user confirmation gets an
+          approve/deny control right after the activity timeline. */}
+      {toolParts
+        .filter((p) => p.state === "approval-requested" && p.approval?.id)
+        .map((p) => (
+          <div
+            key={p.toolCallId}
+            className="my-2 flex items-center gap-3 rounded-xl border border-sky-500/30 bg-sky-500/5 px-3 py-2.5 text-sm"
+          >
+            <span className="min-w-0 flex-1 truncate">
+              <span className="font-medium">Jalankan {p.toolName ?? p.type.replace(/^tool-/, "")}?</span>
+              <span className="ml-2 text-muted-foreground">mode Tanya dulu — aksi ini mengubah sesuatu</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => onToolApproval?.(p.approval!.id, false)}
+              className="h-8 shrink-0 rounded-lg border border-border px-3 text-xs font-medium hover:bg-accent"
+            >
+              Tolak
+            </button>
+            <button
+              type="button"
+              onClick={() => onToolApproval?.(p.approval!.id, true)}
+              className="h-8 shrink-0 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground hover:opacity-90"
+            >
+              Setujui
+            </button>
+          </div>
+        ))}
       {pullRequest && <PullRequestCard pr={pullRequest} />}
       {textParts.map((part, index) => {
         const segments = parseReasoningSegments(part.text || "");
@@ -167,6 +201,7 @@ function MessageBubbleImpl({
   durationMs,
   taskType,
   onToolActionPrompt,
+  onToolApproval,
   onRetry,
   feedback,
   feedbackPending = false,
@@ -257,6 +292,7 @@ function MessageBubbleImpl({
               durationMs={durationMs}
               taskType={taskType}
               onToolActionPrompt={onToolActionPrompt}
+              onToolApproval={onToolApproval}
             />
             {streaming && <StreamingBars />}
           </>

@@ -60,6 +60,9 @@ export type AgentContext = {
   workBranch: string;
   /** Tracks branches we've created within this run (idempotent). */
   branchesCreated: Set<string>;
+  /** When true, only read tools are returned (Plan mode) — the agent is
+   *  physically unable to write, not merely told not to. */
+  readOnly?: boolean;
 };
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -552,7 +555,11 @@ export function createAgentTools(ctx: AgentContext) {
       : {}),
   };
 
-  if (!ctx.githubToken) {
+  // Read-only when there's no write credential, or when the turn is in Plan
+  // mode — the agent must be physically unable to write, not merely told not
+  // to. Both paths return the same read-only set so the model only ever sees
+  // tools that cannot mutate the repo or run anything.
+  if (!ctx.githubToken || ctx.readOnly) {
     return readTools;
   }
 

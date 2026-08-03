@@ -6,6 +6,7 @@ import { ChatPanel } from "@/components/chat/chat-panel";
 import { newId } from "@/lib/chat/storage";
 import type { ChatMessage, Conversation, ModelInfo, Project } from "@/lib/chat/types";
 import { defaultModelId, defaultModels } from "@/lib/chat/models";
+import { DEFAULT_TURN_MODE, type TurnMode } from "@/lib/chat/mode";
 import {
   Check,
   ChevronDown,
@@ -39,6 +40,8 @@ type ActivePanel = {
 type ConversationGroup = readonly [string, Conversation[]];
 
 const LS_KEY = "celiuz:lastConversationId";
+/** Per-conversation turn mode (Plan/Execute) — keyed by conversation id. */
+const MODE_LS_PREFIX = "celiuz:turnMode:";
 const MAX_TITLE_LENGTH = 100;
 
 function freshPanel(): ActivePanel {
@@ -188,8 +191,23 @@ export default function AIChatPage() {
   const [modelId, setModelId] = React.useState(defaultModelId);
   const [webSearch, setWebSearch] = React.useState(false);
   const [repo, setRepo] = React.useState<string | null>(null);
+  // Turn execution mode (Plan / Execute·Auto / Execute·Tanya dulu). Persisted
+  // per conversation in localStorage keyed by conversation id, so a Plan
+  // session stays Plan when reopened — and a brand-new chat starts at the
+  // safe default (Execute·Auto).
+  const [turnMode, setTurnModeState] = React.useState<TurnMode>(DEFAULT_TURN_MODE);
   const currentModel = models.find((model) => model.id === modelId);
   const agentMode = !!currentModel?.agentCapable && !!repo;
+
+  // Wrap the setter so every change is also persisted for this conversation.
+  const activeConvIdRef = React.useRef<string | null>(null);
+  const setTurnMode = React.useCallback((next: TurnMode) => {
+    setTurnModeState(next);
+    try {
+      const id = activeConvIdRef.current;
+      if (id) localStorage.setItem(`${MODE_LS_PREFIX}${id}`, JSON.stringify(next));
+    } catch {}
+  }, []);
 
   // Projects the user has created (for the selector + history grouping).
   const [projects, setProjects] = React.useState<Project[]>([]);
@@ -350,6 +368,13 @@ export default function AIChatPage() {
       if (conversation.modelId) setModelId(conversation.modelId);
       setRepo(conversation.githubRepo ?? null);
       setActiveConvProjectId(conversation.projectId ?? null);
+      // Restore the per-conversation turn mode (Plan/Execute); default when absent.
+      try {
+        const raw = localStorage.getItem(`${MODE_LS_PREFIX}${conversation.id}`);
+        setTurnMode(raw ? (JSON.parse(raw) as TurnMode) : DEFAULT_TURN_MODE);
+      } catch {
+        setTurnMode(DEFAULT_TURN_MODE);
+      }
       setActive({ conversationId: conversation.id, initialMessages: conversation.messages });
       setHistoryOpen(false);
       setMenuId(null);
@@ -358,7 +383,7 @@ export default function AIChatPage() {
     } finally {
       setPendingId(null);
     }
-  }, []);
+  }, [setTurnMode]);
 
   React.useEffect(() => {
     let timeout: number | undefined;
@@ -680,6 +705,8 @@ export default function AIChatPage() {
           onProjectIdChange={setNewChatProjectId}
           agentMode={agentMode}
           onAssistantFinish={reloadConversations}
+          turnMode={turnMode}
+          onTurnModeChange={setTurnMode}
         />
       </section>
 
