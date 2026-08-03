@@ -5,7 +5,7 @@
  * Follows the project's selfcheck pattern (plain asserts, exit non-zero on failure).
  */
 
-import { chunkFile, isIndexablePath, looksBinary } from "./chunk";
+import { chunkFile, isIndexablePath, isSecretPath, looksBinary } from "./chunk";
 
 let failures = 0;
 
@@ -75,6 +75,24 @@ console.log("secret exclusion");
   check("secrets.json skipped despite .json being indexable", !isIndexablePath("secrets.json"));
   check(".env.json skipped despite .json being indexable", !isIndexablePath("config/.env.json"));
   check(".env.yaml skipped despite .yaml being indexable", !isIndexablePath("deploy/.env.yaml"));
+
+  // Tested head-on as well, because through isIndexablePath these branches are
+  // unreachable-by-effect: the allowlist already rejects a .pem or an id_rsa,
+  // so deleting them changes no observable behaviour today. They are the
+  // defence that survives someone widening the allowlist later, and that only
+  // holds if something actually pins them.
+  check("isSecretPath: .env", isSecretPath(".env"));
+  check("isSecretPath: nested .env.production", isSecretPath("packages/api/.env.production"));
+  check("isSecretPath: .pem", isSecretPath("certs/private.pem"));
+  check("isSecretPath: .key", isSecretPath("certs/app.key"));
+  check("isSecretPath: .p12", isSecretPath("certs/bundle.p12"));
+  check("isSecretPath: .pfx", isSecretPath("certs/bundle.pfx"));
+  check("isSecretPath: id_rsa", isSecretPath("ssh/id_rsa"));
+  check("isSecretPath: id_ed25519", isSecretPath("ssh/id_ed25519"));
+  check("isSecretPath: secrets.json", isSecretPath("secrets.json"));
+  check("isSecretPath: case-insensitive", isSecretPath("CERTS/PRIVATE.PEM"));
+  check("isSecretPath: ordinary source file is not a secret", !isSecretPath("src/lib/env.ts"));
+  check("isSecretPath: environment.ts is not a secret", !isSecretPath("src/environment.ts"));
 }
 
 console.log("looksBinary");

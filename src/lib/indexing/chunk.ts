@@ -31,8 +31,15 @@ const INDEXABLE_EXTENSIONS = new Set([
 ]);
 
 /** Paths that must NEVER be embedded — secrets and env files. Matching is
- *  on the basename so nested paths are covered too. */
-function isSecretPath(path: string): boolean {
+ *  on the basename so nested paths are covered too.
+ *
+ *  Exported so the selfcheck can test it head-on. Reached only through
+ *  isIndexablePath, most of these branches cannot change any outcome: nothing
+ *  ending in .pem or .key carries an allowlisted extension, so the allowlist
+ *  rejects those files first and a regression in here would be invisible. What
+ *  the allowlist does NOT cover is a secret wearing an indexable extension —
+ *  secrets.json, .env.json — and that is the case worth guarding. */
+export function isSecretPath(path: string): boolean {
   const base = path.split("/").pop()?.toLowerCase() ?? "";
   return (
     base.startsWith(".env") || // .env, .env.local, .env.production…

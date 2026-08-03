@@ -6,6 +6,7 @@ import {
   mapInstallationRepo,
   sortReposByRecency,
 } from "./installation-repos";
+import { runSelfcheck } from "../selfcheck/watchdog";
 
 /**
  * Guard for the bug where installing the App on ONE repository looked exactly
@@ -93,6 +94,23 @@ async function main(): Promise<void> {
     );
     check(repos[0].isPrivate === true, "private flag survives mapping");
     check(repos[0].primaryLanguage === "TypeScript", "language survives mapping");
+  }
+
+  /* ── Repos with metadata missing entirely ────────────────────────────────── */
+
+  {
+    // GitHub omits fields on some repos (and the mirror fallback has none of
+    // them at all). Every default here was unpinned: the fixtures above always
+    // supply metadata, so bumping `?? 0` to `?? 1` changed nothing.
+    const [bare] = await fetchInstallationRepos(42, {
+      tokenFor: async () => "t",
+      fetchImpl: async () => ok({ repositories: [{ id: 5, full_name: "acme/bare" }] }),
+    });
+    check(bare.stars === 0, "a repo with no stargazers_count reports 0 stars");
+    check(bare.primaryLanguage === null, "a repo with no language reports null");
+    check(bare.isPrivate === false, "a repo with no private flag is treated as public");
+    check(bare.isFork === false, "a repo with no fork flag is treated as a source repo");
+    check(bare.description === null, "a repo with no description reports null");
   }
 
   /* ── Pagination: a selected-repo install is small, an org install is not ── */
@@ -183,7 +201,4 @@ async function main(): Promise<void> {
   console.log(`PASS installation-repos selfcheck (${checks} checks)`);
 }
 
-main().catch((err) => {
-  console.error("FAIL: selfcheck threw", err);
-  process.exit(1);
-});
+runSelfcheck(main, "installation-repos selfcheck");

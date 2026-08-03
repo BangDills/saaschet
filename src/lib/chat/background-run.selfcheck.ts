@@ -1,6 +1,7 @@
 import type { UIMessage, UIMessageChunk } from "ai";
 import { driveRunInBackground } from "./background-run";
 import { createRun, subscribeToRun, type AgentRun } from "./run-registry";
+import { runSelfcheck } from "../selfcheck/watchdog";
 
 function assert(cond: unknown, msg: string): void {
   if (!cond) {
@@ -201,4 +202,4 @@ async function main() {
   console.log("PASS: 7/7 background-run selfcheck cases (survives a closed tab)");
 }
 
-void main();
+runSelfcheck(main, "background-run selfcheck");

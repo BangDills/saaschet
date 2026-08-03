@@ -1,5 +1,6 @@
 import type { Sandbox } from "@daytona/sdk";
 import { execCommand, isSandboxGone, type SandboxContext } from "./sandbox-tools";
+import { runSelfcheck } from "../selfcheck/watchdog";
 
 /**
  * Self-healing sandbox: control-flow regression checks.
@@ -120,6 +121,18 @@ async function main(): Promise<void> {
   check(!isSandboxGone({ statusCode: 500 }), "500 is not a lost sandbox");
   check(!isSandboxGone(null), "null is safe");
   check(!isSandboxGone("gone"), "non-object is safe");
+  // The message test ANDs two substrings. Every negative case above contains
+  // neither word, so relaxing that AND to an OR — which makes any message
+  // merely mentioning a sandbox trigger a mid-turn replacement — passed the
+  // entire suite. These two pin each half of it.
+  check(
+    !isSandboxGone(new Error("sandbox is still starting")),
+    "a message that only mentions a sandbox is NOT a lost sandbox",
+  );
+  check(
+    !isSandboxGone(new Error("branch main not found")),
+    "a message that only says 'not found' is NOT a lost sandbox",
+  );
 
   /* ── execCommand: heal, re-clone, retry once ──────────────────────────── */
 
@@ -291,4 +304,4 @@ async function main(): Promise<void> {
   console.log(`PASS: ${checks} sandbox self-healing checks`);
 }
 
-void main();
+runSelfcheck(main, "sandbox-heal selfcheck");

@@ -129,6 +129,27 @@ assert(validatingGroup!.status === "needs-attention", "mixed: needs-attention st
 assert(validatingGroup!.needsAttentionCount === 1, "mixed: 1 needs attention");
 assert(mixed.needsAttention === 1, "mixed: timeline needsAttention 1");
 
+// 3b. isItemDone, pinned at both of its clauses. Every fixture above carries an
+// output, so the flag looked covered while neither half was actually tested:
+// flipping its `===` and relaxing its `&&` to `||` both passed the suite.
+const doneByState = buildTimeline([
+  mkPart("read_file", "output-available", { input: { path: "a.ts" } }),
+]);
+assert(
+  doneByState.groups[0].items[0].isDone === true,
+  "output-available is done on the strength of the state, even with no output payload",
+);
+const errorWithoutOutput = buildTimeline([
+  mkPart("read_file", "output-error", {
+    input: { path: "a.ts" },
+    errorText: "boom",
+  }),
+]);
+assert(
+  errorWithoutOutput.groups[0].items[0].isDone === false,
+  "a non-running part that produced no output is NOT done",
+);
+
 // 4. grep exit code 1 (no matches) is NOT a failure — user outcome, not exit code
 const grepNoMatch = buildTimeline([
   mkPart("run_command", "output-available", {

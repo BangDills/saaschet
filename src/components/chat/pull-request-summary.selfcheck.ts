@@ -66,6 +66,26 @@ assert(
     ),
   ]) === null,
 );
+// Half a result is not a result. The existing case above omits url AND number,
+// so the guard's `||` could be relaxed to `&&` and still pass — and then a
+// payload carrying only one of the two rendered a PR card linking to
+// "undefined" or numbered NaN.
+assert(
+  "url without number → null",
+  extractPullRequest([
+    part(
+      "create_pull_request",
+      { title: "x" },
+      { success: true, url: "https://github.com/u/r/pull/12" },
+    ),
+  ]) === null,
+);
+assert(
+  "number without url → null",
+  extractPullRequest([
+    part("create_pull_request", { title: "x" }, { success: true, number: 12 }),
+  ]) === null,
+);
 assert(
   "still-running PR call → null",
   extractPullRequest([

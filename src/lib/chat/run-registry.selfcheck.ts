@@ -10,6 +10,7 @@ import {
   activeRunCount,
   type AgentRun,
 } from "./run-registry";
+import { runSelfcheck } from "../selfcheck/watchdog";
 
 function assert(cond: unknown, msg: string): void {
   if (!cond) {
@@ -156,7 +157,19 @@ async function main() {
     getResumableRun(truncated.conversationId, "user-1") === null,
     "truncated run is not resumable (falls back to DB reload)",
   );
+  // getRunForConversation gates DELETE /api/chat/[id]/stream — the stop button.
+  // Only its happy path was pinned, so collapsing its `||` chain to `&&` (which
+  // hands any caller someone else's run) passed every case here. Stopping
+  // another user's generation only needs their conversation id.
+  assert(
+    getRunForConversation(truncated.conversationId, "user-2") === null,
+    "stop lookup refuses a run owned by another user",
+  );
   endRun(truncated, "completed");
+  assert(
+    getRunForConversation(truncated.conversationId, "user-1") === null,
+    "stop lookup refuses a finished run",
+  );
 
   // 13. Oversized output trips truncation instead of growing without bound.
   const big = newRun();
@@ -177,4 +190,4 @@ async function main() {
   console.log("PASS: 14/14 run-registry selfcheck cases (detached runs + resume)");
 }
 
-void main();
+runSelfcheck(main, "run-registry selfcheck");

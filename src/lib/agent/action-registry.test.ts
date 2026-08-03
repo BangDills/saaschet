@@ -89,6 +89,49 @@ const noMessage = resolveActions({
 });
 check(noMessage[0].message === "Lanjutkan audit", "empty message falls back to label");
 
+// A SINGLE planner action still outranks generated follow-ups. The fixtures
+// above all supply two, so the `length > 0` gate that enforces the priority was
+// never pinned — raising it to `> 1` silently demoted one-action turns.
+const onePlanner = resolveActions({
+  ...base,
+  taskType: "git",
+  status: "completed",
+  suggestedActions: ["Merge PR #21"],
+  followUps: [{ label: "Diabaikan", message: "tidak dipakai" }],
+});
+check(onePlanner.length === 1, "a single planner action is still returned");
+check(onePlanner[0].label === "Merge PR #21", "one planner action outranks follow-ups");
+
+// Follow-ups arrive from a model, so malformed entries are a real input, not a
+// hypothetical. They must be dropped — not crash the resolver. Relaxing the
+// filter's `&&` to `||` lets a non-string label through to `.trim()`, which
+// throws while rendering the chips; no fixture here had ever been malformed.
+const malformed = resolveActions({
+  ...base,
+  taskType: "cooking",
+  status: "completed",
+  followUps: [
+    null,
+    undefined,
+    { label: 42 },
+    { label: null, message: "orphan" },
+    { label: "  ", message: "blank" },
+    { label: "Valid", message: "kirim ini" },
+  ] as unknown as AgentCompletionState["followUps"],
+});
+check(malformed.length === 1, `malformed follow-ups are dropped (got ${malformed.length})`);
+check(malformed[0].label === "Valid", "the one well-formed follow-up survives");
+
+// One-character labels are legitimate; the length gates must be "non-empty",
+// not "longer than one".
+const shortLabel = resolveActions({
+  ...base,
+  taskType: "cooking",
+  status: "completed",
+  suggestedActions: ["Y"],
+});
+check(shortLabel.length === 1, "a one-character planner label is kept");
+
 // 3. There is no third tier. A taskType that once had canned registry labels
 // now yields nothing, which is the point: the inferred taskType "audit" used to
 // offer "Perbaiki seluruh temuan audit" on a turn about image generation.
@@ -244,6 +287,20 @@ check(parseOptionsPayload("") === null, "empty text -> null");
 check(parseOptionsPayload(null) === null, "null text -> null");
 check(parseOptionsPayload("no json here at all") === null, "prose only -> null");
 check(parseOptionsPayload('{"options":[{"label":"broken"') === null, "truncated JSON -> null");
+
+// An object that starts at index 0 but has prose glued straight onto its
+// closing brace. Two separate steps have to be exact for this to work: the
+// backscan for the opening brace must be able to reach index 0, and the slice
+// must stop ON the closing brace. Neither was pinned — every fixture either put
+// the object mid-string or left only whitespace after it, and JSON.parse
+// tolerates trailing whitespace, so both off-by-ones passed the suite.
+const gluedTail = parseOptionsPayload(
+  '{"options":[{"label":"Deploy","message":"Deploy sekarang"}]}. Semoga membantu.',
+);
+check(
+  normalizeFollowUps(gluedTail).length === 1,
+  "object at index 0 with prose glued to the closing brace still parses",
+);
 
 // Asked for {"options":[…]}, models sometimes return the bare list instead.
 const bareArray = parseOptionsPayload('[{"label":"Rollback","message":"Rollback rilis."}]');
