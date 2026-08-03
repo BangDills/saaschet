@@ -105,6 +105,20 @@ export function ChatInput({
     };
   }, [selectedFile]);
 
+  // Mobile = below the sm breakpoint (matches the Tailwind `sm:` classes used
+  // across the composer). On mobile, Enter inserts a newline and sending moves
+  // to the dedicated button in the bottom bar — on a phone keyboard Enter is
+  // the only way to make a new line, so treating it as "send" makes multi-line
+  // messages impossible. Desktop keeps Enter-to-send.
+  const [isMobile, setIsMobile] = React.useState(false);
+  React.useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
   // Close the attach menu on outside click / Escape.
   React.useEffect(() => {
     if (!attachOpen) return;
@@ -159,7 +173,9 @@ export function ChatInput({
 
   function handleKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-    if (e.key === "Enter" && !e.shiftKey) {
+    // On mobile Enter means "new line" (there's no Shift+Enter on a phone
+    // keyboard); sending is the bottom-bar button. Desktop keeps Enter-to-send.
+    if (e.key === "Enter" && !e.shiftKey && !isMobile) {
       e.preventDefault();
       send();
     }
@@ -260,32 +276,6 @@ export function ChatInput({
           style={{ minHeight: "104px" }}
         />
 
-        {isStreaming ? (
-          <button
-            type="button"
-            onClick={onStop}
-            aria-label="Stop generation"
-            className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-xl bg-secondary text-secondary-foreground transition-colors hover:opacity-90"
-          >
-            <Square className="size-4 fill-current" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={send}
-            disabled={!canSend}
-            aria-label="Send message"
-            className={cn(
-              "absolute right-3 top-3 flex size-9 items-center justify-center rounded-xl transition-colors",
-              canSend
-                ? "bg-primary text-primary-foreground hover:opacity-90"
-                : "bg-muted text-muted-foreground",
-            )}
-          >
-            <ArrowUp className="size-4" />
-          </button>
-        )}
-
         <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-0.5">
             {/* "+" attach menu — Hyperagent-style. Upload file + Web search
@@ -352,16 +342,47 @@ export function ChatInput({
 
             <RepoSelector value={repo} onChange={onRepoChange} />
           </div>
-          <ModelSelector
-            models={models}
-            value={modelId}
-            onChange={(nextModelId) => {
-              const nextModel = models.find((model) => model.id === nextModelId);
-              if (!nextModel?.multimodal) clearFile();
-              onModelChange(nextModelId);
-            }}
-            agentMode={agentMode}
-          />
+          <div className="flex shrink-0 items-center gap-1.5">
+            <ModelSelector
+              models={models}
+              value={modelId}
+              onChange={(nextModelId) => {
+                const nextModel = models.find((model) => model.id === nextModelId);
+                if (!nextModel?.multimodal) clearFile();
+                onModelChange(nextModelId);
+              }}
+              agentMode={agentMode}
+            />
+            {/* Send / stop lives at the far right of the bottom bar, after the
+                model pill — it used to float at the top-right corner, separate
+                from the other controls. On mobile it's the only send path
+                (Enter is a newline there), so it belongs with the rest. */}
+            {isStreaming ? (
+              <button
+                type="button"
+                onClick={onStop}
+                aria-label="Stop generation"
+                className="flex size-8 items-center justify-center rounded-xl bg-secondary text-secondary-foreground transition-colors hover:opacity-90"
+              >
+                <Square className="size-4 fill-current" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={send}
+                disabled={!canSend}
+                aria-label="Send message"
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-xl transition-colors",
+                  canSend
+                    ? "bg-primary text-primary-foreground hover:opacity-90"
+                    : "bg-muted text-muted-foreground",
+                )}
+              >
+                <ArrowUp className="size-4" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
