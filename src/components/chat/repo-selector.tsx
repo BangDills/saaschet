@@ -240,9 +240,17 @@ export function RepoSelector({ value, onChange }: RepoSelectorProps) {
       >
         <GitBranch className="size-4 shrink-0" />
         {value ? (
-          <span className="max-w-28 truncate font-semibold sm:max-w-36">
-            {value}
-          </span>
+          <>
+            {/* Mobile shows just the repo name — the owner segment was what
+                pushed the chip into the model pill on narrow screens. Full
+                owner/name returns at ≥sm. */}
+            <span className="max-w-32 truncate font-semibold sm:hidden">
+              {value.split("/").pop()}
+            </span>
+            <span className="hidden max-w-36 truncate font-semibold sm:inline">
+              {value}
+            </span>
+          </>
         ) : (
           <span className="hidden sm:inline">Repo</span>
         )}

@@ -81,12 +81,19 @@ export function ModelSelector({
             : "inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-accent",
         )}
       >
+        {/* Mobile: only the vendor logo + chevron — the vendor badge and full
+            label used to render at every breakpoint, which is what collided
+            with the repo chip on narrow screens. The full label returns at
+            ≥sm. */}
+        <span className="sm:hidden">
+          <ProviderLogo vendor={current?.vendor ?? ""} />
+        </span>
         {variant === "default" && (
-          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+          <span className="hidden rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground sm:inline">
             {current?.vendor ?? "Model"}
           </span>
         )}
-        <span className="truncate">
+        <span className="hidden truncate sm:inline">
           {current?.label ?? "Select model"}
         </span>
         <ChevronDown className="size-3.5 opacity-70" />
