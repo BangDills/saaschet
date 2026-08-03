@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, ClipboardList, ShieldQuestion, Zap } from "lucide-react";
+import { Check, ChevronDown, ClipboardList, ShieldQuestion, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TurnMode } from "@/lib/chat/mode";
 
@@ -135,7 +135,7 @@ export function ModeSelector({ turnMode, onChange, agentMode }: ModeSelectorProp
                   </span>
                 </span>
                 {isActive && (
-                  <span className="ml-auto text-primary">●</span>
+                  <Check className="ml-auto size-4 shrink-0 text-primary" />
                 )}
               </button>
             );
