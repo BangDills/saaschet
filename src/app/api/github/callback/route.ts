@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveOrigin } from "@/lib/url";
 import { createAppJwt } from "@/lib/github/app-auth";
+import { syncInstallationRepos } from "@/lib/github/installation-repos-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -111,10 +112,18 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // When the user picked specific repos, record which ones so the repo
-  // picker and agent can answer "what can you see?" without an API call.
-  // (This also runs on setup_action=update redirects, keeping us in sync.)
-  await syncInstallationRepos(row.id, installationId);
+  // Mirror the visible repo list so a later GitHub hiccup degrades the picker
+  // instead of blanking it. (This also runs on setup_action=update redirects.)
+  // A failure here is NOT fatal: the picker asks GitHub live, so we log and
+  // continue rather than telling the user the connection failed.
+  try {
+    await syncInstallationRepos(row.id, installationId);
+  } catch (err) {
+    console.error(
+      "[github/callback] repo mirror sync failed:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
 
   // Backfill github_username for display purposes.
   await admin
@@ -129,48 +138,4 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.redirect(`${origin}/ai-chat?github=connected`);
-}
-
-/**
- * Replace the stored repo list for an installation with GitHub's current
- * answer. Used by both this callback and the webhook.
- */
-export async function syncInstallationRepos(
-  rowId: string,
-  installationId: number,
-): Promise<void> {
-  const res = await fetch(
-    `https://api.github.com/app/installations/${installationId}/repositories?per_page=100`,
-    {
-      headers: {
-        Authorization: `Bearer ${createAppJwt()}`,
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "celiuz-ai",
-      },
-      cache: "no-store",
-    },
-  );
-  if (!res.ok) return;
-
-  const json = (await res.json()) as {
-    repositories: Array<{ id: number; full_name: string; private: boolean }>;
-  };
-
-  const admin = createAdminClient();
-  await admin
-    .from("github_installation_repos")
-    .delete()
-    .eq("installation_id", rowId);
-
-  if (json.repositories.length > 0) {
-    await admin.from("github_installation_repos").insert(
-      json.repositories.map((r) => ({
-        installation_id: rowId,
-        repo_id: r.id,
-        full_name: r.full_name,
-        is_private: r.private,
-      })),
-    );
-  }
 }
