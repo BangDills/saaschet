@@ -255,9 +255,8 @@ export async function POST(req: Request) {
   const userText = lastUserText(messages);
 
   // ── Resolve the GitHub token for this turn ─────────────────────────
-  // GitHub App installations take priority (per-repo, 1-hour tokens);
-  // the legacy OAuth token in profiles.github_token remains as fallback
-  // until the Phase 3 cutover. Null → read-only public repo access.
+  // App installations are the only source post-cutover: per-repo, 1-hour
+  // tokens minted on demand. Null → read-only public repo access.
   const ghAuth = await resolveGitHubAuth(userId, repoSlug ?? undefined);
   const githubToken: string | undefined = ghAuth.token ?? undefined;
 
@@ -627,7 +626,7 @@ This repository is semantically indexed. Prefer \`search_codebase\` FIRST for ex
       const sandboxCtx: SandboxContext = {
         sandbox: null,
         repoSlug: repoSlug!,
-        githubToken: githubToken || process.env.GITHUB_TOKEN || "",
+        githubToken: githubToken || "",
         repoCloned: false,
         provisionSandbox: acquireSandbox,
         onSandboxCreated: (next) => {

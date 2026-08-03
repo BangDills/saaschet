@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
  *
  * Disconnects GitHub for the current user, whichever mechanism they're on:
  * deletes GitHub App installation rows (metadata only — installation tokens
- * expire on their own within the hour) and clears the legacy OAuth token.
+ * expire on their own within the hour) and clears the cached username.
  *
  * Note: this does NOT uninstall the App on GitHub's side. Users can do that
  * themselves at https://github.com/settings/installations — and our webhook
@@ -42,11 +42,13 @@ export async function POST() {
     );
   }
 
-  // Legacy path: clear the stored OAuth token (no-op for App-only users).
+  // Clear the cached display name. `github_token` used to be cleared here too;
+  // 0029 dropped that column, and writing to a column that no longer exists
+  // makes PostgREST reject the whole update — which turned this endpoint into a
+  // 500 and left the Disconnect button unable to disconnect anything.
   const { error } = await admin
     .from("profiles")
     .update({
-      github_token: null,
       github_username: null,
       updated_at: new Date().toISOString(),
     })

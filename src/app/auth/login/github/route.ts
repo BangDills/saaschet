@@ -17,15 +17,18 @@ export const dynamic = "force-dynamic";
  * 2. **User is already signed in** (e.g. signed up via email/password,
  *    now wants to connect their GitHub account from inside the app) →
  *    calls `linkIdentity`. After GitHub approval the GitHub identity
- *    becomes a second identity on the existing user's profile, the
- *    session is preserved, and `profiles.github_token` gets populated
- *    in the callback handler.
+ *    becomes a second identity on the existing user's profile and the
+ *    session is preserved. Repo access is NOT granted here — that is the
+ *    GitHub App's job (/api/github/install).
  *
- * Scopes requested:
+ * Scopes requested — identity only:
  * - `read:user`     — basic profile
  * - `user:email`    — primary email
- * - `public_repo`   — read access to the user's public repos (also gives
- *                     the 5000 req/hour rate limit for content fetching)
+ *
+ * This used to also ask for `repo workflow`, i.e. read/write on every private
+ * repo plus Actions. Nothing ever used it: the provider token stays inside
+ * Supabase's session and is never persisted, and all repo work goes through
+ * installation tokens. It was a full-write consent screen bought for nothing.
  *
  * IMPORTANT: For path 2 to work, **"Manual Linking" must be enabled** in
  * Supabase: Dashboard → Authentication → Settings → toggle
@@ -48,7 +51,7 @@ export async function GET(request: NextRequest) {
       provider: "github",
       options: {
         redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
-        scopes: "read:user user:email repo workflow",
+        scopes: "read:user user:email",
         queryParams: {
           prompt: "consent",
         },
@@ -76,7 +79,7 @@ export async function GET(request: NextRequest) {
     provider: "github",
     options: {
       redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
-      scopes: "read:user user:email repo workflow",
+      scopes: "read:user user:email",
       queryParams: {
         prompt: "consent",
       },

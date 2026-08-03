@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { fetchRepoBundle, parseRepoSlug } from "@/lib/github/client";
+import { resolveGitHubAuth } from "@/lib/github/app-client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,9 +10,9 @@ export const dynamic = "force-dynamic";
  * GET /api/github/repo?slug=owner/name
  *
  * Returns a preview of the repo (info, README, manifest, top-level files).
- * Uses the caller's GitHub OAuth token from `profiles.github_token` when
- * available for the higher rate limit; otherwise falls back to anonymous
- * GitHub API (60 req/h shared per IP).
+ * Authenticates as the caller's GitHub App installation when that installation
+ * owns the repo (5000 req/h); any other slug — someone else's public repo —
+ * uses the anonymous GitHub API (60 req/h shared per IP).
  *
  * Auth required.
  */
@@ -40,14 +41,16 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Look up the user's stored GitHub token (optional).
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("github_token")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  const token: string | undefined = profile?.github_token ?? undefined;
+  // Authenticate as the user's App installation when it actually covers this
+  // repo. An installation token is scoped to one account and answers 404 for
+  // anything outside it — including public repos — so an arbitrary pasted slug
+  // must stay on the anonymous path rather than being handed a token that will
+  // pretend the repo doesn't exist.
+  const ghAuth = await resolveGitHubAuth(user.id, `${parsed.owner}/${parsed.name}`);
+  const token: string | undefined =
+    ghAuth.accountLogin?.toLowerCase() === parsed.owner.toLowerCase()
+      ? (ghAuth.token ?? undefined)
+      : undefined;
 
   try {
     const bundle = await fetchRepoBundle(parsed.owner, parsed.name, token);

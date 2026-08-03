@@ -21,6 +21,14 @@ export type ResolvedGitHubAuth = {
   mode: "app" | "none";
   /** Present when mode === "app". */
   installationId?: number;
+  /**
+   * The account the chosen installation belongs to. An installation token is
+   * scoped to that account's repos and returns 404 for anything else — even a
+   * public repo — so callers that may be handed an arbitrary slug must compare
+   * this against the repo owner before using the token, and fall back to
+   * anonymous access when it doesn't match.
+   */
+  accountLogin?: string;
   /** Permissions granted to the installation, e.g. { contents: "write" }. */
   permissions?: Record<string, string>;
 };
@@ -53,6 +61,7 @@ export async function resolveGitHubAuth(
     token,
     mode: "app",
     installationId: match.installation_id,
+    accountLogin: match.account_login,
     permissions: (match.permissions ?? {}) as Record<string, string>,
   };
 }

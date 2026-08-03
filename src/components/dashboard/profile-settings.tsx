@@ -474,7 +474,7 @@ export function ProfileSettings({
               </span>
             ) : (
               <a
-                href="/api/github/oauth"
+                href="/api/github/install"
                 className={cn(
                   linkButtonClass,
                   "border border-border bg-card hover:bg-accent hover:text-accent-foreground",

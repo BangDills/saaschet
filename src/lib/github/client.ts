@@ -6,7 +6,7 @@
  *   use of public repos.
  * - **Authenticated** (Bearer token): 5000 requests/hour per user. Used when
  *   the caller has signed in to our app via GitHub OAuth (Supabase stores
- *   the access token in `profiles.github_token`).
+ *   an installation access token from the GitHub App).
  *
  * We deliberately keep this tiny — no SDK dependency, just fetch.
  */
