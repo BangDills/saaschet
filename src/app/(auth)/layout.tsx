@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CeliuzLogo } from "@/components/celiuz-logo";
 
 export default function AuthLayout({
   children,
@@ -11,8 +12,10 @@ export default function AuthLayout({
         <div className="mx-auto flex max-w-6xl items-center px-4 py-3 sm:px-6 lg:px-8">
           <Link
             href="/"
-            className="text-base font-semibold tracking-tight text-foreground hover:text-primary transition-colors"
+            aria-label="Celiuz AI — beranda"
+            className="flex items-center gap-2 text-base font-semibold tracking-tight text-foreground transition-colors hover:text-primary"
           >
+            <CeliuzLogo className="size-6" decorative={false} />
             Celiuz AI
           </Link>
         </div>
