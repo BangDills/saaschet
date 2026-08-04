@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GitHubButton } from "./github-button";
+import { GoogleButton } from "./google-button";
 import { type AuthState } from "@/app/(auth)/login/actions";
 
 type AuthFormProps = {
@@ -85,7 +86,10 @@ export function AuthForm({ mode, action }: AuthFormProps) {
         </p>
       </div>
 
-      <GitHubButton />
+      <div className="space-y-2">
+        <GoogleButton />
+        <GitHubButton />
+      </div>
 
       <div className="flex items-center gap-3">
         <div className="h-px flex-1 bg-border" />
