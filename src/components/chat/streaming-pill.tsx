@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { Loader2 } from "lucide-react";
 
 export type StreamingPillProps = {
   charCount: number;
@@ -46,9 +45,12 @@ export function StreamingPill({
       aria-label={`${label} response`}
     >
       <span className="flex size-6 shrink-0 items-center justify-center">
-        <Loader2
-          className="size-4 animate-spin motion-reduce:animate-none text-muted-foreground"
+        {/* The three-bar equalizer used while the assistant writes in agent
+            mode — not the generic Loader2 spin. currentColor follows the pill
+            text color in both themes. */}
+        <span
           aria-hidden="true"
+          className="stream-loader inline-block text-foreground"
         />
       </span>
       <span className="font-medium text-foreground">{label}</span>
