@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { BrainCircuit } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export type StreamingPillProps = {
   charCount: number;
@@ -45,9 +45,9 @@ export function StreamingPill({
       aria-live="polite"
       aria-label={`${label} response`}
     >
-      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
-        <BrainCircuit
-          className="size-4 motion-safe:animate-pulse"
+      <span className="flex size-6 shrink-0 items-center justify-center">
+        <Loader2
+          className="size-4 animate-spin motion-reduce:animate-none text-muted-foreground"
           aria-hidden="true"
         />
       </span>
