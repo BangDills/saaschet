@@ -106,14 +106,14 @@ export function Topbar({
             className="absolute inset-0 bg-black/20"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute left-0 top-0 flex h-full w-64 flex-col border-r border-sidebar-border bg-sidebar shadow-lg">
+          <div className="absolute left-0 top-0 flex h-full w-80 flex-col border-r border-sidebar-border bg-sidebar shadow-lg">
             <div className="flex items-center justify-between px-4 py-3">
               <Link
                 href="/ai-chat"
-                className="flex items-center gap-2.5 text-base font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80"
+                className="flex items-center gap-2.5 text-lg font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80"
                 aria-label="Celiuz AI"
               >
-                <CeliuzLogo className="size-6" />
+                <CeliuzLogo className="size-7" />
                 <span>Celiuz AI</span>
               </Link>
               <Button
