@@ -6,6 +6,7 @@ import {
   ClipboardList,
   LayoutDashboard,
   Users,
+  BadgeCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,6 +24,7 @@ export type NavItem = {
 const sidebarNavItems: NavItem[] = [
   { label: "Dashboard Admin", href: "/dashboard", icon: LayoutDashboard, adminOnly: true },
   { label: "Kelola User", href: "/users", icon: Users, adminOnly: true },
+  { label: "Pembayaran", href: "/admin/payments", icon: BadgeCheck, adminOnly: true },
   { label: "AI Agent", href: "/ai-chat", icon: MessageSquare },
   { label: "PRD Generator", href: "/prd-generator", icon: ClipboardList },
   // "Pemakaian", not "History": the chat header already has a History

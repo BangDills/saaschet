@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   Check,
   Crown,
@@ -70,6 +71,8 @@ const WHATSAPP_PROMO_URL =
   encodeURIComponent(
     "Halo admin Celiuz AI, saya mau aktifkan Pro harian (Rp10.000). Email akun saya: ",
   );
+
+// Fallback dukungan manual — masih dipakai di bawah.
 
 function fmtResetsIn(resetsAt: number): string {
   const ms = Math.max(0, resetsAt - Date.now());
@@ -226,12 +229,22 @@ export function SubscriptionPlans({
                       {plan.tier === "pro" ? "Pro aktif 24 jam" : "Current plan"}
                     </Button>
                   ) : plan.tier === "pro" ? (
-                    <a href={WHATSAPP_PROMO_URL} target="_blank" rel="noreferrer">
-                      <Button className="w-full">
-                        <Crown className="mr-2 size-4" />
-                        Aktifkan Pro · Rp10.000
-                      </Button>
-                    </a>
+                    <>
+                      <Link href="/pro/checkout">
+                        <Button className="w-full">
+                          <Crown className="mr-2 size-4" />
+                          Aktifkan Pro · Rp10.000
+                        </Button>
+                      </Link>
+                      <a
+                        href={WHATSAPP_PROMO_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 block text-center text-xs text-muted-foreground underline-offset-2 hover:underline"
+                      >
+                        Butuh bantuan? Hubungi admin
+                      </a>
+                    </>
                   ) : (
                     <Button
                       variant="outline"
