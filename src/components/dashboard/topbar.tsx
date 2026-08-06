@@ -83,7 +83,8 @@ export function Topbar({
           >
             <Menu className="size-4" />
           </Button>
-          <h1 className="truncate text-base font-semibold tracking-tight sm:text-lg">
+          <h1 className="flex items-center gap-2 truncate text-base font-semibold tracking-tight sm:text-lg">
+            <CeliuzLogo className="size-5 shrink-0" />
             {title}
           </h1>
         </div>
