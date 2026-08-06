@@ -92,7 +92,7 @@ export function RecentChats() {
             key={chat.id}
             type="button"
             onClick={() => openChat(chat.id)}
-            className="group flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-left text-[13px] text-sidebar-foreground transition-colors hover:bg-muted"
+            className="group flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-left text-sm text-sidebar-foreground transition-colors hover:bg-muted"
             title={chat.title}
           >
             <MessageSquare className="size-[15px] shrink-0 text-muted-foreground" />
