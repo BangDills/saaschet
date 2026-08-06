@@ -46,24 +46,24 @@ export function MobileUserPanel({
         type="button"
         onClick={() => setOpen(true)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2.5 border-t border-sidebar-border px-4 py-3 text-left transition-colors hover:bg-muted"
+        className="flex w-full items-center gap-3 border-t border-sidebar-border px-4 py-3.5 text-left transition-colors hover:bg-muted"
       >
         {avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={avatarUrl}
             alt=""
-            className="h-9 w-9 shrink-0 rounded-full object-cover"
+            className="h-10 w-10 shrink-0 rounded-full object-cover"
           />
         ) : (
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
             {initials || "U"}
           </div>
         )}
         <div className="min-w-0 flex-1 leading-tight">
-          <p className="truncate text-[13px] font-medium">{displayName}</p>
+          <p className="truncate text-sm font-medium">{displayName}</p>
           {email && (
-            <p className="truncate text-[11px] text-muted-foreground">{email}</p>
+            <p className="truncate text-xs text-muted-foreground">{email}</p>
           )}
         </div>
         <ChevronRight className="size-4 shrink-0 text-muted-foreground" />

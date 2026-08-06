@@ -313,7 +313,7 @@ export function ProjectsList({ initialProjects }: ProjectsListProps) {
                 <div
                   key={project.id}
                   className={cn(
-                    "relative flex min-h-9 items-center gap-1 rounded-lg px-1 text-sm transition-colors",
+                    "relative flex min-h-10 items-center gap-1 rounded-lg px-1 text-sm transition-colors",
                     isActive
                       ? "bg-accent text-accent-foreground"
                       : "hover:bg-muted",
